@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>thIAguinho Soluções - Acesso ao Sistema</title>
+    <title>thIAguinho Hub - Gateway de Acesso</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -12,78 +12,17 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <style>
-        body {
-            background-color: #0f172a;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            color: #fff;
-            overflow: hidden;
-        }
-        
-        /* Fundo Animado e Elegante */
-        .bg-animated {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
-            z-index: 1;
-        }
-        
-        .login-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 20px;
-            padding: 50px 40px;
-            width: 100%;
-            max-width: 450px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            position: relative;
-            z-index: 2;
-        }
-
-        .form-control {
-            background-color: #0f172a !important;
-            border: 1px solid #334155 !important;
-            color: #fff !important;
-            padding: 15px;
-            border-radius: 10px;
-            font-size: 1.1rem;
-        }
-
-        .form-control:focus {
-            border-color: #0dcaf0 !important;
-            box-shadow: 0 0 0 0.25rem rgba(13,202,240,0.15);
-        }
-
-        .input-group-text {
-            background-color: #0f172a;
-            border: 1px solid #334155;
-            border-right: none;
-            color: #0dcaf0;
-        }
+        body { background-color: #050505; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; color: #fff; overflow: hidden; }
+        .bg-animated { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at top left, #1e293b 0%, #050505 100%); z-index: 1; }
+        .login-card { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 60px 50px; width: 100%; max-width: 480px; box-shadow: 0 30px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1); position: relative; z-index: 2; }
+        .form-control { background-color: rgba(0,0,0,0.5) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; color: #fff !important; padding: 16px; border-radius: 12px; font-size: 1.1rem; transition: all 0.3s ease; }
+        .form-control:focus { border-color: #0dcaf0 !important; box-shadow: 0 0 0 4px rgba(13, 202, 240, 0.1); background-color: rgba(0,0,0,0.8) !important; }
+        .input-group-text { background-color: rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-right: none; color: #0dcaf0; border-radius: 12px 0 0 12px; }
         .form-control { border-left: none; }
-
-        .btn-primary {
-            background-color: #0dcaf0;
-            border: none;
-            font-weight: bold;
-            padding: 15px;
-            border-radius: 10px;
-            font-size: 1.2rem;
-            color: #000;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary:hover {
-            background-color: #0baccc;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(13,202,240,0.2);
-        }
-
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1055; }
+        .btn-primary { background: linear-gradient(135deg, #0dcaf0 0%, #0891b2 100%); border: none; font-weight: 800; padding: 16px; border-radius: 12px; font-size: 1.2rem; color: #000; letter-spacing: 1px; transition: all 0.3s ease; }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(13, 202, 240, 0.3); }
+        .toast-container { position: fixed; top: 30px; right: 30px; z-index: 9999; }
+        .brand-icon { font-size: 4rem; background: -webkit-linear-gradient(#0dcaf0, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(13, 202, 240, 0.5)); }
     </style>
 </head>
 <body>
@@ -92,41 +31,33 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <div class="login-card text-center">
-        <i class="bi bi-fingerprint display-1" style="color: #0dcaf0; filter: drop-shadow(0 0 10px rgba(13,202,240,0.3));"></i>
-        <h2 class="fw-bold mt-3 mb-1 tracking-wide">THIAGUINHO HUB</h2>
-        <p class="text-white-50 mb-5 small text-uppercase" style="letter-spacing: 2px;">Soluções Inteligentes B2B</p>
+        <i class="bi bi-fingerprint brand-icon mb-2"></i>
+        <h2 class="fw-bold mt-2 mb-1" style="letter-spacing: 2px;">THIAGUINHO HUB</h2>
+        <p class="text-white-50 mb-5 small text-uppercase" style="letter-spacing: 3px;">SaaS Enterprise Architecture</p>
         
         <form onsubmit="realizarLoginUniversal(event)">
             <div class="mb-4 text-start">
-                <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Usuário / Identificação</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Credencial de Acesso</label>
+                <div class="input-group shadow-sm">
+                    <span class="input-group-text"><i class="bi bi-person-bounding-box"></i></span>
                     <input type="text" class="form-control" id="loginUser" required placeholder="Digite seu usuário">
                 </div>
             </div>
-            
             <div class="mb-5 text-start">
                 <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Chave de Segurança</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                <div class="input-group shadow-sm">
+                    <span class="input-group-text"><i class="bi bi-shield-lock-fill"></i></span>
                     <input type="password" class="form-control" id="loginPass" required placeholder="••••••••">
                 </div>
             </div>
-            
-            <button type="submit" class="btn btn-primary w-100 shadow" id="btnAcesso">
-                ENTRAR NO SISTEMA
-            </button>
+            <button type="submit" class="btn btn-primary w-100 shadow" id="btnAcesso">AUTENTICAR SISTEMA</button>
         </form>
-        
-        <div class="mt-5 pt-4 border-top border-secondary">
-            <small class="text-white-50 fw-bold">Powered by <span class="text-info">thIAguinho Soluções</span> &copy; 2026</small>
+        <div class="mt-5 pt-4 border-top border-secondary" style="opacity: 0.3;">
+            <small class="text-white fw-bold">Plataforma Global thIAguinho.Digital &copy; 2026</small>
         </div>
     </div>
 
     <script>
-        // =====================================================================
-        // CONFIGURAÇÃO DO FIREBASE
-        // =====================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
             authDomain: "hub-thiaguinho.firebaseapp.com",
@@ -135,107 +66,76 @@
             messagingSenderId: "453508098543",
             appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
         };
-        
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
 
-        // Sistema de Mensagens (Toast)
         function showToast(msg, isError = true) {
             const bg = isError ? 'bg-danger' : 'bg-success';
             const t = document.createElement('div');
-            t.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded" role="alert"><div class="d-flex"><div class="toast-body fw-bold fs-6">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
+            t.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-4"><div class="d-flex"><div class="toast-body fw-bold fs-6">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
             document.getElementById('toastContainer').appendChild(t.firstChild);
             setTimeout(() => { if(document.getElementById('toastContainer').firstChild) document.getElementById('toastContainer').firstChild.remove() }, 4000);
         }
 
-        // =====================================================================
-        // LÓGICA DE ROTEAMENTO DO HUB UNIVERSAL
-        // =====================================================================
         async function realizarLoginUniversal(e) {
             e.preventDefault();
             const usr = document.getElementById('loginUser').value.trim();
             const pwd = document.getElementById('loginPass').value.trim();
             const btn = document.getElementById('btnAcesso');
-            
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Autenticando...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processando...';
             btn.disabled = true;
 
             try {
-                // 1. VERIFICAÇÃO DO SUPER ADMIN
                 if (usr === 'thiaguinho' && pwd === 'master2026') {
                     sessionStorage.setItem('thiaguinho_master', 'true');
                     window.location.href = 'superadmin.html';
                     return;
                 }
 
-                // 2. VERIFICAÇÃO DOS CLIENTES / TENANTS
-                const tenantSnap = await db.collection('oficinas').where('usuario', '==', usr).get();
-                
+                const tenantSnap = await db.collection('tenants').where('usuario', '==', usr).get();
                 if (!tenantSnap.empty) {
                     const doc = tenantSnap.docs[0];
                     const dados = doc.data();
-                    
-                    if (dados.senha !== pwd) { 
-                        showToast('Senha incorreta. Tente novamente.'); 
-                    }
-                    else if (dados.status === 'Bloqueado') { 
-                        showToast('Licença suspensa. Entre em contato com a thIAguinho Soluções.'); 
-                    }
+                    if (dados.senha !== pwd) { showToast('Credenciais inválidas.'); }
+                    else if (dados.status === 'Bloqueado') { showToast('Sua licença está suspensa.'); }
                     else {
                         sessionStorage.setItem('t_id', doc.id);
                         sessionStorage.setItem('t_nome', dados.nomeFantasia);
                         sessionStorage.setItem('t_nicho', dados.nicho);
                         sessionStorage.setItem('t_role', 'admin');
+                        sessionStorage.setItem('f_nome', 'Gestor Admin'); // Para a linha do tempo
                         sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {}));
-                        
-                        // Gravando as chaves do Cloudinary na memória (Configuradas no SuperAdmin)
                         sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : '');
                         sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : '');
-                        
                         window.location.href = 'painel.html'; 
                     }
-                } 
-                else {
-                    // 3. VERIFICAÇÃO DE FUNCIONÁRIOS DA EQUIPE
+                } else {
                     const funcSnap = await db.collection('funcionarios').where('usuario', '==', usr).get();
-                    
                     if (!funcSnap.empty) {
                         const docF = funcSnap.docs[0];
                         const dadosF = docF.data();
-                        
-                        if (dadosF.senha !== pwd) { 
-                            showToast('Senha incorreta.'); 
-                        }
+                        if (dadosF.senha !== pwd) { showToast('Credenciais inválidas.'); }
                         else {
-                            const ofcMae = await db.collection('oficinas').doc(dadosF.tenantId).get();
-                            if(!ofcMae.exists || ofcMae.data().status === 'Bloqueado') {
-                                showToast('A Licença desta empresa encontra-se suspensa.');
+                            const empresaMae = await db.collection('tenants').doc(dadosF.tenantId).get();
+                            if(!empresaMae.exists || empresaMae.data().status === 'Bloqueado') {
+                                showToast('A matriz desta empresa está com a licença suspensa.');
                             } else {
                                 sessionStorage.setItem('t_id', dadosF.tenantId);
-                                sessionStorage.setItem('t_nome', ofcMae.data().nomeFantasia);
-                                sessionStorage.setItem('t_nicho', ofcMae.data().nicho);
+                                sessionStorage.setItem('t_nome', empresaMae.data().nomeFantasia);
+                                sessionStorage.setItem('t_nicho', empresaMae.data().nicho);
                                 sessionStorage.setItem('f_id', docF.id); 
-                                sessionStorage.setItem('f_nome', dadosF.nome);
+                                sessionStorage.setItem('f_nome', dadosF.nome); // NOME EXATO PARA O LOG
                                 sessionStorage.setItem('t_role', 'equipe');
-                                
-                                // O funcionário herda as chaves de imagem da empresa mãe
-                                sessionStorage.setItem('t_cloudName', (ofcMae.data().apiKeys && ofcMae.data().apiKeys.cloudinaryName) ? ofcMae.data().apiKeys.cloudinaryName : '');
-                                sessionStorage.setItem('t_cloudPreset', (ofcMae.data().apiKeys && ofcMae.data().apiKeys.cloudinaryPreset) ? ofcMae.data().apiKeys.cloudinaryPreset : '');
-                                
+                                sessionStorage.setItem('t_mods', JSON.stringify(empresaMae.data().modulos || {}));
+                                sessionStorage.setItem('t_cloudName', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryName) ? empresaMae.data().apiKeys.cloudinaryName : '');
+                                sessionStorage.setItem('t_cloudPreset', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryPreset) ? empresaMae.data().apiKeys.cloudinaryPreset : '');
                                 window.location.href = 'painel.html';
                             }
                         }
-                    } else {
-                        showToast('Usuário não localizado em nossos servidores.');
-                    }
+                    } else { showToast('Entidade não localizada.'); }
                 }
-            } catch (err) {
-                console.error(err);
-                showToast('Falha de conexão com a Nuvem. Tente novamente.');
-            }
-            
-            btn.innerHTML = 'ENTRAR NO SISTEMA';
-            btn.disabled = false;
+            } catch (err) { showToast('Falha na conexão.'); console.log(err); }
+            btn.innerHTML = 'AUTENTICAR SISTEMA'; btn.disabled = false;
         }
     </script>
 </body>
