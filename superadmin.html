@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>thIAguinho.Digital - SaaS Master Control</title>
+    <title>thIAguinho.Digital - Master Hub</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -12,8 +12,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <style>
-        :root { --bs-accent: #3b82f6; --bs-accent-hover: #2563eb; --bg-darker: #020617; --bg-card: #0f172a; --border-color: #1e293b; }
-        body { font-family: 'Inter', system-ui, sans-serif; background-color: var(--bg-darker); color: #f8f9fa; min-height: 100vh; }
+        :root { --bs-accent: #3b82f6; --bg-darker: #020617; --bg-card: #0f172a; --border-color: #1e293b; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-darker); color: #f8f9fa; min-height: 100vh; }
         ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: var(--bg-darker); } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: var(--bs-accent); }
         .navbar { background-color: rgba(15, 23, 42, 0.95) !important; backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-color); }
         .nav-pills .nav-link { color: #94a3b8; padding: 12px 24px; border-radius: 12px; font-weight: 600; }
@@ -52,7 +52,8 @@
         <div class="container-fluid mt-5 px-4 pb-5 flex-grow-1">
             <ul class="nav nav-pills mb-5 d-inline-flex bg-card p-2 rounded-4 border border-secondary" id="pills-tab">
                 <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tabClientes"><i class="bi bi-buildings me-2"></i> Tenants (Empresas)</button></li>
-                <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabImportacao"><i class="bi bi-database-down me-2"></i> Engenharia de Dados (Migração)</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabFinanceiro"><i class="bi bi-bank me-2"></i> Financeiro SaaS</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabImportacao"><i class="bi bi-database-down me-2"></i> Engenharia de Dados</button></li>
             </ul>
 
             <div class="tab-content" id="pills-tabContent">
@@ -61,6 +62,7 @@
                     <div class="row g-4 mb-5">
                         <div class="col-md-4"><div class="card p-4 h-100 border-0" style="background: linear-gradient(135deg, #1e3a8a, #0f172a);"><h6 class="text-primary text-uppercase fw-bold mb-3">Total de Tenants</h6><h1 class="display-3 fw-bold text-white mb-0" id="kpiTotal">0</h1></div></div>
                         <div class="col-md-4"><div class="card p-4 h-100 border-0" style="background: linear-gradient(135deg, #14532d, #0f172a);"><h6 class="text-success text-uppercase fw-bold mb-3">Empresas Ativas</h6><h1 class="display-3 fw-bold text-white mb-0" id="kpiAtivos">0</h1></div></div>
+                        <div class="col-md-4"><div class="card p-4 h-100 border-0" style="background: linear-gradient(135deg, #7f1d1d, #0f172a);"><h6 class="text-danger text-uppercase fw-bold mb-3">Licenças Bloqueadas</h6><h1 class="display-3 fw-bold text-white mb-0" id="kpiBloqueados">0</h1></div></div>
                     </div>
 
                     <div class="card shadow-lg">
@@ -82,6 +84,42 @@
                     </div>
                 </div>
 
+                <div class="tab-pane fade" id="tabFinanceiro">
+                    <div class="row g-4 mb-5">
+                        <div class="col-md-6">
+                            <div class="card p-5 border-0 border-start border-success border-5 position-relative overflow-hidden">
+                                <h6 class="text-success text-uppercase fw-bold mb-3">Receitas (Mensalidades SaaS)</h6>
+                                <h1 class="display-4 fw-bold text-white mb-0" id="saasReceitas">R$ 0,00</h1>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card p-5 border-0 border-start border-danger border-5 position-relative overflow-hidden">
+                                <h6 class="text-danger text-uppercase fw-bold mb-3">Despesas (APIs, Servidor)</h6>
+                                <h1 class="display-4 fw-bold text-white mb-0" id="saasDespesas">R$ 0,00</h1>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card border-0 shadow-lg">
+                        <div class="card-header d-flex justify-content-between align-items-center py-4">
+                            <div>
+                                <h4 class="mb-1 text-white fw-bold"><i class="bi bi-cash-stack text-success me-2"></i>Fluxo de Caixa Master</h4>
+                                <p class="mb-0 text-white-50 small">Controle de pagamentos dos seus clientes.</p>
+                            </div>
+                            <button class="btn btn-success shadow-sm py-2 px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#modalSaasFin">
+                                <i class="bi bi-plus-lg me-2"></i> REGISTRAR MOVIMENTO
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead><tr><th class="ps-4">Data</th><th>Natureza</th><th>Descrição</th><th>Valor</th><th class="text-end pe-4">Ação</th></tr></thead>
+                                    <tbody id="tabelaSaasFin"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="tab-pane fade" id="tabImportacao">
                     <div class="card p-5">
                         <h4 class="text-white fw-bold mb-4"><i class="bi bi-database-gear text-primary me-2"></i> Importação Estrutural de Dados</h4>
@@ -93,9 +131,10 @@
                             <div class="col-md-6">
                                 <label class="text-white-50 mb-2">2. Tabela de Destino</label>
                                 <select class="form-select" id="importColecao">
-                                    <option value="clientes_base">Clientes (CRM)</option>
-                                    <option value="estoque_base">Estoque / Produtos</option>
-                                    <option value="ordens_servico">Histórico de O.S. / Prontuários</option>
+                                    <option value="clientes">Base de Clientes (CRM)</option>
+                                    <option value="estoque">Base de Produtos (Estoque)</option>
+                                    <option value="prontuarios">Prontuários / O.S. Antigas</option>
+                                    <option value="conhecimento_ia">Base de Conhecimento da I.A.</option>
                                 </select>
                             </div>
                             <div class="col-12">
@@ -130,61 +169,81 @@
                             <div class="col-md-3"><label class="form-label text-white-50 fw-bold">WhatsApp</label><input type="text" class="form-control" id="tntTel" required></div>
                             
                             <div class="col-md-8">
-                                <label class="form-label text-primary fw-bold">Motor Principal (Nicho)</label>
+                                <label class="form-label text-primary fw-bold">Motor Principal (Nicho de Atuação da Empresa)</label>
                                 <select class="form-select border-primary text-white fw-bold" id="tntNicho" required style="background: rgba(59, 130, 246, 0.1) !important;">
-                                    <option value="" disabled selected>Defina a arquitetura base...</option>
+                                    <option value="" disabled selected>Selecione o nicho. Isso mudará completamente a interface do painel do cliente...</option>
                                     <optgroup label="Automotivo & Manutenção">
-                                        <option value="oficina_carros">Oficina / Auto Center (Chevron/Hotcar)</option>
+                                        <option value="oficina_carros">Oficina / Auto Center (Veículos, Placas, Peças)</option>
                                         <option value="oficina_motos">Oficina de Motos (Evolution)</option>
                                         <option value="retifica">Retífica de Motores (Ronaldinho)</option>
                                     </optgroup>
-                                    <optgroup label="Saúde & Odonto">
-                                        <option value="odontologia">Clínica Odontológica (Dent-IA)</option>
+                                    <optgroup label="Saúde">
+                                        <option value="odontologia">Clínica Odontológica (Pacientes, Prontuários Dentários)</option>
                                     </optgroup>
-                                    <optgroup label="Varejo & E-commerce">
+                                    <optgroup label="Educação">
+                                        <option value="educacao_kumon">Escola / Método de Ensino (Alunos, Kumon, Estágios)</option>
+                                    </optgroup>
+                                    <optgroup label="Varejo, E-commerce & Serviços">
                                         <option value="distribuidora">Distribuidora B2B (MS Distribuidora)</option>
                                         <option value="barbearia">Barbearia / Salão (Habibi)</option>
+                                        <option value="marcenaria">Marcenaria (Projetos 3D, Móveis)</option>
                                     </optgroup>
-                                    <optgroup label="Diversos">
-                                        <option value="educacao">Escola (Kumon)</option>
-                                        <option value="construtora">Construtora / Imobiliária</option>
-                                        <option value="marcenaria">Marcenaria (Projetos 3D)</option>
-                                        <option value="eventos_corridas">Gestão de Corridas (LeRunnersRP)</option>
-                                        <option value="generico">ERP Genérico Corporativo</option>
-                                        <option value="games">Jogos / Plataforma Game</option>
+                                    <optgroup label="Aplicações Especiais">
+                                        <option value="eventos_corridas">Gestão de Corridas (LeRunnersRP, Inscrições)</option>
+                                        <option value="games">Plataforma de Jogos (Admin Game)</option>
+                                        <option value="gerador_cv">Gerador de Currículos (PDF)</option>
+                                        <option value="generico">ERP Genérico Administrativo</option>
                                     </optgroup>
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label text-white-50 fw-bold">Status</label>
+                                <label class="form-label text-white-50 fw-bold">Status da Licença</label>
                                 <select class="form-select" id="tntStatus"><option value="Ativo" class="text-success">Ativo</option><option value="Bloqueado" class="text-danger">Bloqueado</option></select>
                             </div>
                         </div>
 
                         <h5 class="text-white fw-bold border-bottom border-secondary pb-3 mb-4">Credenciais & Integrações de API Isoladas</h5>
                         <div class="row g-4 mb-5 p-4 rounded-4" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05);">
-                            <div class="col-md-6"><label class="text-white-50 mb-2">Usuário Master (Dono)</label><input type="text" class="form-control border-warning text-warning" id="tntUser" required></div>
-                            <div class="col-md-6"><label class="text-white-50 mb-2">Senha Master</label><input type="text" class="form-control border-warning text-warning" id="tntPass" required></div>
-                            <div class="col-md-12"><label class="text-white-50 mb-2">Google Gemini API Key (I.A.)</label><input type="password" class="form-control border-success text-success font-monospace" id="tntGemini" placeholder="AIzaSy..."></div>
-                            <div class="col-md-6"><label class="text-white-50 mb-2">Cloudinary: Cloud Name (Fotos)</label><input type="text" class="form-control border-info text-info font-monospace" id="tntCloudName" placeholder="Ex: dl6gxeamz"></div>
+                            <div class="col-md-6"><label class="text-white-50 mb-2">Usuário do Dono (Admin)</label><input type="text" class="form-control border-warning text-warning" id="tntUser" required></div>
+                            <div class="col-md-6"><label class="text-white-50 mb-2">Senha do Dono</label><input type="text" class="form-control border-warning text-warning" id="tntPass" required></div>
+                            <div class="col-md-12"><label class="text-white-50 mb-2">Google Gemini API Key (Para a I.A. funcionar neste cliente)</label><input type="password" class="form-control border-success text-success font-monospace" id="tntGemini" placeholder="AIzaSy..."></div>
+                            <div class="col-md-6"><label class="text-white-50 mb-2">Cloudinary: Cloud Name (Banco de Fotos)</label><input type="text" class="form-control border-info text-info font-monospace" id="tntCloudName" placeholder="Ex: dl6gxeamz"></div>
                             <div class="col-md-6"><label class="text-white-50 mb-2">Cloudinary: Upload Preset</label><input type="text" class="form-control border-info text-info font-monospace" id="tntCloudPreset" placeholder="Ex: ml_default"></div>
                         </div>
 
-                        <h5 class="text-white fw-bold border-bottom border-secondary pb-3 mb-4">Plataforma Modular (Habilite os Plugins Contratados)</h5>
+                        <h5 class="text-white fw-bold border-bottom border-secondary pb-3 mb-4">Plataforma Modular (Habilite as Ferramentas)</h5>
                         <div class="module-grid mb-5">
-                            <div class="module-card"><div><h6 class="text-white mb-0">Financeiro Pro</h6></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modFin"></div></div>
-                            <div class="module-card"><div><h6 class="text-white mb-0">CRM Clientes</h6></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modCrm"></div></div>
-                            <div class="module-card"><div><h6 class="text-white mb-0">Estoque</h6></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modEstoque"></div></div>
-                            <div class="module-card" style="border-color: rgba(59, 130, 246, 0.5);"><div><h6 class="text-primary mb-0">Kanban O.S.</h6></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modOs"></div></div>
-                            <div class="module-card" style="border-color: rgba(59, 130, 246, 0.5);"><div><h6 class="text-primary mb-0">Prontuário</h6></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modProntuario"></div></div>
-                            <div class="module-card" style="border-color: rgba(16, 185, 129, 0.5);"><div><h6 class="text-success mb-0">Chat CRM</h6></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modChat"></div></div>
-                            <div class="module-card" style="border-color: rgba(245, 158, 11, 0.5);"><div><h6 class="text-warning mb-0">I.A. RAG</h6></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modIa"></div></div>
+                            <div class="module-card"><div><h6 class="text-white mb-0">Financeiro Pro</h6><small class="text-white-50">Despesas/Receitas</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modFin"></div></div>
+                            <div class="module-card"><div><h6 class="text-white mb-0">CRM Base</h6><small class="text-white-50">Clientes/Pacientes</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modCrm"></div></div>
+                            <div class="module-card"><div><h6 class="text-white mb-0">Estoque / Peças</h6><small class="text-white-50">Produtos B2B/B2C</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modEstoque"></div></div>
+                            <div class="module-card" style="border-color: rgba(59, 130, 246, 0.5);"><div><h6 class="text-primary mb-0">Kanban Atendimento</h6><small class="text-white-50">O.S. / Prontuários</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modKanban"></div></div>
+                            <div class="module-card" style="border-color: rgba(16, 185, 129, 0.5);"><div><h6 class="text-success mb-0">Chat CRM Web</h6><small class="text-white-50">Link de Aprovação</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modChat"></div></div>
+                            <div class="module-card" style="border-color: rgba(245, 158, 11, 0.5);"><div><h6 class="text-warning mb-0">I.A. Cérebro RAG</h6><small class="text-white-50">Treinamento de Dados</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modIa"></div></div>
                         </div>
 
                         <div class="mt-4 pt-4 border-top border-secondary d-flex justify-content-end gap-3">
                             <button type="button" class="btn btn-outline-light px-4 py-3 fw-bold" data-bs-dismiss="modal">CANCELAR</button>
-                            <button type="submit" class="btn btn-primary px-5 py-3 fw-bold shadow-lg" id="btnSalvarTenant">IMPLANTAR ARQUITETURA</button>
+                            <button type="submit" class="btn btn-primary px-5 py-3 fw-bold shadow-lg" id="btnSalvarTenant">SALVAR CONFIGURAÇÃO</button>
                         </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalSaasFin" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-secondary bg-dark">
+                <div class="modal-header border-secondary"><h5 class="modal-title text-white fw-bold"><i class="bi bi-wallet2 me-2 text-success"></i> Movimentação Financeira</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4">
+                    <form onsubmit="salvarSaasFin(event)">
+                        <div class="mb-3"><label class="text-white-50">Tipo</label><select class="form-select bg-black text-white" id="sfTipo"><option value="Entrada" class="text-success">Receita (Assinatura)</option><option value="Saida" class="text-danger">Despesa (Custos)</option></select></div>
+                        <div class="mb-3"><label class="text-white-50">Descrição</label><input type="text" class="form-control bg-black" id="sfDesc" required></div>
+                        <div class="row g-3 mb-4">
+                            <div class="col-6"><label class="text-white-50">Valor (R$)</label><input type="number" step="0.01" class="form-control bg-black text-white fw-bold" id="sfValor" required></div>
+                            <div class="col-6"><label class="text-white-50">Data</label><input type="date" class="form-control bg-black" id="sfData" required></div>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 fw-bold">SALVAR MOVIMENTO</button>
                     </form>
                 </div>
             </div>
@@ -193,6 +252,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // FIREBASE DA THIAGUINHO SOLUÇÕES
         const firebaseConfig = {
             apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
             authDomain: "hub-thiaguinho.firebaseapp.com",
@@ -215,23 +275,35 @@
         function sair() { sessionStorage.clear(); window.location.href='index.html'; }
 
         let dbTenants = [];
+        let dbSaaSFinanceiro = [];
 
+        // VERIFICA SE É O THIAGO (MASTER) MESMO
         document.addEventListener('DOMContentLoaded', () => {
             if (sessionStorage.getItem('thiaguinho_master') !== 'true') { window.location.replace('index.html'); return; }
             
-            // CORREÇÃO CRÍTICA: Voltando para 'oficinas' para puxar a Chevron e os legados.
+            // COLEÇÃO 'oficinas' PARA MANTER A CHEVRON VIVA E PUXAR TODOS OS NICHOS
             db.collection('oficinas').onSnapshot(snap => {
                 dbTenants = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderizarTenants();
                 popularSelectImportacao();
             });
+
+            db.collection('saas_financeiro').onSnapshot(snap => {
+                dbSaaSFinanceiro = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderizarFinanceiroSaaS();
+            });
+            
+            const dataInput = document.getElementById('sfData');
+            if (dataInput) dataInput.value = new Date().toISOString().split('T')[0];
         });
 
+        // ---------------- GESTÃO DE TENANTS (CLIENTES) ----------------
         function renderizarTenants() {
             document.getElementById('kpiTotal').innerText = dbTenants.length;
             document.getElementById('kpiAtivos').innerText = dbTenants.filter(t => t.status === 'Ativo').length;
+            document.getElementById('kpiBloqueados').innerText = dbTenants.filter(t => t.status === 'Bloqueado').length;
             const tbody = document.getElementById('tabelaTenants');
-            if (dbTenants.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5">Nenhum Ecossistema Criado.</td></tr>'; return; }
+            if (dbTenants.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-white-50">Nenhum Ecossistema Criado.</td></tr>'; return; }
 
             tbody.innerHTML = dbTenants.map(t => {
                 const bStatus = t.status === 'Ativo' ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-danger">Bloqueado</span>';
@@ -271,8 +343,7 @@
                     if(m.financeiro) document.getElementById('modFin').checked = true;
                     if(m.crm) document.getElementById('modCrm').checked = true;
                     if(m.estoque) document.getElementById('modEstoque').checked = true;
-                    if(m.os) document.getElementById('modOs').checked = true;
-                    if(m.prontuario) document.getElementById('modProntuario').checked = true;
+                    if(m.kanban) document.getElementById('modKanban').checked = true;
                     if(m.chat) document.getElementById('modChat').checked = true;
                     if(m.ia) document.getElementById('modIa').checked = true;
                 }
@@ -302,8 +373,7 @@
                     financeiro: document.getElementById('modFin').checked,
                     crm: document.getElementById('modCrm').checked,
                     estoque: document.getElementById('modEstoque').checked,
-                    os: document.getElementById('modOs').checked,
-                    prontuario: document.getElementById('modProntuario').checked,
+                    kanban: document.getElementById('modKanban').checked,
                     chat: document.getElementById('modChat').checked,
                     ia: document.getElementById('modIa').checked
                 },
@@ -317,11 +387,33 @@
             } catch (err) { showToast("Erro: " + err.message, "error"); }
         }
 
+        // ---------------- FINANCEIRO MASTER ----------------
+        function renderizarFinanceiroSaaS() {
+            let ent = 0, sai = 0;
+            const tbody = document.getElementById('tabelaSaasFin');
+            if (dbSaaSFinanceiro.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Nenhuma movimentação.</td></tr>'; } 
+            else {
+                const ord = dbSaaSFinanceiro.sort((a, b) => new Date(b.data) - new Date(a.data));
+                tbody.innerHTML = ord.map(f => {
+                    if (f.tipo === 'Entrada') ent += f.valor; else sai += f.valor;
+                    const cor = f.tipo === 'Entrada' ? 'text-success' : 'text-danger';
+                    return `<tr><td class="ps-4 text-white-50">${new Date(f.data).toLocaleDateString('pt-BR')}</td><td class="${cor} fw-bold">${f.tipo}</td><td class="text-white">${f.desc}</td><td class="${cor} fw-bold">R$ ${f.valor.toFixed(2)}</td><td class="text-end pe-4"><button class="btn btn-sm btn-outline-danger border-0" onclick="deletarRegistroSaaS('${f.id}')"><i class="bi bi-trash"></i></button></td></tr>`;
+                }).join('');
+            }
+            document.getElementById('saasReceitas').innerText = `R$ ${ent.toFixed(2)}`; document.getElementById('saasDespesas').innerText = `R$ ${sai.toFixed(2)}`;
+        }
+        async function salvarSaasFin(e) {
+            e.preventDefault();
+            const payload = { tipo: document.getElementById('sfTipo').value, desc: document.getElementById('sfDesc').value, valor: parseFloat(document.getElementById('sfValor').value), data: document.getElementById('sfData').value, registradoEm: new Date().toISOString() };
+            await db.collection('saas_financeiro').add(payload); showToast("Contabilizado."); e.target.reset(); bootstrap.Modal.getInstance(document.getElementById('modalSaasFin')).hide();
+        }
+        async function deletarRegistroSaaS(id) { if(confirm("Apagar registro?")) { await db.collection('saas_financeiro').doc(id).delete(); showToast("Removido."); } }
+
+        // ---------------- IMPORTAÇÃO DE DADOS (ARRASTE E COLE JSON) ----------------
         function popularSelectImportacao() {
             document.getElementById('importTenantDestino').innerHTML = '<option value="">Selecione a empresa...</option>' + 
                 dbTenants.map(t => `<option value="${t.id}">${t.nomeFantasia} (${t.nicho})</option>`).join('');
         }
-
         async function injetarDadosJSON() {
             const tenantId = document.getElementById('importTenantDestino').value;
             const colecao = document.getElementById('importColecao').value;
@@ -333,7 +425,7 @@
                 if(!Array.isArray(dados)) throw new Error("O JSON precisa ser um Array [...]");
                 const batch = db.batch();
                 dados.forEach(item => {
-                    item.tenantId = tenantId;
+                    item.tenantId = tenantId; // O CÓDIGO CRÍTICO PARA NÃO MISTURAR EMPRESAS
                     item.importadoEm = new Date().toISOString();
                     batch.set(db.collection(colecao).doc(), item);
                 });
