@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>thIAguinho Soluções - Master Hub SaaS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        :root { 
+            --bs-accent: #0dcaf0; 
+            --bg-darker: #0f172a;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+        }
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background-color: var(--bg-darker); 
+            color: #f8f9fa; 
+            min-height: 100vh; 
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; } 
+        ::-webkit-scrollbar-track { background: var(--bg-darker); } 
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; } 
+        ::-webkit-scrollbar-thumb:hover { background: var(--bs-accent); }
+        
+        .navbar { 
+            background-color: var(--bg-card) !important; 
+            border-bottom: 3px solid var(--bs-accent); 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        .nav-pills .nav-link { color: #adb5bd; transition: all 0.3s ease; }
+        .nav-pills .nav-link:hover { color: #fff; background: rgba(13, 202, 240, 0.1); }
+        .nav-pills .nav-link.active { 
+            background-color: var(--bs-accent); 
+            color: #000; 
+            font-weight: 800; 
+        }
+        .card { 
+            background-color: var(--bg-card); 
+            border: 1px solid var(--border-color); 
+            border-radius: 16px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .card-header { 
+            background-color: rgba(13, 202, 240, 0.05); 
+            border-bottom: 1px solid var(--border-color); 
+            border-radius: 16px 16px 0 0 !important;
+            padding: 20px;
+        }
+        .table { color: #f8f9fa; margin-bottom: 0; }
+        .table th { 
+            background-color: var(--bg-darker) !important; 
+            color: var(--bs-accent) !important; 
+            border-bottom: 2px solid var(--border-color) !important; 
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+        .table td { border-color: var(--border-color); vertical-align: middle; padding: 15px 10px; }
+        .table tbody tr:hover td { background-color: rgba(255,255,255,0.02) !important; }
+        
+        .form-control, .form-select { 
+            background-color: var(--bg-darker) !important; 
+            color: #fff !important; 
+            border: 1px solid var(--border-color) !important; 
+            padding: 12px 15px;
+            border-radius: 8px;
+        }
+        .form-control:focus, .form-select:focus { 
+            border-color: var(--bs-accent) !important; 
+            box-shadow: 0 0 0 0.25rem rgba(13,202,240,0.15); 
+        }
+        .btn { padding: 10px 20px; font-weight: 600; border-radius: 8px; transition: all 0.3s; }
+        .btn-info { background-color: var(--bs-accent); border-color: var(--bs-accent); color: #000; }
+        .btn-info:hover { background-color: #0baccc; border-color: #0baccc; transform: translateY(-2px); }
+        
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1060; }
+        
+        .module-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .module-card {
+            background: var(--bg-darker);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s;
+        }
+        .module-card:hover { border-color: var(--bs-accent); }
+    </style>
+</head>
+<body>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div id="loginScreen" class="d-flex flex-column justify-content-center align-items-center vh-100 position-relative" style="background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);">
+        <div class="card p-5 shadow-lg" style="width: 100%; max-width: 450px; position: relative; z-index: 2;">
+            <div class="text-center mb-5">
+                <i class="bi bi-hexagon-fill display-1" style="color: var(--bs-accent); filter: drop-shadow(0 0 15px rgba(13,202,240,0.4));"></i>
+                <h2 class="mt-3 fw-bold text-white tracking-wide">HUB MASTER</h2>
+                <p class="text-white-50 small text-uppercase letter-spacing-2">thIAguinho Soluções Digitais</p>
+            </div>
+            <form onsubmit="fazerLogin(event)">
+                <div class="mb-4">
+                    <label class="form-label text-white-50 small fw-bold">Credencial de Arquiteto</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-dark border-secondary text-info"><i class="bi bi-person-bounding-box"></i></span>
+                        <input type="text" class="form-control" id="lUser" required placeholder="Digite seu usuário master">
+                    </div>
+                </div>
+                <div class="mb-5">
+                    <label class="form-label text-white-50 small fw-bold">Chave de Segurança</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-dark border-secondary text-info"><i class="bi bi-shield-lock-fill"></i></span>
+                        <input type="password" class="form-control" id="lPass" required placeholder="••••••••••••">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-info w-100 py-3 fs-5 shadow-lg">INICIALIZAR SISTEMA</button>
+            </form>
+        </div>
+        
+        <div class="position-absolute top-0 start-0 w-100 h-100 overflow-hidden" style="z-index: 1; pointer-events: none; opacity: 0.05;">
+            <i class="bi bi-code-slash position-absolute" style="font-size: 20rem; top: -5%; left: -5%;"></i>
+            <i class="bi bi-database-fill position-absolute" style="font-size: 30rem; bottom: -10%; right: -10%;"></i>
+        </div>
+    </div>
+
+    <div id="adminPanel" class="d-flex flex-column h-100" style="display: none !important;">
+        
+        <nav class="navbar navbar-expand-lg py-3 sticky-top">
+            <div class="container-fluid px-4">
+                <a class="navbar-brand d-flex align-items-center gap-3" href="#">
+                    <div class="bg-info text-dark rounded d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px;">
+                        <i class="bi bi-lightning-charge-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <h4 class="mb-0 fw-bold text-white" style="letter-spacing: 1px;">thIAguinho Soluções</h4>
+                        <span class="badge bg-dark border border-info text-info fw-normal">Control Center SaaS</span>
+                    </div>
+                </a>
+                <button class="btn btn-outline-danger px-4 shadow-sm" onclick="sair()">
+                    <i class="bi bi-power me-2"></i> Trancar Sistema
+                </button>
+            </div>
+        </nav>
+
+        <div class="container-fluid mt-4 px-4 pb-5 flex-grow-1">
+            
+            <ul class="nav nav-pills mb-5 p-2 bg-card rounded-pill d-inline-flex border border-secondary shadow-sm" id="pills-tab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active rounded-pill px-5" data-bs-toggle="pill" data-bs-target="#tabClientes" type="button">
+                        <i class="bi bi-buildings-fill me-2"></i>Inquilinos (Clientes SaaS)
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link rounded-pill px-5" data-bs-toggle="pill" data-bs-target="#tabFinanceiro" type="button">
+                        <i class="bi bi-bank me-2"></i>Financeiro Global
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="pills-tabContent">
+                
+                <div class="tab-pane fade show active" id="tabClientes" role="tabpanel">
+                    
+                    <div class="row g-4 mb-5">
+                        <div class="col-md-4">
+                            <div class="card p-4 text-center border-0 h-100 position-relative overflow-hidden">
+                                <i class="bi bi-briefcase-fill position-absolute text-white opacity-25" style="font-size: 8rem; right: -20px; bottom: -30px;"></i>
+                                <h6 class="text-white-50 text-uppercase fw-bold letter-spacing-1 mb-3">Total de Contratos</h6>
+                                <h1 class="display-3 fw-bold text-info mb-0" id="kpiTotal">0</h1>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card p-4 text-center border-0 h-100 border-bottom border-success border-4 position-relative overflow-hidden">
+                                <i class="bi bi-check-circle-fill position-absolute text-success opacity-25" style="font-size: 8rem; right: -20px; bottom: -30px;"></i>
+                                <h6 class="text-white-50 text-uppercase fw-bold letter-spacing-1 mb-3">Licenças Ativas</h6>
+                                <h1 class="display-3 fw-bold text-success mb-0" id="kpiAtivos">0</h1>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card p-4 text-center border-0 h-100 border-bottom border-danger border-4 position-relative overflow-hidden">
+                                <i class="bi bi-slash-circle-fill position-absolute text-danger opacity-25" style="font-size: 8rem; right: -20px; bottom: -30px;"></i>
+                                <h6 class="text-white-50 text-uppercase fw-bold letter-spacing-1 mb-3">Inadimplentes / Bloqueados</h6>
+                                <h1 class="display-3 fw-bold text-danger mb-0" id="kpiBloqueados">0</h1>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0">
+                        <div class="card-header d-flex justify-content-between align-items-center py-4">
+                            <div>
+                                <h4 class="mb-1 text-white fw-bold"><i class="bi bi-diagram-3-fill text-info me-2"></i>Gestão de Tenants</h4>
+                                <p class="mb-0 text-white-50 small">Administre os clientes, seus nichos e permissões modulares.</p>
+                            </div>
+                            <button class="btn btn-info shadow-lg py-2 px-4" onclick="abrirModalTenant('add')">
+                                <i class="bi bi-plus-lg me-2"></i> CRIAR NOVO TENANT
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th class="ps-4">Identificador</th>
+                                            <th>Cliente / Organização</th>
+                                            <th>Nicho / Segmento</th>
+                                            <th>Acesso Master</th>
+                                            <th>Módulos Premium Habilitados</th>
+                                            <th>Status</th>
+                                            <th class="text-end pe-4">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaTenants">
+                                        </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="tabFinanceiro" role="tabpanel">
+                    
+                    <div class="row g-4 mb-5">
+                        <div class="col-md-6">
+                            <div class="card p-5 border-0 border-start border-success border-5 position-relative overflow-hidden">
+                                <i class="bi bi-graph-up-arrow position-absolute text-success opacity-10" style="font-size: 10rem; right: -10px; bottom: -20px;"></i>
+                                <h6 class="text-success text-uppercase fw-bold letter-spacing-2 mb-3">Receitas SaaS (Assinaturas)</h6>
+                                <h1 class="display-4 fw-bold text-white mb-0" id="saasReceitas">R$ 0,00</h1>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card p-5 border-0 border-start border-danger border-5 position-relative overflow-hidden">
+                                <i class="bi bi-graph-down-arrow position-absolute text-danger opacity-10" style="font-size: 10rem; right: -10px; bottom: -20px;"></i>
+                                <h6 class="text-danger text-uppercase fw-bold letter-spacing-2 mb-3">Custos Operacionais (Servidor/API)</h6>
+                                <h1 class="display-4 fw-bold text-white mb-0" id="saasDespesas">R$ 0,00</h1>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0">
+                        <div class="card-header d-flex justify-content-between align-items-center py-4">
+                            <div>
+                                <h4 class="mb-1 text-white fw-bold"><i class="bi bi-cash-stack text-success me-2"></i>Caixa Global da thIAguinho Soluções</h4>
+                                <p class="mb-0 text-white-50 small">Histórico de pagamentos dos clientes e gastos de infraestrutura.</p>
+                            </div>
+                            <button class="btn btn-outline-success shadow-sm py-2 px-4" data-bs-toggle="modal" data-bs-target="#modalSaasFin">
+                                <i class="bi bi-plus-lg me-2"></i> REGISTRAR MOVIMENTO
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th class="ps-4">Data do Lançamento</th>
+                                            <th>Natureza</th>
+                                            <th>Histórico / Cliente</th>
+                                            <th>Valor</th>
+                                            <th class="text-end pe-4">Ação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaSaasFin">
+                                        </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalTenant" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content shadow-lg border-info" style="border-width: 2px;">
+                <div class="modal-header bg-dark py-4 border-bottom border-info">
+                    <div>
+                        <h4 class="modal-title fw-bold text-info mb-1"><i class="bi bi-cpu-fill me-2"></i> Configuração do Tenant (Inquilino)</h4>
+                        <p class="mb-0 text-white-50 small">Defina o perfil corporativo e os superpoderes que esta empresa terá na plataforma.</p>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 p-md-5 bg-dark">
+                    <form id="formTenant" onsubmit="salvarTenant(event)">
+                        <input type="hidden" id="tntId">
+                        
+                        <h5 class="text-white fw-bold mb-4 border-bottom border-secondary pb-2"><i class="bi bi-building text-info me-2"></i> 1. Perfil Corporativo</h5>
+                        <div class="row g-4 mb-5">
+                            <div class="col-md-6">
+                                <label class="form-label text-white-50 fw-bold">Nome Fantasia / Razão Social</label>
+                                <input type="text" class="form-control form-control-lg bg-black" id="tntNome" required placeholder="Ex: Evolution Motos">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-white-50 fw-bold">Responsável</label>
+                                <input type="text" class="form-control form-control-lg bg-black" id="tntResp" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-white-50 fw-bold">WhatsApp</label>
+                                <input type="text" class="form-control form-control-lg bg-black" id="tntTel" required>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label text-info fw-bold">Nicho de Atuação (Dita o layout do painel base)</label>
+                                <select class="form-select form-select-lg bg-black border-info text-info fw-bold" id="tntNicho" required>
+                                    <option value="" disabled selected>Selecione o segmento...</option>
+                                    <option value="oficina_motos">Oficina de Motos</option>
+                                    <option value="oficina_carros">Oficina de Carros (Auto Center)</option>
+                                    <option value="odontologia">Clínica Odontológica (Dentista)</option>
+                                    <option value="educacao_kumon">Educação / Escola (Kumon)</option>
+                                    <option value="marcenaria">Marcenaria Inteligente (Projetos 3D)</option>
+                                    <option value="barbearia">Barbearia / Salão de Beleza</option>
+                                    <option value="eventos_corridas">Inscrições Eventos / Corridas</option>
+                                    <option value="loja_online">Loja Online / E-commerce</option>
+                                    <option value="distribuidora">Distribuidora B2B</option>
+                                    <option value="generico">Sistema ERP Genérico</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-white-50 fw-bold">Status da Assinatura</label>
+                                <select class="form-select form-select-lg bg-black" id="tntStatus">
+                                    <option value="Ativo" class="text-success fw-bold">Em Dia (Acesso Liberado)</option>
+                                    <option value="Bloqueado" class="text-danger fw-bold">Inadimplente (Acesso Bloqueado)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <h5 class="text-white fw-bold mb-4 border-bottom border-secondary pb-2"><i class="bi bi-shield-lock text-warning me-2"></i> 2. Acesso Master e Integrações I.A.</h5>
+                        <div class="row g-4 mb-5 p-4 bg-black rounded-4 border border-secondary">
+                            <div class="col-md-4">
+                                <label class="form-label text-white-50">Usuário do Dono/Gestor</label>
+                                <input type="text" class="form-control text-warning fw-bold border-warning" id="tntUser" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-white-50">Senha do Dono</label>
+                                <input type="text" class="form-control text-warning fw-bold border-warning" id="tntPass" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-white-50">API Key (Google Gemini)</label>
+                                <input type="password" class="form-control text-success fw-bold border-success" id="tntGemini" placeholder="AIzaSy...">
+                                <small class="text-white-50 mt-1 d-block">Isolada e encriptada para este tenant.</small>
+                            </div>
+                        </div>
+
+                        <h5 class="text-white fw-bold mb-4 border-bottom border-secondary pb-2"><i class="bi bi-grid-1x2 text-success me-2"></i> 3. Arquitetura Modular (Ative as funcionalidades contratadas)</h5>
+                        <div class="module-grid mb-5">
+                            
+                            <div class="module-card">
+                                <div>
+                                    <h6 class="mb-0 text-white">Financeiro ERP</h6>
+                                    <small class="text-white-50">Contas a Pagar/Receber</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modFin"></div>
+                            </div>
+                            <div class="module-card">
+                                <div>
+                                    <h6 class="mb-0 text-white">Estoque Dinâmico</h6>
+                                    <small class="text-white-50">Produtos e NFs</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modEstoque"></div>
+                            </div>
+                            <div class="module-card">
+                                <div>
+                                    <h6 class="mb-0 text-white">Agenda Inteligente</h6>
+                                    <small class="text-white-50">Marcação de Horários</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modAgenda"></div>
+                            </div>
+
+                            <div class="module-card" style="border-color: rgba(13, 202, 240, 0.5);">
+                                <div>
+                                    <h6 class="mb-0 text-info">Chat CRM Omnichannel</h6>
+                                    <small class="text-white-50">Atendimento Direto</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modChat"></div>
+                            </div>
+                            <div class="module-card" style="border-color: rgba(255, 193, 7, 0.5);">
+                                <div>
+                                    <h6 class="mb-0 text-warning">RAG Auditor I.A.</h6>
+                                    <small class="text-white-50">Análise de Dados Interna</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modIa"></div>
+                            </div>
+
+                            <div class="module-card">
+                                <div>
+                                    <h6 class="mb-0 text-white">Kanban O.S.</h6>
+                                    <small class="text-white-50">Fluxo de Oficinas</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modOs"></div>
+                            </div>
+                            <div class="module-card">
+                                <div>
+                                    <h6 class="mb-0 text-white">Prontuário Cloud</h6>
+                                    <small class="text-white-50">Odonto / Saúde</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modProntuario"></div>
+                            </div>
+                            <div class="module-card">
+                                <div>
+                                    <h6 class="mb-0 text-white">Motor 3D</h6>
+                                    <small class="text-white-50">Cortes Marcenaria</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modMotor3d"></div>
+                            </div>
+                            <div class="module-card">
+                                <div>
+                                    <h6 class="mb-0 text-white">Listas Inteligentes</h6>
+                                    <small class="text-white-50">Compras / Supermercado</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modListas"></div>
+                            </div>
+                            <div class="module-card">
+                                <div>
+                                    <h6 class="mb-0 text-white">App Inscrições</h6>
+                                    <small class="text-white-50">Corridas / Eventos</small>
+                                </div>
+                                <div class="form-check form-switch fs-4"><input class="form-check-input" type="checkbox" id="modEventos"></div>
+                            </div>
+
+                        </div>
+
+                        <div class="mt-4 pt-4 border-top border-secondary d-flex justify-content-end gap-3">
+                            <button type="button" class="btn btn-outline-light px-5 py-3" data-bs-dismiss="modal">CANCELAR</button>
+                            <button type="submit" class="btn btn-info px-5 py-3 fw-bold fs-5 shadow-lg" id="btnSalvarTenant">
+                                <i class="bi bi-cloud-upload-fill me-2"></i> DEPLOY DA CONFIGURAÇÃO
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalSaasFin" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-secondary">
+                <div class="modal-header bg-dark border-bottom border-secondary">
+                    <h5 class="modal-title text-white fw-bold"><i class="bi bi-wallet2 me-2 text-success"></i> Fluxo de Caixa Master</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-dark">
+                    <form onsubmit="salvarSaasFin(event)">
+                        <div class="mb-4">
+                            <label class="form-label text-white-50">Natureza da Operação</label>
+                            <select class="form-select form-select-lg bg-black fw-bold" id="sfTipo">
+                                <option value="Entrada" class="text-success">Receita (Assinatura de Cliente)</option>
+                                <option value="Saida" class="text-danger">Despesa (Hospedagem, API, Servidor)</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label text-white-50">Descrição / Referência</label>
+                            <input type="text" class="form-control bg-black" id="sfDesc" required placeholder="Ex: Mensalidade Evolution Motos">
+                        </div>
+                        <div class="row g-4 mb-5">
+                            <div class="col-md-6">
+                                <label class="form-label text-white-50">Valor (R$)</label>
+                                <input type="number" step="0.01" class="form-control form-control-lg bg-black text-white fw-bold" id="sfValor" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-white-50">Data de Compensação</label>
+                                <input type="date" class="form-control form-control-lg bg-black" id="sfData" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 py-3 fw-bold fs-5 shadow-lg">CONTABILIZAR</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // =====================================================================
+        // ENGINE PRINCIPAL - thIAguinho Soluções (Master Hub)
+        // Arquitetura elaborada para escalabilidade infinita de tenants.
+        // =====================================================================
+
+        // 1. Inicialização do Banco de Dados Central (O Cérebro)
+        // ATENÇÃO: Substitua pelas chaves reais do seu projeto Firebase "thIAguinho Solucoes"
+        const firebaseConfig = { 
+            apiKey: "AIzaSyAq6gEJlUGuzJmrNf-lVY0cqdOWsJ9xNeo", // Substituir depois pelas novas chaves se criar um projeto novo
+            authDomain: "evolution-179d0.firebaseapp.com", 
+            projectId: "evolution-179d0", 
+            storageBucket: "evolution-179d0.firebasestorage.app", 
+            messagingSenderId: "349908951188", 
+            appId: "1:349908951188:web:457832d484a83f45b19481" 
+        };
+        
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.firestore();
+
+        // 2. Sistema de Notificações Profissional
+        function showToast(msg, type = 'info') {
+            const id = 'toast_' + Date.now();
+            const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+            const textClass = type === 'info' ? 'text-dark' : 'text-white';
+            
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <div id="${id}" class="toast align-items-center ${textClass} ${bgClass} border-0 show shadow-lg p-3 mt-2 rounded-4" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body fw-bold fs-6">${msg}</div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('toastContainer').appendChild(div.firstChild);
+            setTimeout(() => { const el = document.getElementById(id); if (el) el.remove(); }, 4000);
+        }
+
+        // 3. Controle de Sessão (Hardcoded por segurança master local)
+        // Em produção pesada, poderíamos usar Firebase Auth, mas para o "Painel do Dono da Agência", a sessão em sessionStorage é eficiente.
+        if (sessionStorage.getItem('thiaguinho_master') === 'true') {
+            document.getElementById('loginScreen').style.setProperty('display', 'none', 'important');
+            document.getElementById('adminPanel').style.setProperty('display', 'flex', 'important');
+            iniciarLeituraDeDados();
+        }
+
+        function fazerLogin(e) {
+            e.preventDefault();
+            const usr = document.getElementById('lUser').value.trim();
+            const pwd = document.getElementById('lPass').value.trim();
+            
+            // Credenciais de Arquiteto (Altere para o que desejar)
+            if (usr === 'thiaguinho' && pwd === 'master2026') {
+                sessionStorage.setItem('thiaguinho_master', 'true');
+                showToast("Acesso Master Concedido. Bem-vindo Arquiteto.", "success");
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showToast("Acesso Negado. Intrusão detectada.", "error");
+            }
+        }
+
+        function sair() {
+            sessionStorage.removeItem('thiaguinho_master');
+            window.location.reload();
+        }
+
+        // =====================================================================
+        // REGRAS DE NEGÓCIO: GESTÃO MULTITENANT
+        // =====================================================================
+        
+        let dbTenants = [];
+        let dbSaaSFinanceiro = [];
+
+        // Escuta Ativa (Real-time) das Coleções Master
+        function iniciarLeituraDeDados() {
+            // Escuta os Tenants (Clientes da Agência)
+            db.collection('oficinas').onSnapshot(snap => {
+                dbTenants = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderizarTenants();
+            }, error => showToast("Erro ao ler base de clientes: " + error.message, "error"));
+
+            // Escuta o Financeiro do SaaS
+            db.collection('saas_financeiro').onSnapshot(snap => {
+                dbSaaSFinanceiro = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderizarFinanceiroSaaS();
+            }, error => showToast("Erro ao ler caixa: " + error.message, "error"));
+        }
+
+        // Mapeamento visual de nichos para ícones bonitos
+        const iconesNicho = {
+            'oficina_motos': '<i class="bi bi-scooter text-warning"></i>',
+            'oficina_carros': '<i class="bi bi-car-front-fill text-primary"></i>',
+            'odontologia': '<i class="bi bi-bandaid-fill text-info"></i>',
+            'educacao_kumon': '<i class="bi bi-book-half text-success"></i>',
+            'marcenaria': '<i class="bi bi-hammer text-secondary"></i>',
+            'barbearia': '<i class="bi bi-scissors text-danger"></i>',
+            'eventos_corridas': '<i class="bi bi-trophy-fill text-warning"></i>',
+            'loja_online': '<i class="bi bi-cart-fill text-info"></i>',
+            'distribuidora': '<i class="bi bi-boxes text-primary"></i>',
+            'generico': '<i class="bi bi-pc-display text-white"></i>'
+        };
+
+        // Função de Renderização: Clientes
+        function renderizarTenants() {
+            // Atualiza KPIs
+            const total = dbTenants.length;
+            const ativos = dbTenants.filter(t => t.status === 'Ativo').length;
+            const bloq = dbTenants.filter(t => t.status === 'Bloqueado').length;
+            
+            document.getElementById('kpiTotal').innerText = total;
+            document.getElementById('kpiAtivos').innerText = ativos;
+            document.getElementById('kpiBloqueados').innerText = bloq;
+
+            // Renderiza Tabela
+            const tbody = document.getElementById('tabelaTenants');
+            if (total === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-white-50">Nenhum cliente cadastrado no Hub. O seu império começa agora.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = dbTenants.map(t => {
+                const badgeStatus = t.status === 'Ativo' ? '<span class="badge bg-success px-3 py-2">Ativo</span>' : '<span class="badge bg-danger px-3 py-2">Bloqueado</span>';
+                
+                // Mapeia os módulos ativos para exibi-los como tags visuais
+                let badgesMods = '';
+                const m = t.modulos || {};
+                if(m.financeiro) badgesMods += '<span class="badge border border-success text-success me-1 mb-1">FIN</span>';
+                if(m.chat) badgesMods += '<span class="badge border border-info text-info me-1 mb-1">CHAT</span>';
+                if(m.ia) badgesMods += '<span class="badge bg-warning text-dark me-1 mb-1"><i class="bi bi-robot"></i> RAG IA</span>';
+                if(m.agenda) badgesMods += '<span class="badge border border-secondary text-white-50 me-1 mb-1">AGD</span>';
+                if(m.estoque) badgesMods += '<span class="badge border border-secondary text-white-50 me-1 mb-1">EST</span>';
+                if(m.os) badgesMods += '<span class="badge bg-secondary text-white me-1 mb-1">OS Kanban</span>';
+                if(m.prontuario) badgesMods += '<span class="badge bg-info text-dark me-1 mb-1">Prontuário</span>';
+                if(m.motor3d) badgesMods += '<span class="badge bg-danger text-white me-1 mb-1">Motor 3D</span>';
+                if(m.listas) badgesMods += '<span class="badge bg-primary text-white me-1 mb-1">Listas</span>';
+                if(m.eventos) badgesMods += '<span class="badge border border-warning text-warning me-1 mb-1">Inscrições</span>';
+                
+                if(badgesMods === '') badgesMods = '<span class="text-white-50 small">Nenhum módulo.</span>';
+
+                const icone = iconesNicho[t.nicho] || '<i class="bi bi-building text-white-50"></i>';
+                const nichoFormatado = t.nicho ? t.nicho.replace('_', ' ').toUpperCase() : 'NÃO DEFINIDO';
+
+                return `
+                <tr>
+                    <td class="ps-4"><code class="text-white-50 bg-dark px-2 py-1 rounded border border-secondary">${t.id.substring(0,6).toUpperCase()}</code></td>
+                    <td>
+                        <strong class="text-white d-block fs-6 mb-1">${t.nomeFantasia || 'Sem Nome'}</strong>
+                        <small class="text-white-50"><i class="bi bi-person-fill"></i> ${t.responsavel || '-'} | <i class="bi bi-whatsapp"></i> ${t.telefone || '-'}</small>
+                    </td>
+                    <td><span class="d-flex align-items-center gap-2">${icone} <small class="fw-bold">${nichoFormatado}</small></span></td>
+                    <td>
+                        <div class="bg-dark d-inline-block px-2 py-1 rounded border border-secondary">
+                            <span class="text-white-50 small d-block">U: <strong class="text-warning">${t.usuario || ''}</strong></span>
+                            <span class="text-white-50 small d-block">S: <strong class="text-warning">${t.senha || ''}</strong></span>
+                        </div>
+                    </td>
+                    <td style="max-width: 250px; flex-wrap: wrap;">${badgesMods}</td>
+                    <td>${badgeStatus}</td>
+                    <td class="text-end pe-4">
+                        <button class="btn btn-sm btn-outline-info shadow-sm px-3" onclick="abrirModalTenant('edit', '${t.id}')">
+                            <i class="bi bi-sliders me-1"></i> Configurar
+                        </button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        // Lógica do Modal do Cliente (Tenant)
+        let modalTenantInstance = null;
+        
+        window.abrirModalTenant = function(mode, id = '') {
+            const form = document.getElementById('formTenant');
+            if(form) form.reset();
+            
+            // Reseta todos os checkboxes de módulos
+            document.querySelectorAll('.module-card input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+            if (mode === 'edit') {
+                const t = dbTenants.find(x => x.id === id);
+                if (t) {
+                    document.getElementById('tntId').value = t.id;
+                    document.getElementById('tntNome').value = t.nomeFantasia || '';
+                    document.getElementById('tntResp').value = t.responsavel || '';
+                    document.getElementById('tntTel').value = t.telefone || '';
+                    document.getElementById('tntNicho').value = t.nicho || 'generico';
+                    document.getElementById('tntStatus').value = t.status || 'Ativo';
+                    document.getElementById('tntUser').value = t.usuario || '';
+                    document.getElementById('tntPass').value = t.senha || '';
+                    document.getElementById('tntGemini').value = (t.apiKeys && t.apiKeys.gemini) ? t.apiKeys.gemini : '';
+
+                    // Carrega os módulos
+                    if(t.modulos) {
+                        if(t.modulos.financeiro) document.getElementById('modFin').checked = true;
+                        if(t.modulos.estoque) document.getElementById('modEstoque').checked = true;
+                        if(t.modulos.agenda) document.getElementById('modAgenda').checked = true;
+                        if(t.modulos.chat) document.getElementById('modChat').checked = true;
+                        if(t.modulos.ia) document.getElementById('modIa').checked = true;
+                        if(t.modulos.os) document.getElementById('modOs').checked = true;
+                        if(t.modulos.prontuario) document.getElementById('modProntuario').checked = true;
+                        if(t.modulos.motor3d) document.getElementById('modMotor3d').checked = true;
+                        if(t.modulos.listas) document.getElementById('modListas').checked = true;
+                        if(t.modulos.eventos) document.getElementById('modEventos').checked = true;
+                    }
+                }
+            } else {
+                document.getElementById('tntId').value = '';
+                document.getElementById('tntNicho').value = '';
+            }
+
+            if (!modalTenantInstance) {
+                modalTenantInstance = new bootstrap.Modal(document.getElementById('modalTenant'));
+            }
+            modalTenantInstance.show();
+        };
+
+        // Salvar as Configurações (Deploy do Banco de Dados)
+        async function salvarTenant(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSalvarTenant');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> SINCRONIZANDO...';
+            btn.disabled = true;
+
+            const id = document.getElementById('tntId').value;
+            
+            // Monta o Objeto Arquitetural do Cliente
+            const payload = {
+                nomeFantasia: document.getElementById('tntNome').value.trim(),
+                responsavel: document.getElementById('tntResp').value.trim(),
+                telefone: document.getElementById('tntTel').value.trim(),
+                nicho: document.getElementById('tntNicho').value,
+                status: document.getElementById('tntStatus').value,
+                usuario: document.getElementById('tntUser').value.trim(),
+                senha: document.getElementById('tntPass').value.trim(),
+                apiKeys: {
+                    gemini: document.getElementById('tntGemini').value.trim()
+                },
+                modulos: {
+                    financeiro: document.getElementById('modFin').checked,
+                    estoque: document.getElementById('modEstoque').checked,
+                    agenda: document.getElementById('modAgenda').checked,
+                    chat: document.getElementById('modChat').checked,
+                    ia: document.getElementById('modIa').checked,
+                    os: document.getElementById('modOs').checked,
+                    prontuario: document.getElementById('modProntuario').checked,
+                    motor3d: document.getElementById('modMotor3d').checked,
+                    listas: document.getElementById('modListas').checked,
+                    eventos: document.getElementById('modEventos').checked
+                },
+                atualizadoEm: new Date().toISOString()
+            };
+
+            try {
+                if (id) {
+                    await db.collection('oficinas').doc(id).update(payload); // Mantemos a collection 'oficinas' por compatibilidade com projetos legados, mas conceitualmente ela é a 'tenants'.
+                    showToast("Configurações atualizadas com sucesso!", "success");
+                } else {
+                    payload.criadoEm = new Date().toISOString();
+                    await db.collection('oficinas').add(payload);
+                    showToast("Novo cliente adicionado ao HUB!", "success");
+                }
+                modalTenantInstance.hide();
+            } catch (err) {
+                console.error(err);
+                showToast("Erro ao fazer deploy: " + err.message, "error");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // =====================================================================
+        // REGRAS DE NEGÓCIO: CAIXA DO SAAS (A GESTÃO FINANCEIRA DA SUA AGÊNCIA)
+        // =====================================================================
+
+        function renderizarFinanceiroSaaS() {
+            let totalEntradas = 0;
+            let totalSaidas = 0;
+            
+            const tbody = document.getElementById('tabelaSaasFin');
+            
+            if (dbSaaSFinanceiro.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-white-50">Caixa vazio. Inicie os faturamentos.</td></tr>';
+            } else {
+                // Ordena por data decrescente
+                const dadosOrdenados = dbSaaSFinanceiro.sort((a, b) => new Date(b.data) - new Date(a.data));
+                
+                tbody.innerHTML = dadosOrdenados.map(f => {
+                    if (f.tipo === 'Entrada') {
+                        totalEntradas += f.valor;
+                    } else {
+                        totalSaidas += f.valor;
+                    }
+                    
+                    const cor = f.tipo === 'Entrada' ? 'text-success' : 'text-danger';
+                    const icone = f.tipo === 'Entrada' ? '<i class="bi bi-arrow-up-right-circle-fill"></i>' : '<i class="bi bi-arrow-down-left-circle-fill"></i>';
+                    
+                    return `
+                    <tr>
+                        <td class="ps-4 text-white-50">${new Date(f.data).toLocaleDateString('pt-BR')}</td>
+                        <td class="${cor} fw-bold">${icone} ${f.tipo}</td>
+                        <td class="text-white">${f.desc}</td>
+                        <td class="${cor} fw-bold fs-5">R$ ${f.valor.toFixed(2).replace('.', ',')}</td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-danger border-0" onclick="deletarRegistroSaaS('${f.id}')" title="Excluir Registro">
+                                <i class="bi bi-trash-fill"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            }
+
+            // Atualiza Painéis Superiores
+            document.getElementById('saasReceitas').innerText = `R$ ${totalEntradas.toFixed(2).replace('.', ',')}`;
+            document.getElementById('saasDespesas').innerText = `R$ ${totalSaidas.toFixed(2).replace('.', ',')}`;
+        }
+
+        async function salvarSaasFin(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true;
+
+            const payload = {
+                tipo: document.getElementById('sfTipo').value,
+                desc: document.getElementById('sfDesc').value.trim(),
+                valor: parseFloat(document.getElementById('sfValor').value),
+                data: document.getElementById('sfData').value,
+                registradoEm: new Date().toISOString()
+            };
+
+            try {
+                await db.collection('saas_financeiro').add(payload);
+                showToast("Registro contabilizado no caixa geral.", "success");
+                e.target.reset();
+                
+                // Pega a instância do modal ativo e fecha
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalSaasFin'));
+                if (modal) modal.hide();
+            } catch (err) {
+                showToast("Falha ao registrar: " + err.message, "error");
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function deletarRegistroSaaS(id) {
+            if(confirm("Confirma a exclusão deste registro financeiro na sua agência? O impacto é irreversível nos relatórios.")) {
+                try {
+                    await db.collection('saas_financeiro').doc(id).delete();
+                    showToast("Registro removido.", "success");
+                } catch(e) {
+                    showToast("Erro: " + e.message, "error");
+                }
+            }
+        }
+
+        // Script complementar para definir data de hoje nos inputs tipo date
+        document.addEventListener('DOMContentLoaded', () => {
+            const dataInput = document.getElementById('sfData');
+            if (dataInput) {
+                dataInput.value = new Date().toISOString().split('T')[0];
+            }
+        });
+
+    </script>
+</body>
+</html>
