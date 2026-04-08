@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>thIAguinho Soluções - Painel do Cliente</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        :root { 
+            --bs-accent: #0dcaf0; 
+            --bg-darker: #0f172a;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+            --sidebar-width: 280px;
+        }
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background-color: var(--bg-darker); 
+            color: #f8f9fa; 
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; } 
+        ::-webkit-scrollbar-track { background: var(--bg-darker); } 
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; } 
+        
+        /* SIDEBAR (Menu Lateral Mutante) */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--bg-card);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s;
+            z-index: 1040;
+        }
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+        .nav-sidebar {
+            padding: 15px 10px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .nav-sidebar .nav-link {
+            color: #adb5bd;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+        }
+        .nav-sidebar .nav-link:hover {
+            background-color: rgba(255,255,255,0.05);
+            color: #fff;
+        }
+        .nav-sidebar .nav-link.active {
+            background-color: var(--bs-accent);
+            color: #000;
+            font-weight: 800;
+        }
+        
+        /* ÁREA DE CONTEÚDO (Onde as telas vão renderizar) */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .topbar {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .content-area {
+            padding: 30px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .card { 
+            background-color: var(--bg-card); 
+            border: 1px solid var(--border-color); 
+            border-radius: 16px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1060; }
+
+        /* Esconder Sidebar em telas pequenas */
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; height: 100vh; transform: translateX(-100%); }
+            .sidebar.show { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <i class="bi bi-hexagon-fill fs-2" style="color: var(--bs-accent);"></i>
+            <h5 class="mt-2 text-white fw-bold" id="lblEmpresa">Carregando...</h5>
+            <span class="badge bg-dark border border-secondary text-white-50" id="lblNicho">Segmento</span>
+        </div>
+        <div class="nav-sidebar d-flex flex-column" id="menuLateral">
+            </div>
+        <div class="p-3 border-top border-secondary mt-auto text-center">
+            <small class="text-white-50 d-block mb-2">Usuário: <strong class="text-info" id="lblUsuario">User</strong></small>
+            <button class="btn btn-outline-danger w-100 fw-bold" onclick="sair()">
+                <i class="bi bi-power me-2"></i> Encerrar Sessão
+            </button>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <header class="topbar">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-dark d-md-none border-secondary" onclick="document.getElementById('sidebar').classList.toggle('show')">
+                    <i class="bi bi-list fs-4"></i>
+                </button>
+                <h4 class="mb-0 fw-bold text-white" id="tituloPagina">Dashboard Geral</h4>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-success p-2"><i class="bi bi-cloud-check-fill me-1"></i> Online</span>
+            </div>
+        </header>
+
+        <main class="content-area" id="areaTelas">
+            
+            <div id="tela_dashboard" class="modulo-tela">
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <div class="card border-0 bg-info bg-opacity-10 p-4 border-start border-info border-5">
+                            <h3 class="text-info fw-bold">Bem-vindo ao seu ERP Inteligente!</h3>
+                            <p class="text-white-50 mb-0">Utilize o menu lateral para navegar pelos módulos habilitados para a sua empresa.</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="dashboard_dinamico" class="row g-4"></div>
+            </div>
+
+            </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // =====================================================================
+        // CONFIGURAÇÃO DO FIREBASE (COLE AS SUAS CHAVES AQUI)
+        // =====================================================================
+      const firebaseConfig = {
+  apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
+  authDomain: "hub-thiaguinho.firebaseapp.com",
+  projectId: "hub-thiaguinho",
+  storageBucket: "hub-thiaguinho.firebasestorage.app",
+  messagingSenderId: "453508098543",
+  appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
+};
+        
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.firestore();
+
+        // =====================================================================
+        // VALIDAÇÃO DE SEGURANÇA (VERIFICA SE ALGUÉM CAIU AQUI DE PARAQUEDAS)
+        // =====================================================================
+        const t_id = sessionStorage.getItem('t_id');
+        const t_nome = sessionStorage.getItem('t_nome');
+        const t_nicho = sessionStorage.getItem('t_nicho');
+        const t_role = sessionStorage.getItem('t_role'); // 'admin' ou 'equipe'
+        const f_nome = sessionStorage.getItem('f_nome'); // Nome do funcionário, se houver
+        const t_mods = JSON.parse(sessionStorage.getItem('t_mods') || '{}');
+
+        // Se não tiver ID do Tenant, expulsa de volta pro login
+        if (!t_id || !t_role) {
+            window.location.replace('index.html');
+        }
+
+        // =====================================================================
+        // INICIALIZAÇÃO DA INTERFACE (O ALFAIATE EM AÇÃO)
+        // =====================================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Preenche os dados básicos na tela
+            document.getElementById('lblEmpresa').innerText = t_nome;
+            document.getElementById('lblNicho').innerText = t_nicho ? t_nicho.replace('_', ' ').toUpperCase() : 'B2B';
+            document.getElementById('lblUsuario').innerText = t_role === 'admin' ? 'Gestor' : f_nome;
+
+            construirMenuMutante();
+            mostrarTela('tela_dashboard', 'Dashboard Geral');
+        });
+
+        // Função para construir o menu baseado no que o Master liberou
+        function construirMenuMutante() {
+            const menu = document.getElementById('menuLateral');
+            let htmlMenu = '';
+
+            // 1. Dashboard (Sempre visível)
+            htmlMenu += criarBotaoMenu('tela_dashboard', 'bi-grid-1x2-fill', 'Dashboard');
+
+            // 2. Módulos Core (Depende das permissões do Tenant)
+            if (t_mods.agenda) {
+                htmlMenu += criarBotaoMenu('tela_agenda', 'bi-calendar-event', 'Agenda Inteligente');
+            }
+            if (t_mods.estoque) {
+                htmlMenu += criarBotaoMenu('tela_estoque', 'bi-box-seam-fill', 'Estoque & NFs');
+            }
+
+            // 3. Módulos Específicos por Nicho (A Mágica do Alfaiate)
+            if (t_nicho === 'oficina_motos' || t_nicho === 'oficina_carros' || t_mods.os) {
+                htmlMenu += criarBotaoMenu('tela_os', 'bi-kanban', 'Pátio O.S. (Kanban)');
+            }
+            if (t_nicho === 'odontologia' || t_mods.prontuario) {
+                htmlMenu += criarBotaoMenu('tela_prontuario', 'bi-clipboard2-pulse', 'Prontuários');
+            }
+            if (t_nicho === 'marcenaria' || t_mods.motor3d) {
+                htmlMenu += criarBotaoMenu('tela_motor3d', 'bi-box', 'Motor 3D & Projetos');
+            }
+            if (t_mods.listas) {
+                htmlMenu += criarBotaoMenu('tela_listas', 'bi-card-checklist', 'Listas Inteligentes');
+            }
+            if (t_mods.eventos) {
+                htmlMenu += criarBotaoMenu('tela_eventos', 'bi-trophy-fill', 'Eventos / Inscrições');
+            }
+
+            // 4. Módulos Premium & IA
+            // O Financeiro geralmente só é visível para o 'admin', escondemos da 'equipe'
+            if (t_mods.financeiro && t_role === 'admin') {
+                htmlMenu += criarBotaoMenu('tela_financeiro', 'bi-bank', 'Financeiro', 'text-success');
+            }
+            if (t_mods.chat) {
+                htmlMenu += criarBotaoMenu('tela_chat', 'bi-chat-left-dots-fill', 'CRM Chat Omnichannel', 'text-info');
+            }
+            if (t_mods.ia) {
+                htmlMenu += criarBotaoMenu('tela_ia', 'bi-robot', 'RAG Auditor I.A.', 'text-warning');
+            }
+
+            // Clientes e Funcionários (Geralmente todos têm, mas podemos refinar)
+            htmlMenu += criarBotaoMenu('tela_clientes', 'bi-people-fill', 'Base de Clientes');
+            if (t_role === 'admin') {
+                htmlMenu += criarBotaoMenu('tela_equipe', 'bi-person-badge', 'Minha Equipe');
+            }
+
+            menu.innerHTML = htmlMenu;
+        }
+
+        function criarBotaoMenu(idTela, icone, texto, corExtra = '') {
+            return `
+                <a href="#" class="nav-link" id="btn_${idTela}" onclick="mostrarTela('${idTela}', '${texto}')">
+                    <i class="bi ${icone} fs-5 ${corExtra}"></i> <span>${texto}</span>
+                </a>
+            `;
+        }
+
+        // Sistema de navegação SPA (Single Page Application)
+        function mostrarTela(idTela, titulo) {
+            // Esconde todas as telas
+            document.querySelectorAll('.modulo-tela').forEach(tela => {
+                tela.style.display = 'none';
+            });
+            
+            // Remove a classe active de todos os botões do menu
+            document.querySelectorAll('.nav-sidebar .nav-link').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Tenta mostrar a tela solicitada (se ela já existir no HTML)
+            const tela = document.getElementById(idTela);
+            if (tela) {
+                tela.style.display = 'block';
+            } else {
+                // Se a tela ainda não foi programada, mostra um aviso amigável
+                document.getElementById('areaTelas').innerHTML += `
+                    <div id="${idTela}" class="modulo-tela text-center py-5 mt-5">
+                        <i class="bi bi-cone-striped display-1 text-warning mb-3"></i>
+                        <h3 class="text-white">Módulo em Construção</h3>
+                        <p class="text-white-50">A tela de <b>${titulo}</b> está sendo costurada pelo nosso Alfaiate Digital.</p>
+                    </div>
+                `;
+            }
+
+            // Ativa o botão clicado
+            const btn = document.getElementById('btn_' + idTela);
+            if (btn) btn.classList.add('active');
+
+            // Atualiza o Topbar
+            document.getElementById('tituloPagina').innerText = titulo;
+
+            // Em telas mobile, esconde a sidebar após o clique
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('show');
+            }
+        }
+
+        function sair() {
+            sessionStorage.clear();
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
