@@ -326,7 +326,7 @@
             if (sessionStorage.getItem('thiaguinho_master') !== 'true') { window.location.replace('index.html'); return; }
             
             // COLEÇÃO DEFINITIVA E CORRETA: tenants
-            db.collection('tenants').onSnapshot(snap => {
+            db.collection('oficinas').onSnapshot(snap => {
                 dbTenants = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderizarTenants();
                 popularSelectsTenants();
@@ -417,15 +417,15 @@
             };
 
             try {
-                if (id) { await db.collection('tenants').doc(id).update(payload); showToast("Arquitetura e módulos atualizados na nuvem.", "success"); } 
-                else { payload.criadoEm = new Date().toISOString(); await db.collection('tenants').add(payload); showToast("Implantação de novo cliente concluída!", "success"); }
+                if (id) { await db.collection('oficinas').doc(id).update(payload); showToast("Arquitetura e módulos atualizados na nuvem.", "success"); } 
+                else { payload.criadoEm = new Date().toISOString(); await db.collection('oficinas').add(payload); showToast("Implantação de novo cliente concluída!", "success"); }
                 modalTenantInstance.hide();
             } catch (err) { showToast("Erro no banco: " + err.message, "error"); }
         }
 
         async function apagarTenant(id) {
             if(confirm("🚨 DESTRUIÇÃO DE SISTEMA: Tem certeza que deseja apagar a empresa inteira e cortar o acesso deles à plataforma?")) {
-                try { await db.collection('tenants').doc(id).delete(); showToast("Ambiente expurgado com sucesso.", "success"); } catch(e) { showToast("Falha: " + e.message, "error"); }
+                try { await db.collection('oficinas').doc(id).delete(); showToast("Ambiente expurgado com sucesso.", "success"); } catch(e) { showToast("Falha: " + e.message, "error"); }
             }
         }
 

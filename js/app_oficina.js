@@ -25,7 +25,7 @@ app.user_nome = sessionStorage.getItem('f_nome');
 app.user_comissao = parseFloat(sessionStorage.getItem('f_comissao') || 0);
 app.t_mods = JSON.parse(sessionStorage.getItem('t_mods') || '{}');
 
-if (!app.t_id) window.location.replace('index.html');
+if (!app.t_id && !sessionStorage.getItem('thiaguinho_master')) window.location.replace('index.html');
 
 app.bancoOSCompleto = [];
 app.bancoEstoque = [];
@@ -44,19 +44,22 @@ app.chatActiveClienteId = null;
 // 2. INICIALIZAÇÃO DA INTERFACE (RBAC)
 // =====================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('lblEmpresa').innerText = app.t_nome;
-    document.getElementById('lblUsuario').innerText = app.user_nome;
+    const lblEmpresa = document.getElementById('lblEmpresa');
+    if (lblEmpresa) lblEmpresa.innerText = app.t_nome;
+    const lblUsuario = document.getElementById('lblUsuario');
+    if (lblUsuario) lblUsuario.innerText = app.user_nome;
     
     const style = document.createElement('style');
+    const lblComissao = document.getElementById('lblComissaoUser');
     if (app.t_role === 'equipe') {
         style.innerHTML = '.admin-only, .gestao-only { display: none !important; } .mecanico-only { display: flex !important;}';
-        document.getElementById('lblComissaoUser').innerText = `Mecânico - Produção: ${app.user_comissao}%`;
+        if (lblComissao) lblComissao.innerText = `Mecânico - Produção: ${app.user_comissao}%`;
     } else if (app.t_role === 'gerente') {
         style.innerHTML = '.admin-only, .mecanico-only { display: none !important; } .gestao-only { display: block !important;} tr .gestao-only { display: table-cell !important; }';
-        document.getElementById('lblComissaoUser').innerText = `Gestor / Vendedor`;
+        if (lblComissao) lblComissao.innerText = `Gestor / Vendedor`;
     } else {
         style.innerHTML = '.mecanico-only { display: none !important;}';
-        document.getElementById('lblComissaoUser').innerText = `Admin Proprietário`;
+        if (lblComissao) lblComissao.innerText = `Admin Proprietário`;
     }
     document.head.appendChild(style);
 
@@ -969,7 +972,7 @@ app.processarArquivoParaIA = function(event) {
 app.chamarGemini = async function(prompt) {
     if(!app.API_KEY_GEMINI) { app.showToast("Chave da API do Google Gemini não encontrada.", "error"); return "Erro: Google Gemini API Key ausente."; }
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
         const data = await response.json(); if(data.error) throw new Error(data.error.message); return data.candidates[0].content.parts[0].text;
     } catch(e) { console.error("Erro Gemini:", e); return "Falha de conexão com a IA."; }
 };
