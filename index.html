@@ -125,16 +125,16 @@
 
     <script>
         // =====================================================================
-        // CONFIGURAÇÃO DO FIREBASE (COLE AS SUAS CHAVES AQUI)
+        // CONFIGURAÇÃO DO FIREBASE
         // =====================================================================
-       const firebaseConfig = {
-  apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
-  authDomain: "hub-thiaguinho.firebaseapp.com",
-  projectId: "hub-thiaguinho",
-  storageBucket: "hub-thiaguinho.firebasestorage.app",
-  messagingSenderId: "453508098543",
-  appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
+            authDomain: "hub-thiaguinho.firebaseapp.com",
+            projectId: "hub-thiaguinho",
+            storageBucket: "hub-thiaguinho.firebasestorage.app",
+            messagingSenderId: "453508098543",
+            appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
+        };
         
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
@@ -161,14 +161,14 @@
             btn.disabled = true;
 
             try {
-                // 1. VERIFICAÇÃO DO SUPER ADMIN (Você, o Alfaiate)
+                // 1. VERIFICAÇÃO DO SUPER ADMIN
                 if (usr === 'thiaguinho' && pwd === 'master2026') {
                     sessionStorage.setItem('thiaguinho_master', 'true');
                     window.location.href = 'superadmin.html';
                     return;
                 }
 
-                // 2. VERIFICAÇÃO DOS CLIENTES / TENANTS (Donos das Oficinas, Consultórios, etc)
+                // 2. VERIFICAÇÃO DOS CLIENTES / TENANTS
                 const tenantSnap = await db.collection('oficinas').where('usuario', '==', usr).get();
                 
                 if (!tenantSnap.empty) {
@@ -182,19 +182,21 @@
                         showToast('Licença suspensa. Entre em contato com a thIAguinho Soluções.'); 
                     }
                     else {
-                        // Salva os dados do cliente no navegador para carregar os módulos certos
-                        sessionStorage.setItem('t_id', doc.id); // Tenant ID
+                        sessionStorage.setItem('t_id', doc.id);
                         sessionStorage.setItem('t_nome', dados.nomeFantasia);
-                        sessionStorage.setItem('t_nicho', dados.nicho); // oficina_motos, odontologia, etc
-                        sessionStorage.setItem('t_role', 'admin'); // Papel de gestor
-                        sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {})); // Módulos comprados
+                        sessionStorage.setItem('t_nicho', dados.nicho);
+                        sessionStorage.setItem('t_role', 'admin');
+                        sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {}));
                         
-                        // Redireciona para o Painel Dinâmico que criaremos a seguir
+                        // Gravando as chaves do Cloudinary na memória (Configuradas no SuperAdmin)
+                        sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : '');
+                        sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : '');
+                        
                         window.location.href = 'painel.html'; 
                     }
                 } 
                 else {
-                    // 3. VERIFICAÇÃO DE FUNCIONÁRIOS (Mecânicos, Secretárias, etc)
+                    // 3. VERIFICAÇÃO DE FUNCIONÁRIOS DA EQUIPE
                     const funcSnap = await db.collection('funcionarios').where('usuario', '==', usr).get();
                     
                     if (!funcSnap.empty) {
@@ -205,7 +207,6 @@
                             showToast('Senha incorreta.'); 
                         }
                         else {
-                            // Verifica se a empresa mãe deste funcionário não está bloqueada
                             const ofcMae = await db.collection('oficinas').doc(dadosF.tenantId).get();
                             if(!ofcMae.exists || ofcMae.data().status === 'Bloqueado') {
                                 showToast('A Licença desta empresa encontra-se suspensa.');
@@ -213,11 +214,14 @@
                                 sessionStorage.setItem('t_id', dadosF.tenantId);
                                 sessionStorage.setItem('t_nome', ofcMae.data().nomeFantasia);
                                 sessionStorage.setItem('t_nicho', ofcMae.data().nicho);
-                                sessionStorage.setItem('f_id', docF.id); // Funcionario ID
+                                sessionStorage.setItem('f_id', docF.id); 
                                 sessionStorage.setItem('f_nome', dadosF.nome);
-                                sessionStorage.setItem('t_role', 'equipe'); // Papel de funcionário
+                                sessionStorage.setItem('t_role', 'equipe');
                                 
-                                // Redireciona para o Painel Dinâmico
+                                // O funcionário herda as chaves de imagem da empresa mãe
+                                sessionStorage.setItem('t_cloudName', (ofcMae.data().apiKeys && ofcMae.data().apiKeys.cloudinaryName) ? ofcMae.data().apiKeys.cloudinaryName : '');
+                                sessionStorage.setItem('t_cloudPreset', (ofcMae.data().apiKeys && ofcMae.data().apiKeys.cloudinaryPreset) ? ofcMae.data().apiKeys.cloudinaryPreset : '');
+                                
                                 window.location.href = 'painel.html';
                             }
                         }
