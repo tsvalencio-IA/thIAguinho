@@ -39,7 +39,7 @@ app.osParaFaturar = null;
 app.chatListener = null;
 
 // =====================================================================
-// 2. INICIALIZAÇÃO DA INTERFACE (BOOT)
+// 2. INICIALIZAÇÃO DA INTERFACE E MENU DINÂMICO
 // =====================================================================
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('lblEmpresa').innerText = app.t_nome;
@@ -53,9 +53,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('lblComissaoUser').innerText = `Comissão Fixa: ${app.user_comissao}%`;
     }
 
-    app.mostrarTela('tela_dashboard', 'Inteligência Automotiva', document.querySelector('.nav-sidebar .nav-link'));
+    // 1. Constrói o menu baseado nos Módulos Contratados via SaaS
+    app.construirMenuLateral();
     
-    // Liga os motores do banco de dados
+    // 2. Inicia na tela de Dashboard
+    const linkInicio = document.querySelector('.nav-sidebar .nav-link');
+    if(linkInicio) app.mostrarTela('tela_dashboard', 'Inteligência Automotiva', linkInicio);
+    
+    // 3. Liga os motores do banco de dados
     app.iniciarEscutaOS();
     app.iniciarEscutaCrm();
     app.iniciarEscutaEstoque();
@@ -68,6 +73,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     app.configurarCloudinary();
 });
+
+// =====================================================================
+// 2.5 CONSTRUTOR DINÂMICO DE MENU (BASEADO NOS MÓDULOS DO CLIENTE)
+// =====================================================================
+app.construirMenuLateral = function() {
+    const menu = document.getElementById('menuLateral');
+    if (!menu) return;
+
+    // Fallback: Se não tiver módulos gravados (cliente antigo/teste), mostra tudo
+    const hasMods = Object.keys(app.t_mods).length > 0;
+    const showKanban = !hasMods || app.t_mods.kanban;
+    const showCrm = !hasMods || app.t_mods.crm;
+    const showEstoque = !hasMods || app.t_mods.estoque || app.t_mods.estoqueInterno;
+    const showFin = !hasMods || app.t_mods.financeiro;
+    const showIa = !hasMods || app.t_mods.ia;
+
+    let html = `<a class="nav-link active" onclick="app.mostrarTela('tela_dashboard', 'Inteligência Automotiva', this)"><i class="bi bi-grid-1x2"></i> Início da Central</a>`;
+    
+    if (showKanban) {
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_os', 'Pátio Ativo', this)"><i class="bi bi-kanban text-info"></i> Pátio Kanban</a>`;
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_arquivo', 'Arquivo Histórico', this); app.renderizarTabelaArquivo();"><i class="bi bi-archive text-warning"></i> Arquivo Morto</a>`;
+    }
+    
+    if (showCrm) {
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_crm', 'Base CRM / Fiscal', this)"><i class="bi bi-person-lines-fill text-info"></i> CRM e Clientes</a>`;
+    }
+    
+    if (showEstoque) {
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_estoque', 'Almoxarifado / Estoque', this)"><i class="bi bi-box-seam text-primary"></i> Estoque Físico</a>`;
+    }
+
+    if (showFin && app.t_role === 'admin') {
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_financeiro', 'DRE e Caixas', this)"><i class="bi bi-bank text-success"></i> Financeiro (DRE)</a>`;
+    }
+    
+    if (showIa && app.t_role === 'admin') {
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_ia', 'Treinamento I.A.', this)"><i class="bi bi-database-fill-up text-warning"></i> Treinamento I.A.</a>`;
+    }
+
+    if (app.t_role === 'admin') {
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_equipe', 'Gestão da Equipe', this)"><i class="bi bi-people-fill text-success"></i> Equipe e RH</a>`;
+    }
+
+    menu.innerHTML = html;
+};
 
 // Funções Globais de UI
 app.showToast = function(msg, type='success') {
@@ -82,8 +132,12 @@ app.sair = function() { sessionStorage.clear(); window.location.href = 'index.ht
 
 app.mostrarTela = function(id, titulo, btn) {
     document.querySelectorAll('.modulo-tela').forEach(t => t.style.display = 'none');
-    document.getElementById(id).style.display = 'block';
-    document.getElementById('tituloPagina').innerText = titulo;
+    const tela = document.getElementById(id);
+    if(tela) tela.style.display = 'block';
+    
+    const hTitulo = document.getElementById('tituloPagina');
+    if(hTitulo) hTitulo.innerText = titulo;
+    
     if(btn) {
         document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
@@ -308,7 +362,8 @@ app.iniciarEscutaOS = function() {
         if(app.t_role === 'equipe') {
             let minhaCom = 0;
             app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.mecanicoReal === app.user_nome).forEach(o => minhaCom += (o.comissaoProcessada||0));
-            document.getElementById('kpiMinhaComissao').innerText = `R$ ${minhaCom.toFixed(2).replace('.',',')}`;
+            const divComissao = document.getElementById('kpiMinhaComissao');
+            if(divComissao) divComissao.innerText = `R$ ${minhaCom.toFixed(2).replace('.',',')}`;
         }
         
         app.renderizarKanban();
@@ -323,7 +378,8 @@ app.filtrarGlobal = function() {
 };
 
 app.renderizarKanban = function() {
-    const t = document.getElementById('buscaGeral').value.toLowerCase().trim();
+    const busca = document.getElementById('buscaGeral');
+    const t = busca ? busca.value.toLowerCase().trim() : '';
     let ativos = app.bancoOSCompleto.filter(os => os.status !== 'entregue');
     
     if(t) ativos = ativos.filter(os => (os.placa&&os.placa.toLowerCase().includes(t)) || (os.cliente&&os.cliente.toLowerCase().includes(t)));
@@ -346,7 +402,12 @@ app.renderizarKanban = function() {
         cols[s] += `<div class="os-card border-start border-4 ${cor}" onclick="app.abrirModalOS('edit', '${os.id}')"><div class="fast-actions">${btnBack}${btnFwd}</div><div class="d-flex justify-content-between mb-2"><span class="badge bg-dark border border-secondary text-white py-2 px-3">${os.placa}</span></div><h6 class="text-white fw-bold mb-1 w-75 text-truncate">${os.veiculo}</h6><small class="text-white-50"><i class="bi bi-person-fill"></i> ${os.cliente}</small></div>`;
     });
     
-    ordem.forEach(id => { document.getElementById('col_'+id).innerHTML = cols[id]; document.getElementById('count_'+id).innerText = counts[id]; });
+    ordem.forEach(id => { 
+        const col = document.getElementById('col_'+id);
+        const count = document.getElementById('count_'+id);
+        if(col) col.innerHTML = cols[id]; 
+        if(count) count.innerText = counts[id]; 
+    });
 };
 
 app.mudarStatusRapido = async function(id, novoStatus) {
@@ -368,7 +429,8 @@ app.mudarStatusRapido = async function(id, novoStatus) {
 // =====================================================================
 app.renderizarTabelaArquivo = function() {
     let entregues = app.bancoOSCompleto.filter(os => os.status === 'entregue').sort((a,b) => new Date(b.ultimaAtualizacao) - new Date(a.ultimaAtualizacao));
-    const t = document.getElementById('buscaGeral').value.toLowerCase().trim();
+    const busca = document.getElementById('buscaGeral');
+    const t = busca ? busca.value.toLowerCase().trim() : '';
     if (t) entregues = entregues.filter(o => (o.placa&&o.placa.toLowerCase().includes(t)) || (o.cliente&&o.cliente.toLowerCase().includes(t)));
     
     const tbody = document.getElementById('tabelaArquivoCorpo');
@@ -406,6 +468,7 @@ app.apagarOS = async function() {
 // =====================================================================
 app.verificarStatusLink = function() {
     const a = document.getElementById('alertaLinkCliente');
+    if(!a) return;
     if (document.getElementById('os_status').value === 'aprovacao' && document.getElementById('os_id').value) a.classList.remove('d-none'); else a.classList.add('d-none');
 };
 
@@ -422,9 +485,17 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
     document.getElementById('header_placa').innerText = '';
     document.getElementById('listaHistorico').innerHTML = '';
     document.getElementById('caixaMensagens').innerHTML = '';
-    document.getElementById('btnFaturar').classList.add('d-none');
-    document.getElementById('btnGerarPDF').classList.add('d-none');
-    ['chk_combustivel', 'chk_arranhado', 'chk_bateria', 'chk_pneus'].forEach(i => document.getElementById(i).checked = false);
+    
+    const btnFat = document.getElementById('btnFaturar');
+    if(btnFat) btnFat.classList.add('d-none');
+    
+    const btnPdf = document.getElementById('btnGerarPDF');
+    if(btnPdf) btnPdf.classList.add('d-none');
+    
+    ['chk_combustivel', 'chk_arranhado', 'chk_bateria', 'chk_pneus'].forEach(i => {
+        const chk = document.getElementById(i);
+        if(chk) chk.checked = false;
+    });
 
     if (mode === 'edit') {
         const os = app.bancoOSCompleto.find(x => x.id === id);
@@ -448,10 +519,12 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
             if (os.historico) { app.historicoOSAtual = os.historico; app.renderizarHistorico(); }
             if (os.pecas) os.pecas.forEach(p => app.adicionarLinhaPeca(p.desc, p.ncm, p.qtd, p.custo, p.venda, p.idEstoque, p.isMaoObra));
             
-            document.getElementById('btnGerarPDF').classList.remove('d-none');
+            if(btnPdf) btnPdf.classList.remove('d-none');
             
-            if (os.status === 'pronto' && app.t_role === 'admin') document.getElementById('btnFaturar').classList.remove('d-none');
-            if (app.t_role === 'admin') document.getElementById('btnDeletarOS').classList.remove('d-none');
+            if (os.status === 'pronto' && app.t_role === 'admin' && btnFat) btnFat.classList.remove('d-none');
+            
+            const btnDel = document.getElementById('btnDeletarOS');
+            if (app.t_role === 'admin' && btnDel) btnDel.classList.remove('d-none');
             
             app.iniciarEscutaChat(os.id);
         }
@@ -463,7 +536,7 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
 };
 
 app.adicionarDoEstoque = function() {
-    const sel = document.getElementById('selectProdutoEstoque'); if(!sel.value) return;
+    const sel = document.getElementById('selectProdutoEstoque'); if(!sel || !sel.value) return;
     const opt = sel.options[sel.selectedIndex];
     app.adicionarLinhaPeca(opt.dataset.desc, opt.dataset.ncm, 1, parseFloat(opt.dataset.custo), parseFloat(opt.dataset.venda), sel.value, false);
     sel.value = '';
@@ -497,8 +570,12 @@ app.calcularTotalOS = function() {
         tr.querySelector('.peca-total').value = (q*v).toFixed(2);
         t += (q*v); tc += (q*c);
     });
-    document.getElementById('os_total_geral').innerText = `R$ ${t.toFixed(2).replace('.',',')}`;
-    document.getElementById('os_total_custo').innerText = `R$ ${tc.toFixed(2).replace('.',',')}`;
+    
+    const divGeral = document.getElementById('os_total_geral');
+    const divCusto = document.getElementById('os_total_custo');
+    if(divGeral) divGeral.innerText = `R$ ${t.toFixed(2).replace('.',',')}`;
+    if(divCusto) divCusto.innerText = `R$ ${tc.toFixed(2).replace('.',',')}`;
+    
     return t;
 };
 
@@ -528,8 +605,10 @@ app.salvarOS = async function() {
         veiculo: document.getElementById('os_veiculo').value, cliente: clienteOS, celular: telOS,
         status: document.getElementById('os_status').value, relatoCliente: document.getElementById('os_relato_cliente').value,
         diagnostico: document.getElementById('os_diagnostico').value,
-        chk_combustivel: document.getElementById('chk_combustivel').checked, chk_arranhado: document.getElementById('chk_arranhado').checked,
-        chk_bateria: document.getElementById('chk_bateria').checked, chk_pneus: document.getElementById('chk_pneus').checked,
+        chk_combustivel: document.getElementById('chk_combustivel') ? document.getElementById('chk_combustivel').checked : false, 
+        chk_arranhado: document.getElementById('chk_arranhado') ? document.getElementById('chk_arranhado').checked : false,
+        chk_bateria: document.getElementById('chk_bateria') ? document.getElementById('chk_bateria').checked : false, 
+        chk_pneus: document.getElementById('chk_pneus') ? document.getElementById('chk_pneus').checked : false,
         pecas: pecasArray, total: tVenda, custoTotal: tCusto, maoObraTotal: tMO, fotos: app.fotosOSAtual,
         historico: app.historicoOSAtual, ultimaAtualizacao: new Date().toISOString()
     };
@@ -787,8 +866,10 @@ app.processarArquivoParaIA = function(event) {
     if(!file) return;
     
     const statusLabel = document.getElementById('iaFileStatus');
-    statusLabel.className = "text-warning fw-bold d-block text-center";
-    statusLabel.innerText = "Lendo arquivo e injetando conhecimento...";
+    if(statusLabel) {
+        statusLabel.className = "text-warning fw-bold d-block text-center";
+        statusLabel.innerText = "Lendo arquivo e injetando conhecimento...";
+    }
     
     const reader = new FileReader();
     reader.onload = async function(e) {
@@ -797,9 +878,11 @@ app.processarArquivoParaIA = function(event) {
         const txtLimpo = text.substring(0, 5000); 
         await app.salvarConhecimentoIA(`[Arquivo Importado: ${file.name}]\n\n${txtLimpo}`);
         
-        statusLabel.className = "text-success fw-bold d-block text-center";
-        statusLabel.innerText = "Arquivo processado e absorvido pela I.A.!";
-        setTimeout(() => { statusLabel.innerText = ""; }, 4000);
+        if(statusLabel) {
+            statusLabel.className = "text-success fw-bold d-block text-center";
+            statusLabel.innerText = "Arquivo processado e absorvido pela I.A.!";
+            setTimeout(() => { statusLabel.innerText = ""; }, 4000);
+        }
     };
     
     reader.readAsText(file); // Leitor nativo de texto (TXT e similares)
@@ -833,8 +916,10 @@ app.perguntarJarvis = async function() {
     const respDiv = document.getElementById('jarvisResposta');
     if(!input || !input.value) return;
     
-    respDiv.classList.remove('d-none');
-    respDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> t.h.I.A.g.u.i.n.h.o analisando os dados...';
+    if(respDiv) {
+        respDiv.classList.remove('d-none');
+        respDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> t.h.I.A.g.u.i.n.h.o analisando os dados...';
+    }
     
     // Junta todo o conhecimento gravado no banco de IA
     const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
@@ -851,12 +936,14 @@ app.perguntarJarvis = async function() {
     
     const respostaIlimitada = await app.chamarGemini(promptMaster);
     
-    respDiv.innerHTML = respostaIlimitada.replace(/\n/g, '<br>');
+    if(respDiv) respDiv.innerHTML = respostaIlimitada.replace(/\n/g, '<br>');
     input.value = '';
 };
 
 app.jarvisAnalisarRevisoes = async function() {
     const div = document.getElementById('jarvisCRMInsights');
+    if(!div) return;
+    
     div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando o Histórico de Veículos do seu ERP...';
     
     // Pega as O.S que já foram entregues
