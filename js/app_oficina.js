@@ -20,7 +20,7 @@ app.CLOUDINARY_UPLOAD_PRESET = sessionStorage.getItem('t_cloudPreset');
 app.API_KEY_GEMINI = sessionStorage.getItem('t_gemini');
 app.t_id = sessionStorage.getItem('t_id');
 app.t_nome = sessionStorage.getItem('t_nome');
-app.t_role = sessionStorage.getItem('t_role');
+app.t_role = sessionStorage.getItem('t_role'); // 'admin', 'gerente' ou 'equipe'
 app.user_nome = sessionStorage.getItem('f_nome');
 app.user_comissao = parseFloat(sessionStorage.getItem('f_comissao') || 0);
 app.t_mods = JSON.parse(sessionStorage.getItem('t_mods') || '{}');
@@ -39,49 +39,54 @@ app.osParaFaturar = null;
 app.chatListener = null;
 
 // =====================================================================
-// 2. INICIALIZAÇÃO DA INTERFACE E MENU DINÂMICO
+// 2. INICIALIZAÇÃO E TRAVAS DE SEGURANÇA (RBAC)
 // =====================================================================
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('lblEmpresa').innerText = app.t_nome;
     document.getElementById('lblUsuario').innerText = app.user_nome;
     
-    // Trava de Segurança (RBAC) - Mecânico não vê preço de custo nem lucro da empresa
+    // Controle de Acesso Dinâmico baseado no Cargo
+    const style = document.createElement('style');
     if (app.t_role === 'equipe') {
-        const style = document.createElement('style');
-        style.innerHTML = '.admin-only { display: none !important; } .mecanico-only { display: flex !important;}';
-        document.head.appendChild(style);
-        document.getElementById('lblComissaoUser').innerText = `Comissão Fixa: ${app.user_comissao}%`;
+        // Mecânico puro: esconde TUDO que for gerencial e de admin. Só vê mecânico.
+        style.innerHTML = '.admin-only, .gestao-only { display: none !important; } .mecanico-only { display: flex !important;}';
+        document.getElementById('lblComissaoUser').innerText = `Mecânico - Comissão: ${app.user_comissao}%`;
+    } else if (app.t_role === 'gerente') {
+        // Gerente/Vendedor: Vê gestão (custos, financeiro), mas não pode excluir (admin-only)
+        style.innerHTML = '.admin-only, .mecanico-only { display: none !important; } .gestao-only { display: flex !important;}';
+        document.getElementById('lblComissaoUser').innerText = `Acesso Gerencial / Vendas`;
+    } else {
+        // Master / Admin: O dono. Vê gestão e lixeiras/excluir. Só não vê dashboard de mecânico puro.
+        style.innerHTML = '.mecanico-only { display: none !important;}';
+        document.getElementById('lblComissaoUser').innerText = `Gestor Master (Dono)`;
     }
+    document.head.appendChild(style);
 
-    // 1. Constrói o menu baseado nos Módulos Contratados via SaaS
     app.construirMenuLateral();
     
-    // 2. Inicia na tela de Dashboard
     const linkInicio = document.querySelector('.nav-sidebar .nav-link');
     if(linkInicio) app.mostrarTela('tela_dashboard', 'Inteligência Automotiva', linkInicio);
     
-    // 3. Liga os motores do banco de dados
+    // Liga os motores do banco de dados
     app.iniciarEscutaOS();
     app.iniciarEscutaCrm();
-    app.iniciarEscutaEstoque();
-    app.iniciarEscutaIA();
     
-    if(app.t_role === 'admin') {
+    if(app.t_role === 'admin' || app.t_role === 'gerente') {
+        app.iniciarEscutaEstoque();
         app.iniciarEscutaFinanceiro();
+    }
+    if(app.t_role === 'admin') {
+        app.iniciarEscutaIA();
         app.iniciarEscutaLixeira();
         app.iniciarEscutaEquipe();
     }
     app.configurarCloudinary();
 });
 
-// =====================================================================
-// 2.5 CONSTRUTOR DINÂMICO DE MENU (BASEADO NOS MÓDULOS DO CLIENTE)
-// =====================================================================
 app.construirMenuLateral = function() {
     const menu = document.getElementById('menuLateral');
     if (!menu) return;
 
-    // Fallback: Se não tiver módulos gravados (cliente antigo/teste), mostra tudo
     const hasMods = Object.keys(app.t_mods).length > 0;
     const showKanban = !hasMods || app.t_mods.kanban;
     const showCrm = !hasMods || app.t_mods.crm;
@@ -96,15 +101,15 @@ app.construirMenuLateral = function() {
         html += `<a class="nav-link" onclick="app.mostrarTela('tela_arquivo', 'Arquivo Histórico', this); app.renderizarTabelaArquivo();"><i class="bi bi-archive text-warning"></i> Arquivo Morto</a>`;
     }
     
-    if (showCrm) {
-        html += `<a class="nav-link" onclick="app.mostrarTela('tela_crm', 'Base CRM / Fiscal', this)"><i class="bi bi-person-lines-fill text-info"></i> CRM e Clientes</a>`;
+    if (showCrm && (app.t_role === 'admin' || app.t_role === 'gerente')) {
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_crm', 'Base CRM e Portal', this)"><i class="bi bi-person-lines-fill text-info"></i> CRM e Clientes</a>`;
     }
     
-    if (showEstoque) {
+    if (showEstoque && (app.t_role === 'admin' || app.t_role === 'gerente')) {
         html += `<a class="nav-link" onclick="app.mostrarTela('tela_estoque', 'Almoxarifado / Estoque', this)"><i class="bi bi-box-seam text-primary"></i> Estoque Físico</a>`;
     }
 
-    if (showFin && app.t_role === 'admin') {
+    if (showFin && (app.t_role === 'admin' || app.t_role === 'gerente')) {
         html += `<a class="nav-link" onclick="app.mostrarTela('tela_financeiro', 'DRE e Caixas', this)"><i class="bi bi-bank text-success"></i> Financeiro (DRE)</a>`;
     }
     
@@ -119,7 +124,7 @@ app.construirMenuLateral = function() {
     menu.innerHTML = html;
 };
 
-// Funções Globais de UI
+// Funções Globais
 app.showToast = function(msg, type='success') {
     const bg = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-warning text-dark';
     const t = document.createElement('div');
@@ -145,7 +150,7 @@ app.mostrarTela = function(id, titulo, btn) {
 };
 
 // =====================================================================
-// 3. CRM FISCAL E VALIDADORES (CPF/CNPJ E CEP)
+// 3. CRM E CREDENCIAIS DO CLIENTE NO PORTAL
 // =====================================================================
 app.validarCPF = function(cpf) {
     cpf = cpf.replace(/[^\d]+/g,''); if(cpf == '') return false;
@@ -188,7 +193,7 @@ app.iniciarEscutaCrm = function() {
         app.bancoCrm = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const tb = document.getElementById('tabelaCrmCorpo');
         if(tb) {
-            tb.innerHTML = app.bancoCrm.map(c => `<tr><td><strong class="text-white">${c.nome}</strong></td><td>${c.documento||'-'}</td><td>${c.telefone}</td><td><small class="text-white-50">${c.rua||''} ${c.num||''}</small></td><td class="admin-only text-end"><button class="btn btn-sm btn-outline-info me-1 border-0" onclick="app.abrirModalCRM('edit', '${c.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-outline-danger border-0" onclick="app.apagarCliente('${c.id}')"><i class="bi bi-trash"></i></button></td></tr>`).join('');
+            tb.innerHTML = app.bancoCrm.map(c => `<tr><td><strong class="text-white">${c.nome}</strong></td><td>${c.documento||'-'}</td><td>${c.telefone}</td><td class="text-info">${c.usuario || 'Sem Acesso'}</td><td class="gestao-only text-end"><button class="btn btn-sm btn-outline-info me-1 border-0" onclick="app.abrirModalCRM('edit', '${c.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-outline-danger border-0 admin-only" onclick="app.apagarCliente('${c.id}')"><i class="bi bi-trash"></i></button></td></tr>`).join('');
         }
         const list = document.getElementById('listaClientesCRM');
         if(list) list.innerHTML = app.bancoCrm.map(c => `<option value="${c.nome}">CPF/CNPJ: ${c.documento||'N/A'}</option>`).join('');
@@ -207,6 +212,7 @@ app.abrirModalCRM = function(mode = 'nova', id = '') {
             document.getElementById('c_rua').value = c.rua||''; document.getElementById('c_num').value = c.num||'';
             document.getElementById('c_bairro').value = c.bairro||''; document.getElementById('c_cidade').value = c.cidade||'';
             document.getElementById('c_notas').value = c.anotacoes||'';
+            document.getElementById('c_user').value = c.usuario||''; document.getElementById('c_pass').value = c.senha||'';
         }
     }
     new bootstrap.Modal(document.getElementById('modalCrm')).show();
@@ -219,15 +225,18 @@ app.salvarClienteCRM = async function(e) {
     
     if(doc.length === 11 && !app.validarCPF(doc)) { app.showToast("Impossível salvar. CPF inválido.", "error"); return; }
     
-    const p = { tenantId: app.t_id, nome: document.getElementById('c_nome').value, telefone: document.getElementById('c_tel').value, documento: doc, email: document.getElementById('c_email').value, cep: document.getElementById('c_cep').value, rua: document.getElementById('c_rua').value, num: document.getElementById('c_num').value, bairro: document.getElementById('c_bairro').value, cidade: document.getElementById('c_cidade').value, anotacoes: document.getElementById('c_notas').value };
+    const p = { 
+        tenantId: app.t_id, nome: document.getElementById('c_nome').value, telefone: document.getElementById('c_tel').value, documento: doc, email: document.getElementById('c_email').value, cep: document.getElementById('c_cep').value, rua: document.getElementById('c_rua').value, num: document.getElementById('c_num').value, bairro: document.getElementById('c_bairro').value, cidade: document.getElementById('c_cidade').value, anotacoes: document.getElementById('c_notas').value,
+        usuario: document.getElementById('c_user').value.trim(),
+        senha: document.getElementById('c_pass').value.trim()
+    };
     
-    if(id) { await app.db.collection('clientes_base').doc(id).update(p); app.showToast("Ficha do cliente atualizada.", "success"); } 
-    else { await app.db.collection('clientes_base').add(p); app.showToast("Novo cliente registrado.", "success"); }
+    if(id) { await app.db.collection('clientes_base').doc(id).update(p); app.showToast("Ficha do cliente e acessos atualizados.", "success"); } 
+    else { await app.db.collection('clientes_base').add(p); app.showToast("Novo cliente registrado na base.", "success"); }
     
     e.target.reset();
     bootstrap.Modal.getInstance(document.getElementById('modalCrm')).hide();
     
-    // Autopreenchimento se estiver criando pela O.S.
     if(document.getElementById('os_cliente') && document.getElementById('os_cliente').value === '') {
         document.getElementById('os_cliente').value = p.nome;
         document.getElementById('os_celular').value = p.telefone;
@@ -236,6 +245,7 @@ app.salvarClienteCRM = async function(e) {
 };
 
 app.apagarCliente = async function(id) {
+    if(app.t_role !== 'admin') { app.showToast("Apenas o gestor principal pode excluir cadastros.", "error"); return; }
     if(confirm("Apagar o cadastro deste cliente? O histórico de veículos no Arquivo Morto será mantido.")) {
         await app.db.collection('clientes_base').doc(id).delete();
     }
@@ -258,14 +268,14 @@ app.editarClienteRapido = function() {
 };
 
 // =====================================================================
-// 4. ALMOXARIFADO E LEITURA DE XML (NOTA FISCAL ELETRÔNICA)
+// 4. ESTOQUE E LEITURA DE XML
 // =====================================================================
 app.iniciarEscutaEstoque = function() {
     app.db.collection('estoque').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoEstoque = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const tbody = document.getElementById('tabelaEstoqueCorpo');
         if(tbody) {
-            tbody.innerHTML = app.bancoEstoque.map(p => `<tr><td><small class="text-white-50">${p.fornecedor||'N/A'}</small><br><span class="badge bg-primary">NF: ${p.nf||'S/N'}</span></td><td><span class="text-info small">[NCM: ${p.ncm||'-'}]</span> <strong class="text-white">${p.desc}</strong></td><td><span class="badge bg-secondary px-3 py-2 fs-6 shadow-sm">${p.qtd} un</span></td><td class="admin-only text-danger fw-bold">R$ ${p.custo.toFixed(2)}</td><td class="text-success fw-bold fs-6">R$ ${p.venda.toFixed(2)}</td><td><i class="bi bi-person-circle"></i> ${p.usuarioEntrada||'Admin'}</td><td class="admin-only text-end"><button class="btn btn-sm btn-outline-danger shadow-sm" onclick="app.apagarProduto('${p.id}')"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('');
+            tbody.innerHTML = app.bancoEstoque.map(p => `<tr><td><small class="text-white-50">${p.fornecedor||'N/A'}</small><br><span class="badge bg-primary">NF: ${p.nf||'S/N'}</span></td><td><span class="text-info small">[NCM: ${p.ncm||'-'}]</span> <strong class="text-white">${p.desc}</strong></td><td><span class="badge bg-secondary px-3 py-2 fs-6 shadow-sm">${p.qtd} un</span></td><td class="gestao-only text-danger fw-bold">R$ ${p.custo.toFixed(2)}</td><td class="text-success fw-bold fs-6">R$ ${p.venda.toFixed(2)}</td><td class="gestao-only text-end"><button class="btn btn-sm btn-outline-danger shadow-sm admin-only" onclick="app.apagarProduto('${p.id}')"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('');
         }
         const sel = document.getElementById('selectProdutoEstoque');
         if(sel) {
@@ -347,13 +357,14 @@ app.salvarEntradaEstoque = async function(e) {
 };
 
 app.apagarProduto = async function(id) {
+    if(app.t_role !== 'admin') { app.showToast("Permissão Negada.", "error"); return; }
     if(confirm("Remover a peça permanentemente do estoque?")) {
         await app.db.collection('estoque').doc(id).delete();
     }
 };
 
 // =====================================================================
-// 5. MOTOR CHEVRON KANBAN E PRONTUÁRIO
+// 5. MOTOR KANBAN E PRONTUÁRIO
 // =====================================================================
 app.iniciarEscutaOS = function() {
     app.db.collection('ordens_servico').where('tenantId', '==', app.t_id).onSnapshot(snap => {
@@ -368,7 +379,7 @@ app.iniciarEscutaOS = function() {
         
         app.renderizarKanban();
         app.renderizarTabelaArquivo();
-        if(app.t_role === 'admin') app.renderizarFinanceiroGeral();
+        if(app.t_role === 'admin' || app.t_role === 'gerente') app.renderizarFinanceiroGeral();
     });
 };
 
@@ -397,7 +408,7 @@ app.renderizarKanban = function() {
         const prevS = idx > 0 ? ordem[idx-1] : null;
         
         let btnBack = prevS ? `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm me-1" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${prevS}')" title="Voltar Fase"><i class="bi bi-arrow-left-circle text-white-50"></i></button>` : '';
-        let btnFwd = s === 'pronto' ? `<button class="btn btn-sm btn-success p-1 px-3 shadow fw-bold" onclick="event.stopPropagation(); app.abrirFaturamentoDireto('${os.id}')"><i class="bi bi-cash-coin me-1"></i> FATURAR</button>` : `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${nextS}')" title="Avançar Fase"><i class="bi bi-arrow-right-circle text-info"></i></button>`;
+        let btnFwd = s === 'pronto' ? `<button class="btn btn-sm btn-success p-1 px-3 shadow fw-bold gestao-only" onclick="event.stopPropagation(); app.abrirFaturamentoDireto('${os.id}')"><i class="bi bi-cash-coin me-1"></i> FATURAR</button>` : `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${nextS}')" title="Avançar Fase"><i class="bi bi-arrow-right-circle text-info"></i></button>`;
 
         cols[s] += `<div class="os-card border-start border-4 ${cor}" onclick="app.abrirModalOS('edit', '${os.id}')"><div class="fast-actions">${btnBack}${btnFwd}</div><div class="d-flex justify-content-between mb-2"><span class="badge bg-dark border border-secondary text-white py-2 px-3">${os.placa}</span></div><h6 class="text-white fw-bold mb-1 w-75 text-truncate">${os.veiculo}</h6><small class="text-white-50"><i class="bi bi-person-fill"></i> ${os.cliente}</small></div>`;
     });
@@ -434,7 +445,7 @@ app.renderizarTabelaArquivo = function() {
     if (t) entregues = entregues.filter(o => (o.placa&&o.placa.toLowerCase().includes(t)) || (o.cliente&&o.cliente.toLowerCase().includes(t)));
     
     const tbody = document.getElementById('tabelaArquivoCorpo');
-    if(tbody) tbody.innerHTML = entregues.map(os => `<tr><td class="text-white-50 small"><i class="bi bi-calendar-check text-success me-2"></i> ${new Date(os.ultimaAtualizacao).toLocaleDateString('pt-BR')}</td><td><span class="badge bg-dark border px-3 py-2 fs-6 shadow-sm">${os.placa}</span></td><td class="text-white fw-bold">${os.veiculo}</td><td class="text-white-50">${os.cliente}</td><td class="admin-only text-success fw-bold">R$ ${(os.total||0).toFixed(2).replace('.',',')}</td><td class="text-center"><button class="btn btn-outline-info shadow-sm fw-bold px-4" onclick="app.abrirModalOS('edit', '${os.id}')"><i class="bi bi-folder-symlink-fill me-2"></i> Prontuário</button></td></tr>`).join('');
+    if(tbody) tbody.innerHTML = entregues.map(os => `<tr><td class="text-white-50 small"><i class="bi bi-calendar-check text-success me-2"></i> ${new Date(os.ultimaAtualizacao).toLocaleDateString('pt-BR')}</td><td><span class="badge bg-dark border px-3 py-2 fs-6 shadow-sm">${os.placa}</span></td><td class="text-white fw-bold">${os.veiculo}</td><td class="text-white-50">${os.cliente}</td><td class="gestao-only text-success fw-bold">R$ ${(os.total||0).toFixed(2).replace('.',',')}</td><td class="text-center"><button class="btn btn-outline-info shadow-sm fw-bold px-4" onclick="app.abrirModalOS('edit', '${os.id}')"><i class="bi bi-folder-symlink-fill me-2"></i> Prontuário</button></td></tr>`).join('');
 };
 
 app.iniciarEscutaLixeira = function() {
@@ -448,7 +459,7 @@ app.iniciarEscutaLixeira = function() {
 };
 
 app.apagarOS = async function() {
-    if(app.t_role !== 'admin') { app.showToast("Cancelamento Bloqueado. Apenas Gestores podem apagar.", "error"); return; }
+    if(app.t_role !== 'admin') { app.showToast("Cancelamento Bloqueado. Apenas o Dono pode apagar.", "error"); return; }
     
     const m = prompt("ATENÇÃO: A Ficha Técnica será cancelada e destruída do pátio. \nDigite a JUSTIFICATIVA (Obrigatório para Auditoria):");
     if(!m || m.trim() === '') { app.showToast("Operação Abortada. A justificativa é obrigatória.", "error"); return; }
@@ -464,7 +475,7 @@ app.apagarOS = async function() {
 };
 
 // =====================================================================
-// 7. GERENCIAMENTO DA FICHA DE O.S. (ORÇAMENTO, PEÇAS E CHAT)
+// 7. GERENCIAMENTO DA FICHA DE O.S.
 // =====================================================================
 app.verificarStatusLink = function() {
     const a = document.getElementById('alertaLinkCliente');
@@ -521,7 +532,7 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
             
             if(btnPdf) btnPdf.classList.remove('d-none');
             
-            if (os.status === 'pronto' && app.t_role === 'admin' && btnFat) btnFat.classList.remove('d-none');
+            if (os.status === 'pronto' && (app.t_role === 'admin' || app.t_role === 'gerente') && btnFat) btnFat.classList.remove('d-none');
             
             const btnDel = document.getElementById('btnDeletarOS');
             if (app.t_role === 'admin' && btnDel) btnDel.classList.remove('d-none');
@@ -553,9 +564,9 @@ app.adicionarLinhaPeca = function(desc, ncm, qtd, custo, venda, idEstoque, isMao
     tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary peca-desc p-2" value="${desc}" ${est} ${mo} placeholder="Descreva o serviço..."></td>
         <td><span class="text-white-50 small d-block">NCM: ${ncm||'-'}</span></td>
         <td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary peca-qtd p-2" value="${qtd}" min="1" onchange="app.calcularTotalOS()"></td>
-        <td class="admin-only"><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary peca-custo p-2" value="${custo}" onchange="app.calcularTotalOS()"></td>
-        <td class="admin-only"><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary peca-venda p-2 fw-bold" value="${venda}" onchange="app.calcularTotalOS()"></td>
-        <td class="admin-only"><input type="text" class="form-control form-control-sm bg-black text-white border-0 peca-total fw-bold p-2" readonly value="0.00"></td>
+        <td class="gestao-only"><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary peca-custo p-2" value="${custo}" onchange="app.calcularTotalOS()"></td>
+        <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary peca-venda p-2 fw-bold" value="${venda}" onchange="app.calcularTotalOS()"></td>
+        <td><input type="text" class="form-control form-control-sm bg-black text-white border-0 peca-total fw-bold p-2" readonly value="0.00"></td>
         <td class="text-center" data-html2canvas-ignore><button type="button" class="btn btn-sm btn-outline-danger border-0 mt-1" onclick="this.closest('tr').remove(); app.calcularTotalOS()"><i class="bi bi-trash"></i></button></td>`;
     document.getElementById('listaPecasCorpo').appendChild(tr);
     app.calcularTotalOS();
@@ -625,7 +636,7 @@ app.salvarOS = async function() {
 };
 
 // =====================================================================
-// 8. O MOTOR DE FATURAMENTO DA OFICINA (DRE, ESTOQUE, COMISSÃO)
+// 8. O MOTOR DE FATURAMENTO DA OFICINA
 // =====================================================================
 app.abrirFaturamentoDireto = function(id) {
     app.osParaFaturar = app.bancoOSCompleto.find(o => o.id === id);
@@ -662,7 +673,7 @@ app.processarFaturamentoCompleto = async function() {
         }
     }
 
-    // 3. Aplica Comissão Direto na Conta do Mecânico que abriu a OS (se for Admin, comissão = 0)
+    // 3. Aplica Comissão Direto na Conta do Mecânico que abriu a OS
     let usrComissao = app.user_comissao; if(app.t_role === 'admin') usrComissao = 0;
     const comissaoReais = ((app.osParaFaturar.maoObraTotal||0) * (usrComissao / 100));
     
@@ -675,7 +686,6 @@ app.processarFaturamentoCompleto = async function() {
     app.showToast("ENTREGA CONFIRMADA! Pagamentos, Estoque e Comissão Liquidados.", "success");
     bootstrap.Modal.getInstance(document.getElementById('modalFaturamento')).hide();
     
-    // Esconde o outro modal caso esteja aberto
     const modalOS = bootstrap.Modal.getInstance(document.getElementById('modalOS'));
     if(modalOS) modalOS.hide();
 };
@@ -730,12 +740,12 @@ app.renderizarFinanceiroGeral = function() {
         const cor = isR ? 'text-success' : 'text-danger';
         const st = f.status === 'pago' ? '<span class="badge bg-success px-2 py-1"><i class="bi bi-check2-all"></i> Pago</span>' : '<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-hourglass-split"></i> Aberto</span>';
         const btn = f.status === 'pendente' ? `<button class="btn btn-sm btn-outline-${isR?'success':'danger'} shadow-sm fw-bold px-3" onclick="app.db.collection('financeiro').doc('${f.id}').update({status:'pago'})"><i class="bi bi-currency-dollar"></i> Baixar</button>` : '';
-        const html = `<tr><td class="text-white-50"><i class="bi bi-calendar-event me-2"></i> ${new Date(f.vencimento).toLocaleDateString('pt-BR')}</td><td class="text-white fw-bold">${f.desc}</td><td><span class="badge bg-dark border border-secondary px-3 py-1 text-white-50">${f.parcelaAtual}/${f.totalParcelas}</span></td><td class="text-white-50 small">${f.metodo || 'Dinheiro'}</td><td class="${cor} fw-bold fs-6">R$ ${f.valor.toFixed(2).replace('.',',')}</td><td>${st}</td><td>${btn} <button class="btn btn-sm btn-link text-danger" onclick="app.db.collection('financeiro').doc('${f.id}').delete()"><i class="bi bi-trash"></i></button></td></tr>`;
+        const html = `<tr><td class="text-white-50"><i class="bi bi-calendar-event me-2"></i> ${new Date(f.vencimento).toLocaleDateString('pt-BR')}</td><td class="text-white fw-bold">${f.desc}</td><td><span class="badge bg-dark border border-secondary px-3 py-1 text-white-50">${f.parcelaAtual}/${f.totalParcelas}</span></td><td class="text-white-50 small">${f.metodo || 'Dinheiro'}</td><td class="${cor} fw-bold fs-6">R$ ${f.valor.toFixed(2).replace('.',',')}</td><td>${st}</td><td class="gestao-only">${btn} <button class="btn btn-sm btn-link text-danger admin-only" onclick="app.db.collection('financeiro').doc('${f.id}').delete()"><i class="bi bi-trash"></i></button></td></tr>`;
         if(isR) hReceber += html; else hPagar += html;
     });
 
-    if(tPagar) tPagar.innerHTML = hPagar || '<tr><td colspan="7" class="text-center text-white-50 py-4">Nenhuma conta a pagar aberta.</td></tr>';
-    if(tReceber) tReceber.innerHTML = hReceber || '<tr><td colspan="7" class="text-center text-white-50 py-4">Nenhuma fatura a receber.</td></tr>';
+    if(tPagar) tPagar.innerHTML = hPagar || '<tr><td colspan="6" class="text-center text-white-50 py-4">Nenhuma conta a pagar aberta.</td></tr>';
+    if(tReceber) tReceber.innerHTML = hReceber || '<tr><td colspan="6" class="text-center text-white-50 py-4">Nenhuma fatura a receber.</td></tr>';
 
     let totCom = 0;
     app.bancoOSCompleto.filter(o=>o.status==='entregue').forEach(o => totCom += (o.comissaoProcessada||0));
@@ -747,7 +757,44 @@ app.renderizarFinanceiroGeral = function() {
 };
 
 // =====================================================================
-// 10. PDF OFICIAL PADRÃO MENECHELLI
+// 10. RECURSOS HUMANOS / EQUIPE (ADICIONADO)
+// =====================================================================
+app.iniciarEscutaEquipe = function() {
+    app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        const tbody = document.getElementById('tabelaEquipe');
+        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-white-50 py-5 fs-5"><i class="bi bi-person-x display-4 d-block mb-3 opacity-25"></i> Ninguém na equipe.</td></tr>'; return; }
+        tbody.innerHTML = snap.docs.map(doc => {
+            const f = doc.data(); 
+            const nAcesso = f.role === 'gerente' ? '<span class="badge bg-warning text-dark">Gerente/Vendedor</span>' : '<span class="badge bg-secondary text-white">Mecânico/Produção</span>';
+            return `<tr><td class="fw-bold text-white fs-6"><i class="bi bi-person-circle text-success me-2"></i> ${f.nome}</td><td>${nAcesso}</td><td class="text-warning">${f.comissao||0}%</td><td><span class="bg-dark px-3 py-1 rounded text-info">${f.usuario}</span></td><td class="admin-only"><button class="btn btn-sm btn-outline-danger shadow-sm px-3" onclick="app.apagarFuncionario('${doc.id}')"><i class="bi bi-slash-circle me-1"></i> Revogar</button></td></tr>`;
+        }).join('');
+    });
+};
+
+app.salvarFuncionario = async function(e) {
+    e.preventDefault();
+    await app.db.collection('funcionarios').add({ 
+        tenantId: app.t_id, 
+        nome: document.getElementById('f_nome').value, 
+        role: document.getElementById('f_cargo').value, 
+        comissao: parseFloat(document.getElementById('f_comissao').value),
+        usuario: document.getElementById('f_user').value, 
+        senha: document.getElementById('f_pass').value 
+    });
+    app.showToast("Acesso corporativo criado.", "success"); 
+    e.target.reset(); 
+    bootstrap.Modal.getInstance(document.getElementById('modalEquipe')).hide();
+};
+
+app.apagarFuncionario = async function(id) { 
+    if(confirm("Deseja bloquear permanentemente o acesso deste usuário?")) { 
+        await app.db.collection('funcionarios').doc(id).delete(); 
+        app.showToast("Acesso destruído.", "success"); 
+    } 
+};
+
+// =====================================================================
+// 11. EXPORTAÇÃO DE PDF
 // =====================================================================
 app.exportarPDFMenechelli = async function() {
     const btn = document.getElementById('btnGerarPDF'); btn.innerHTML = 'Renderizando...'; btn.disabled = true;
@@ -789,7 +836,7 @@ app.exportarPDFMenechelli = async function() {
 
         if (y > 240) { doc.addPage(); y = 20; }
         
-        if(app.t_role === 'admin') {
+        if(app.t_role === 'admin' || app.t_role === 'gerente') {
             doc.setFillColor(240, 240, 240); doc.rect(pageWidth - 85, y, 70, 15, 'F');
             doc.setFont("helvetica", "bold"); doc.setFontSize(12); 
             doc.text(`ORÇAMENTO FINAL:`, pageWidth - 80, y + 10);
@@ -812,9 +859,8 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 11. MÓDULO DE INTELIGÊNCIA ARTIFICIAL (JARVIS / GEMINI)
+// 12. MÓDULO DE INTELIGÊNCIA ARTIFICIAL
 // =====================================================================
-
 app.iniciarEscutaIA = function() {
     app.db.collection('conhecimento_ia').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoIA = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -874,7 +920,6 @@ app.processarArquivoParaIA = function(event) {
     const reader = new FileReader();
     reader.onload = async function(e) {
         const text = e.target.result;
-        // Limitamos para os primeiros 5.000 caracteres para não estourar o banco neste exemplo
         const txtLimpo = text.substring(0, 5000); 
         await app.salvarConhecimentoIA(`[Arquivo Importado: ${file.name}]\n\n${txtLimpo}`);
         
@@ -884,14 +929,13 @@ app.processarArquivoParaIA = function(event) {
             setTimeout(() => { statusLabel.innerText = ""; }, 4000);
         }
     };
-    
-    reader.readAsText(file); // Leitor nativo de texto (TXT e similares)
+    reader.readAsText(file); 
 };
 
 app.chamarGemini = async function(prompt) {
     if(!app.API_KEY_GEMINI) {
-        app.showToast("Chave da API do Google Gemini não encontrada nas configurações da sua empresa.", "error");
-        return "Erro: Google Gemini API Key ausente. Configure o sistema no Painel Master.";
+        app.showToast("Chave da API do Google Gemini não encontrada.", "error");
+        return "Erro: Google Gemini API Key ausente.";
     }
     
     try {
@@ -907,7 +951,7 @@ app.chamarGemini = async function(prompt) {
         return data.candidates[0].content.parts[0].text;
     } catch(e) {
         console.error("Erro Gemini:", e);
-        return "Desculpe, ocorreu uma falha de conexão com os servidores de Inteligência Artificial do Google. Verifique sua Key.";
+        return "Falha de conexão com a IA.";
     }
 };
 
@@ -921,7 +965,6 @@ app.perguntarJarvis = async function() {
         respDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> t.h.I.A.g.u.i.n.h.o analisando os dados...';
     }
     
-    // Junta todo o conhecimento gravado no banco de IA
     const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
     const pergunta = input.value;
     
@@ -944,22 +987,20 @@ app.jarvisAnalisarRevisoes = async function() {
     const div = document.getElementById('jarvisCRMInsights');
     if(!div) return;
     
-    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando o Histórico de Veículos do seu ERP...';
+    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando o Histórico de Veículos...';
     
-    // Pega as O.S que já foram entregues
     const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
     
     if(historicoMorto.length === 0) {
-        div.innerHTML = '<span class="text-white-50">Não há registros finalizados suficientes para o Radar gerar previsões de Remarketing.</span>';
+        div.innerHTML = '<span class="text-white-50">Não há registros suficientes para gerar previsões.</span>';
         return;
     }
     
-    // Prepara os dados para mandar para o Gemini ler
     const dadosParaIA = historicoMorto.map(o => `Data Finalização: ${new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR')} | Cliente: ${o.cliente} | Veículo: ${o.veiculo} | Placa: ${o.placa} | Serviços Feitos: ${o.pecas ? o.pecas.map(p=>p.desc).join(', ') : 'Serviço Geral'}`).join('\n');
     
     const promptRadar = `Você é o Gestor de Pós-Venda Automotivo. Leia o banco de dados abaixo de ordens de serviço finalizadas da nossa oficina.
     Encontre os 3 melhores clientes para fazermos contato hoje oferecendo revisões preventivas, troca de óleo ou checkup, baseando-se no tempo que já passou ou no tipo de veículo.
-    Retorne uma lista formatada em HTML simples (com <ul> e <li>) explicando brevemente por que devemos ligar para cada um. Seja direto e vendedor.
+    Retorne uma lista formatada em HTML simples (com <ul> e <li>) explicando brevemente por que devemos ligar para cada um.
     
     BANCO DE DADOS:
     ${dadosParaIA}`;
