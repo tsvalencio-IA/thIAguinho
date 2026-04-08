@@ -710,19 +710,16 @@ app.exportarPDFMenechelli = async function() {
 
         if (y > 240) { doc.addPage(); y = 20; }
         
-        // Aqui é onde o código havia cortado! Adicionei a lógica para finalizar e salvar o PDF.
         if(app.t_role === 'admin') {
             doc.setFillColor(240, 240, 240); doc.rect(pageWidth - 85, y, 70, 15, 'F');
             doc.setFont("helvetica", "bold"); doc.setFontSize(12); 
             doc.text(`ORÇAMENTO FINAL:`, pageWidth - 80, y + 10);
             
-            // Puxa o valor total da interface e imprime no PDF
             const totalOS = document.getElementById('os_total_geral').innerText;
-            doc.setTextColor(0, 128, 0); // Cor verde
+            doc.setTextColor(0, 128, 0); 
             doc.text(totalOS, pageWidth - 35, y + 10);
         }
 
-        // Salva o documento no computador do usuário
         doc.save(`OS_Oficina_${placa}_${new Date().getTime()}.pdf`);
         app.showToast("PDF gerado com sucesso!", "success");
 
@@ -730,8 +727,157 @@ app.exportarPDFMenechelli = async function() {
         console.error("Erro na geração do PDF:", erro);
         app.showToast("Erro ao gerar o documento PDF. Verifique o console.", "error");
     } finally {
-        // Restaura o botão na interface, independente de sucesso ou erro
         btn.innerHTML = '<i class="bi bi-file-earmark-pdf-fill me-2"></i> Exportar PDF';
         btn.disabled = false;
     }
+};
+
+// =====================================================================
+// 11. MÓDULO DE INTELIGÊNCIA ARTIFICIAL (JARVIS / GEMINI)
+// =====================================================================
+
+app.iniciarEscutaIA = function() {
+    app.db.collection('conhecimento_ia').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        app.bancoIA = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        app.renderizarListaIA();
+    });
+};
+
+app.renderizarListaIA = function() {
+    const div = document.getElementById('listaConhecimentosIA');
+    if(!div) return;
+    
+    if(app.bancoIA.length === 0) {
+        div.innerHTML = '<p class="text-white-50 text-center mt-3">A sua I.A. ainda não possui manuais cadastrados.</p>';
+        return;
+    }
+    
+    div.innerHTML = app.bancoIA.map(ia => `
+        <div class="d-flex justify-content-between align-items-center bg-dark p-3 mb-2 rounded border border-secondary shadow-sm">
+            <span class="text-white-50 text-truncate fw-bold" style="max-width: 85%;">${ia.texto}</span>
+            <button class="btn btn-sm btn-outline-danger border-0" onclick="app.apagarConhecimentoIA('${ia.id}')"><i class="bi bi-trash-fill"></i></button>
+        </div>
+    `).join('');
+};
+
+app.salvarConhecimentoIA = async function(textoAvulso = null) {
+    const textarea = document.getElementById('iaConhecimentoTexto');
+    const valor = textoAvulso || (textarea ? textarea.value.trim() : '');
+    
+    if(!valor) {
+        app.showToast("O conhecimento não pode estar vazio.", "warning");
+        return;
+    }
+    
+    await app.db.collection('conhecimento_ia').add({ tenantId: app.t_id, texto: valor, dataImportacao: new Date().toISOString() });
+    app.showToast("Conhecimento gravado! Sua I.A. ficou mais inteligente.", "success");
+    
+    if(textarea && !textoAvulso) textarea.value = '';
+};
+
+app.apagarConhecimentoIA = async function(id) {
+    if(confirm("Deseja apagar este conhecimento da I.A.?")) {
+        await app.db.collection('conhecimento_ia').doc(id).delete();
+        app.showToast("Arquivo removido da memória.", "success");
+    }
+};
+
+app.processarArquivoParaIA = function(event) {
+    const file = event.target.files[0];
+    if(!file) return;
+    
+    const statusLabel = document.getElementById('iaFileStatus');
+    statusLabel.className = "text-warning fw-bold d-block text-center";
+    statusLabel.innerText = "Lendo arquivo e injetando conhecimento...";
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const text = e.target.result;
+        // Limitamos para os primeiros 5.000 caracteres para não estourar o banco neste exemplo
+        const txtLimpo = text.substring(0, 5000); 
+        await app.salvarConhecimentoIA(`[Arquivo Importado: ${file.name}]\n\n${txtLimpo}`);
+        
+        statusLabel.className = "text-success fw-bold d-block text-center";
+        statusLabel.innerText = "Arquivo processado e absorvido pela I.A.!";
+        setTimeout(() => { statusLabel.innerText = ""; }, 4000);
+    };
+    
+    reader.readAsText(file); // Leitor nativo de texto (TXT e similares)
+};
+
+app.chamarGemini = async function(prompt) {
+    if(!app.API_KEY_GEMINI) {
+        app.showToast("Chave da API do Google Gemini não encontrada nas configurações da sua empresa.", "error");
+        return "Erro: Google Gemini API Key ausente. Configure o sistema no Painel Master.";
+    }
+    
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        
+        const data = await response.json();
+        if(data.error) throw new Error(data.error.message);
+        
+        return data.candidates[0].content.parts[0].text;
+    } catch(e) {
+        console.error("Erro Gemini:", e);
+        return "Desculpe, ocorreu uma falha de conexão com os servidores de Inteligência Artificial do Google. Verifique sua Key.";
+    }
+};
+
+app.perguntarJarvis = async function() {
+    const input = document.getElementById('jarvisInput');
+    const respDiv = document.getElementById('jarvisResposta');
+    if(!input || !input.value) return;
+    
+    respDiv.classList.remove('d-none');
+    respDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> t.h.I.A.g.u.i.n.h.o analisando os dados...';
+    
+    // Junta todo o conhecimento gravado no banco de IA
+    const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
+    const pergunta = input.value;
+    
+    const promptMaster = `Você é o assistente virtual automotivo da oficina "${app.t_nome}". Responda a dúvida do usuário de forma clara, técnica e objetiva. 
+    Use as regras e manuais abaixo para embasar sua resposta (se a pergunta fugir das regras, use seu conhecimento geral automotivo).
+    
+    MANUAIS E REGRAS DA OFICINA:
+    ${contexto}
+    
+    PERGUNTA DO OPERADOR:
+    ${pergunta}`;
+    
+    const respostaIlimitada = await app.chamarGemini(promptMaster);
+    
+    respDiv.innerHTML = respostaIlimitada.replace(/\n/g, '<br>');
+    input.value = '';
+};
+
+app.jarvisAnalisarRevisoes = async function() {
+    const div = document.getElementById('jarvisCRMInsights');
+    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando o Histórico de Veículos do seu ERP...';
+    
+    // Pega as O.S que já foram entregues
+    const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
+    
+    if(historicoMorto.length === 0) {
+        div.innerHTML = '<span class="text-white-50">Não há registros finalizados suficientes para o Radar gerar previsões de Remarketing.</span>';
+        return;
+    }
+    
+    // Prepara os dados para mandar para o Gemini ler
+    const dadosParaIA = historicoMorto.map(o => `Data Finalização: ${new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR')} | Cliente: ${o.cliente} | Veículo: ${o.veiculo} | Placa: ${o.placa} | Serviços Feitos: ${o.pecas ? o.pecas.map(p=>p.desc).join(', ') : 'Serviço Geral'}`).join('\n');
+    
+    const promptRadar = `Você é o Gestor de Pós-Venda Automotivo. Leia o banco de dados abaixo de ordens de serviço finalizadas da nossa oficina.
+    Encontre os 3 melhores clientes para fazermos contato hoje oferecendo revisões preventivas, troca de óleo ou checkup, baseando-se no tempo que já passou ou no tipo de veículo.
+    Retorne uma lista formatada em HTML simples (com <ul> e <li>) explicando brevemente por que devemos ligar para cada um. Seja direto e vendedor.
+    
+    BANCO DE DADOS:
+    ${dadosParaIA}`;
+    
+    const respostaRadar = await app.chamarGemini(promptRadar);
+    
+    div.innerHTML = respostaRadar;
 };
