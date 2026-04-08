@@ -179,9 +179,9 @@ app.enviarWhatsAppAprovacao = function() {
     const cZ = app.bancoCrm.find(x => x.nome === nome);
     if(!cel) return app.showToast("Cliente sem celular cadastrado.", "error");
     
-    // O LINK REAL DO SEU PORTAL DO CLIENTE (NÃO MAIS IMAGINÁRIO)
+    // O NOVO LINK REAL DO PORTAL DO CLIENTE (projeto_oficina.html)
     let baseURL = window.location.origin + window.location.pathname.replace('painel_oficina.html', '');
-    const u = baseURL + 'clientes/projeto_evolution_24.html';
+    const u = baseURL + 'clientes/projeto_oficina.html';
     
     let txt = `Olá ${nome}! A O.S. do seu veículo foi atualizada na *${app.t_nome}*.\n\nAcesse o nosso portal oficial para visualizar o orçamento detalhado, ver fotos e nos contatar pelo chat da plataforma:\n👉 ${u}`;
     if(cZ && cZ.usuario) { txt += `\n\n*Suas Credenciais Seguras:*\nLogin: ${cZ.usuario}\nPIN: ${cZ.senha}`; }
@@ -194,7 +194,6 @@ app.enviarWhatsAppAprovacao = function() {
 // 4. MÓDULO DE CHAT GLOBAL CRM (O VERDADEIRO CHAT MASTER)
 // =====================================================================
 app.iniciarEscutaMensagens = function() {
-    // Busca na coleção global 'mensagens' criada e esperada pelo Evolution (projeto_evolution_24.html)
     app.db.collection('mensagens').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoMensagens = snap.docs.map(d => ({id: d.id, ...d.data()}));
         app.bancoMensagens.sort((a,b) => (a.timestamp?.toMillis()||0) - (b.timestamp?.toMillis()||0));
@@ -837,7 +836,7 @@ app.apagarOS = async function() {
 };
 
 // =====================================================================
-// 10. CLOUDINARY E LAUDO PDF
+// 10. CLOUDINARY E LAUDO PDF (AGORA COM FOTOS INCLUÍDAS)
 // =====================================================================
 app.configurarCloudinary = function() {
     if (!app.CLOUDINARY_CLOUD_NAME || !app.CLOUDINARY_UPLOAD_PRESET) return;
@@ -859,6 +858,24 @@ app.renderizarHistorico = function() {
     if(hist) hist.innerHTML = app.historicoOSAtual.length === 0 ? '' : [...app.historicoOSAtual].sort((a,b) => new Date(b.data) - new Date(a.data)).map(h => `<li class="timeline-item"><strong class="text-white">${h.usuario}</strong> - <span class="text-info">${new Date(h.data).toLocaleString('pt-BR')}</span><p class="mb-0 mt-1 bg-dark d-inline-block px-3 py-1 rounded border border-secondary">${h.acao}</p></li>`).join(''); 
 };
 
+// Módulo Auxiliar para carregar imagens e injetar no PDF
+async function carregarImagemParaPDF(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/jpeg'));
+        };
+        img.onerror = reject;
+        img.src = url;
+    });
+}
+
 app.exportarPDFMenechelli = async function() {
     const btn = document.getElementById('btnGerarPDF'); btn.innerHTML = 'Renderizando...'; btn.disabled = true; const placa = document.getElementById('os_placa').value;
     try {
@@ -869,12 +886,40 @@ app.exportarPDFMenechelli = async function() {
         doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`DIAGNÓSTICO TÉCNICO (MECÂNICO)`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10; doc.setFont("helvetica", "normal"); doc.setFontSize(10); const txtL = doc.splitTextToSize(document.getElementById('os_diagnostico').value || 'Inspeção padrão de revisão.', pageWidth - 30); doc.text(txtL, 15, y); y += (txtL.length * 6) + 10;
         let tableBody = []; document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => { tableBody.push([tr.querySelector('.peca-desc').value, tr.querySelector('.peca-qtd').value, `R$ ${tr.querySelector('.peca-venda').value}`, `R$ ${tr.querySelector('.peca-total').value}`]); });
         doc.autoTable({ startY: y, head: [['Serviço / Peça de Reposição', 'Qtd', 'Vlr. Unitário', 'Subtotal']], body: tableBody, theme: 'grid', headStyles: { fillColor: [30, 41, 59] }, margin: { left: 15, right: 15 }}); y = doc.lastAutoTable.finalY + 15;
-        const areaFotos = document.getElementById('areaFotosExport');
-        if (app.fotosOSAtual.length > 0 && areaFotos) {
-            if (y > 220) { doc.addPage(); y = 20; } doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`EVIDÊNCIAS FOTOGRÁFICAS (LAUDO VISUAL)`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10;
-            const canvas = await html2canvas(areaFotos, { useCORS: true, backgroundColor: "#ffffff", scale: 2 }); const imgData = canvas.toDataURL('image/jpeg', 1.0); const pdfWidth = pageWidth - 30; const pdfHeight = (doc.getImageProperties(imgData).height * pdfWidth) / doc.getImageProperties(imgData).width;
-            if(y + pdfHeight > 270) { doc.addPage(); y = 20; } doc.addImage(imgData, 'JPEG', 15, y, pdfWidth, pdfHeight); y += pdfHeight + 15;
+        
+        // NOVO: Adiciona as miniaturas (imagens do Cloudinary) ao Laudo em PDF
+        if (app.fotosOSAtual && app.fotosOSAtual.length > 0) {
+            if (y > 220) { doc.addPage(); y = 20; }
+            doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`EVIDÊNCIAS FOTOGRÁFICAS (LAUDO VISUAL)`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10;
+            
+            let imgX = 15;
+            let imgY = y;
+            const imgSize = 40; // Tamanho da miniatura (40x40 mm)
+            const margin = 5;
+            
+            for (let i = 0; i < app.fotosOSAtual.length; i++) {
+                try {
+                    const base64Img = await carregarImagemParaPDF(app.fotosOSAtual[i]);
+                    // Quebra de linha se não couber na largura
+                    if (imgX + imgSize > pageWidth - 15) {
+                        imgX = 15;
+                        imgY += imgSize + margin;
+                    }
+                    // Adiciona nova página se estourar a altura
+                    if (imgY + imgSize > 280) {
+                        doc.addPage();
+                        imgY = 20;
+                        imgX = 15;
+                    }
+                    doc.addImage(base64Img, 'JPEG', imgX, imgY, imgSize, imgSize);
+                    imgX += imgSize + margin;
+                } catch (e) {
+                    console.error("Erro ao carregar imagem para o PDF", e);
+                }
+            }
+            y = imgY + imgSize + 15; // Atualiza a posição Y para o próximo elemento
         }
+
         if (y > 240) { doc.addPage(); y = 20; }
         if(app.t_role === 'admin' || app.t_role === 'gerente') {
             doc.setFillColor(240, 240, 240); doc.rect(pageWidth - 85, y, 70, 15, 'F'); doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`ORÇAMENTO FINAL:`, pageWidth - 80, y + 10);
@@ -924,7 +969,7 @@ app.processarArquivoParaIA = function(event) {
 app.chamarGemini = async function(prompt) {
     if(!app.API_KEY_GEMINI) { app.showToast("Chave da API do Google Gemini não encontrada.", "error"); return "Erro: Google Gemini API Key ausente."; }
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
         const data = await response.json(); if(data.error) throw new Error(data.error.message); return data.candidates[0].content.parts[0].text;
     } catch(e) { console.error("Erro Gemini:", e); return "Falha de conexão com a IA."; }
 };
