@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>thIAguinho.Digital - Master Hub</title>
+    <title>thIAguinho.Digital - SaaS Master Control</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -12,8 +12,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <style>
-        :root { --bs-accent: #3b82f6; --bg-darker: #020617; --bg-card: #0f172a; --border-color: #1e293b; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-darker); color: #f8f9fa; min-height: 100vh; }
+        :root { --bs-accent: #3b82f6; --bs-accent-hover: #2563eb; --bg-darker: #020617; --bg-card: #0f172a; --border-color: #1e293b; }
+        body { font-family: 'Inter', system-ui, sans-serif; background-color: var(--bg-darker); color: #f8f9fa; min-height: 100vh; }
         ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: var(--bg-darker); } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: var(--bs-accent); }
         .navbar { background-color: rgba(15, 23, 42, 0.95) !important; backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-color); }
         .nav-pills .nav-link { color: #94a3b8; padding: 12px 24px; border-radius: 12px; font-weight: 600; }
@@ -67,7 +67,7 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div>
                                 <h4 class="mb-1 text-white fw-bold">Gestão de Ecossistemas</h4>
-                                <p class="mb-0 text-white-50 small">Gerencie as empresas e os motores ativados.</p>
+                                <p class="mb-0 text-white-50 small">Gerencie as empresas, nichos e acessos.</p>
                             </div>
                             <button class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow" onclick="abrirModalTenant('add')"><i class="bi bi-plus-lg me-2"></i> NOVO TENANT</button>
                         </div>
@@ -85,7 +85,6 @@
                 <div class="tab-pane fade" id="tabImportacao">
                     <div class="card p-5">
                         <h4 class="text-white fw-bold mb-4"><i class="bi bi-database-gear text-primary me-2"></i> Importação Estrutural de Dados</h4>
-                        <p class="text-white-50 mb-4">Migre dados de planilhas CSV, JSON de sistemas antigos diretamente para o banco de um Tenant específico.</p>
                         <div class="row g-4">
                             <div class="col-md-6">
                                 <label class="text-white-50 mb-2">1. Selecione a Empresa de Destino (Tenant)</label>
@@ -152,6 +151,7 @@
                                         <option value="marcenaria">Marcenaria (Projetos 3D)</option>
                                         <option value="eventos_corridas">Gestão de Corridas (LeRunnersRP)</option>
                                         <option value="generico">ERP Genérico Corporativo</option>
+                                        <option value="games">Jogos / Plataforma Game</option>
                                     </optgroup>
                                 </select>
                             </div>
@@ -218,7 +218,9 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             if (sessionStorage.getItem('thiaguinho_master') !== 'true') { window.location.replace('index.html'); return; }
-            db.collection('tenants').onSnapshot(snap => {
+            
+            // CORREÇÃO CRÍTICA: Voltando para 'oficinas' para puxar a Chevron e os legados.
+            db.collection('oficinas').onSnapshot(snap => {
                 dbTenants = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderizarTenants();
                 popularSelectImportacao();
@@ -309,8 +311,8 @@
             };
 
             try {
-                if (id) { await db.collection('tenants').doc(id).update(payload); showToast("Arquitetura atualizada!", "success"); } 
-                else { payload.criadoEm = new Date().toISOString(); await db.collection('tenants').add(payload); showToast("Novo Ecossistema Implantado!", "success"); }
+                if (id) { await db.collection('oficinas').doc(id).update(payload); showToast("Arquitetura atualizada!", "success"); } 
+                else { payload.criadoEm = new Date().toISOString(); await db.collection('oficinas').add(payload); showToast("Novo Ecossistema Implantado!", "success"); }
                 modalTenantInstance.hide();
             } catch (err) { showToast("Erro: " + err.message, "error"); }
         }
