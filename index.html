@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>thIAguinho Soluções - Acesso ao Ecossistema Digital</title>
+    <title>thIAguinho Hub - Acesso ao Ecossistema Digital</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -12,96 +12,22 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <style>
-        body { 
-            background-color: #050505; 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            min-height: 100vh; 
-            margin: 0; 
-            color: #fff; 
-            overflow: hidden; 
-        }
-        
-        .bg-animated { 
-            position: absolute; 
-            top: 0; left: 0; width: 100%; height: 100%; 
-            background: radial-gradient(circle at top left, #1e293b 0%, #050505 100%); 
-            z-index: 1; 
-        }
-        
-        .login-card { 
-            background: rgba(15, 23, 42, 0.85); 
-            backdrop-filter: blur(20px); 
-            border: 1px solid rgba(255, 255, 255, 0.1); 
-            border-radius: 24px; 
-            padding: 60px 50px; 
-            width: 100%; 
-            max-width: 480px; 
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1); 
-            position: relative; 
-            z-index: 2; 
-        }
-
-        .form-control { 
-            background-color: rgba(0,0,0,0.5) !important; 
-            border: 1px solid rgba(255, 255, 255, 0.1) !important; 
-            color: #fff !important; 
-            padding: 16px; 
-            border-radius: 12px; 
-            font-size: 1.1rem; 
-            transition: all 0.3s ease; 
-        }
-
-        .form-control:focus { 
-            border-color: #0dcaf0 !important; 
-            box-shadow: 0 0 0 4px rgba(13, 202, 240, 0.1); 
-            background-color: rgba(0,0,0,0.8) !important; 
-        }
-
-        .input-group-text { 
-            background-color: rgba(0,0,0,0.5); 
-            border: 1px solid rgba(255, 255, 255, 0.1); 
-            border-right: none; 
-            color: #0dcaf0; 
-            border-radius: 12px 0 0 12px; 
-        }
-        
+        body { background-color: #050505; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; color: #fff; overflow: hidden; }
+        .bg-animated { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at top left, #1e293b 0%, #050505 100%); z-index: 1; }
+        .login-card { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 60px 50px; width: 100%; max-width: 480px; box-shadow: 0 30px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1); position: relative; z-index: 2; }
+        .form-control { background-color: rgba(0,0,0,0.5) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; color: #fff !important; padding: 16px; border-radius: 12px; font-size: 1.1rem; transition: all 0.3s ease; }
+        .form-control:focus { border-color: #0dcaf0 !important; box-shadow: 0 0 0 4px rgba(13, 202, 240, 0.1); background-color: rgba(0,0,0,0.8) !important; }
+        .input-group-text { background-color: rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-right: none; color: #0dcaf0; border-radius: 12px 0 0 12px; }
         .form-control { border-left: none; }
-
-        .btn-primary { 
-            background: linear-gradient(135deg, #0dcaf0 0%, #0891b2 100%); 
-            border: none; 
-            font-weight: 800; 
-            padding: 16px; 
-            border-radius: 12px; 
-            font-size: 1.2rem; 
-            color: #000; 
-            letter-spacing: 1px; 
-            transition: all 0.3s ease; 
-        }
-
-        .btn-primary:hover { 
-            transform: translateY(-3px); 
-            box-shadow: 0 15px 30px rgba(13, 202, 240, 0.3); 
-        }
-
+        .btn-primary { background: linear-gradient(135deg, #0dcaf0 0%, #0891b2 100%); border: none; font-weight: 800; padding: 16px; border-radius: 12px; font-size: 1.2rem; color: #000; letter-spacing: 1px; transition: all 0.3s ease; }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(13, 202, 240, 0.3); }
         .toast-container { position: fixed; top: 30px; right: 30px; z-index: 9999; }
-        
-        .brand-icon { 
-            font-size: 4rem; 
-            background: -webkit-linear-gradient(#0dcaf0, #3b82f6); 
-            -webkit-background-clip: text; 
-            -webkit-text-fill-color: transparent; 
-            filter: drop-shadow(0 0 20px rgba(13, 202, 240, 0.5)); 
-        }
+        .brand-icon { font-size: 4rem; background: -webkit-linear-gradient(#0dcaf0, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(13, 202, 240, 0.5)); }
     </style>
 </head>
 <body>
 
     <div class="bg-animated"></div>
-    
     <div class="toast-container" id="toastContainer"></div>
 
     <div class="login-card text-center">
@@ -117,7 +43,6 @@
                     <input type="text" class="form-control" id="loginUser" required placeholder="Digite sua credencial">
                 </div>
             </div>
-            
             <div class="mb-5 text-start">
                 <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Chave de Segurança</label>
                 <div class="input-group shadow-sm">
@@ -125,22 +50,14 @@
                     <input type="password" class="form-control" id="loginPass" required placeholder="••••••••">
                 </div>
             </div>
-            
-            <button type="submit" class="btn btn-primary w-100 shadow" id="btnAcesso">
-                INICIAR SESSÃO SEURA
-            </button>
+            <button type="submit" class="btn btn-primary w-100 shadow" id="btnAcesso">INICIAR SESSÃO SEGURA</button>
         </form>
-        
         <div class="mt-5 pt-4 border-top border-secondary text-center">
             <small class="text-white-50 fw-bold d-block">Powered by <span class="text-info">thIAguinho Soluções Digitais</span> &copy; 2026</small>
-            <small class="text-white-50" style="font-size: 0.7rem;">Plataforma Enterprise Multi-Nicho</small>
         </div>
     </div>
 
     <script>
-        // =====================================================================
-        // CONFIGURAÇÃO DO FIREBASE (O CÉREBRO DA MATRIZ)
-        // =====================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
             authDomain: "hub-thiaguinho.firebaseapp.com",
@@ -149,181 +66,92 @@
             messagingSenderId: "453508098543",
             appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
         };
-        
-        if (!firebase.apps.length) { 
-            firebase.initializeApp(firebaseConfig); 
-        }
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
 
-        // =====================================================================
-        // SISTEMA DE NOTIFICAÇÕES NATIVO
-        // =====================================================================
         function showToast(msg, isError = true) {
             const bg = isError ? 'bg-danger' : 'bg-success';
             const icon = isError ? 'bi-exclamation-triangle-fill' : 'bi-check-circle-fill';
             const id = 'toast_' + Date.now();
-            
             const t = document.createElement('div');
-            t.innerHTML = `
-                <div id="${id}" class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-4" role="alert">
-                    <div class="d-flex">
-                        <div class="toast-body fw-bold fs-6">
-                            <i class="bi ${icon} me-2"></i> ${msg}
-                        </div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                    </div>
-                </div>`;
+            t.innerHTML = `<div id="${id}" class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-4"><div class="d-flex"><div class="toast-body fw-bold fs-6"><i class="bi ${icon} me-2"></i> ${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
             document.getElementById('toastContainer').appendChild(t.firstChild);
-            
-            setTimeout(() => { 
-                const el = document.getElementById(id);
-                if(el) el.remove(); 
-            }, 4000);
+            setTimeout(() => { const el = document.getElementById(id); if(el) el.remove(); }, 4000);
         }
 
-        // =====================================================================
-        // O ROTEADOR INTELIGENTE (A MÁGICA DOS NICHOS)
-        // =====================================================================
         function rotearParaNicho(nicho) {
-            let paginaDestino = 'painel_generico.html'; // Fallback de segurança
-            const n = nicho.toLowerCase();
+            let paginaDestino = 'painel_generico.html'; 
+            const n = (nicho || '').toLowerCase();
 
-            // 1. Oficinas e Auto Centers (Carros e Motos) e Retíficas
-            if (n.includes('oficina') || n.includes('retifica') || n.includes('car') || n.includes('moto')) {
-                paginaDestino = 'painel_oficina.html';
-            } 
-            // 2. Saúde (Odontologia, Médicos)
-            else if (n.includes('odonto') || n.includes('medicina') || n.includes('saude')) {
-                paginaDestino = 'painel_saude.html';
-            } 
-            // 3. Educação (Escolas, Kumon, Cursos)
-            else if (n.includes('educacao') || n.includes('kumon') || n.includes('escola')) {
-                paginaDestino = 'painel_educacao.html';
-            } 
-            // 4. Varejo e Distribuição (MS Distribuidora, Lojas)
-            else if (n.includes('distribuidora') || n.includes('loja') || n.includes('pdv')) {
-                paginaDestino = 'painel_varejo.html';
-            }
-            // 5. Estética e Beleza (Habibi Barbearia, Salões)
-            else if (n.includes('barbearia') || n.includes('salao') || n.includes('estetica')) {
-                paginaDestino = 'painel_beleza.html';
-            }
-            // 6. Eventos e Esportes (LeRunners, Corridas, Campeonatos)
-            else if (n.includes('eventos') || n.includes('corrida') || n.includes('esporte')) {
-                paginaDestino = 'painel_eventos.html';
-            }
-            // 7. Engenharia e Projetos (Marcenaria 3D, Construtora)
-            else if (n.includes('marcenaria') || n.includes('construtora') || n.includes('projeto')) {
-                paginaDestino = 'painel_projetos.html';
-            }
-            // 8. Jogos e Plataformas (Admin Game)
-            else if (n.includes('game') || n.includes('jogo')) {
-                paginaDestino = 'painel_games.html';
-            }
+            if (n.includes('oficina') || n.includes('retifica') || n.includes('car') || n.includes('moto')) { paginaDestino = 'painel_oficina.html'; } 
+            else if (n.includes('odonto') || n.includes('medicina') || n.includes('saude')) { paginaDestino = 'painel_saude.html'; } 
+            else if (n.includes('educacao') || n.includes('kumon') || n.includes('escola')) { paginaDestino = 'painel_escola.html'; } 
+            else if (n.includes('distribuidora') || n.includes('loja') || n.includes('pdv')) { paginaDestino = 'painel_varejo.html'; }
+            else if (n.includes('barbearia') || n.includes('salao') || n.includes('estetica')) { paginaDestino = 'painel_beleza.html'; }
+            else if (n.includes('eventos') || n.includes('corrida') || n.includes('esporte')) { paginaDestino = 'painel_eventos.html'; }
+            else if (n.includes('marcenaria') || n.includes('construtora') || n.includes('projeto')) { paginaDestino = 'painel_projetos.html'; }
+            else if (n.includes('game') || n.includes('jogo')) { paginaDestino = 'painel_games.html'; }
 
             window.location.href = paginaDestino;
         }
 
-        // =====================================================================
-        // MOTOR DE AUTENTICAÇÃO UNIVERSAL
-        // =====================================================================
         async function realizarLoginUniversal(e) {
             e.preventDefault();
             const usr = document.getElementById('loginUser').value.trim();
             const pwd = document.getElementById('loginPass').value.trim();
             const btn = document.getElementById('btnAcesso');
-            
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Acessando Banco de Dados...';
-            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Acessando Nuvem...'; btn.disabled = true;
 
             try {
-                // NIVEL 1: ACESSO MASTER (VOCÊ - O FUNDADOR)
                 if (usr === 'thiaguinho' && pwd === 'master2026') {
                     sessionStorage.setItem('thiaguinho_master', 'true');
                     window.location.href = 'superadmin.html';
                     return;
                 }
 
-                // NIVEL 2: CLIENTES DO SEU SAAS (DONOS DOS NEGÓCIOS)
+                // Validação do Dono (Admin)
                 const tenantSnap = await db.collection('oficinas').where('usuario', '==', usr).get();
-                
                 if (!tenantSnap.empty) {
                     const doc = tenantSnap.docs[0];
                     const dados = doc.data();
-                    
-                    if (dados.senha !== pwd) { 
-                        showToast('Senha incorreta. Verifique suas credenciais.'); 
-                    }
-                    else if (dados.status === 'Bloqueado') { 
-                        showToast('Sua assinatura SaaS está bloqueada. Contate a thIAguinho Soluções.'); 
-                    }
+                    if (dados.senha !== pwd) { showToast('Senha incorreta.'); }
+                    else if (dados.status === 'Bloqueado') { showToast('Assinatura Bloqueada. Contate a thIAguinho Soluções.'); }
                     else {
-                        // Grava as informações da empresa no navegador
-                        sessionStorage.setItem('t_id', doc.id);
-                        sessionStorage.setItem('t_nome', dados.nomeFantasia);
-                        sessionStorage.setItem('t_nicho', dados.nicho);
-                        sessionStorage.setItem('t_role', 'admin');
-                        sessionStorage.setItem('f_nome', 'Gestor Master'); 
-                        sessionStorage.setItem('f_comissao', '0'); // O dono não recebe comissão, recebe lucro
-                        
-                        // Permissões de Módulos (O que ele comprou com você)
+                        sessionStorage.setItem('t_id', doc.id); sessionStorage.setItem('t_nome', dados.nomeFantasia);
+                        sessionStorage.setItem('t_nicho', dados.nicho); sessionStorage.setItem('t_role', 'admin');
+                        sessionStorage.setItem('f_nome', 'Gestor Master'); sessionStorage.setItem('f_comissao', '0'); 
                         sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {}));
-                        
-                        // Chaves da Nuvem de Imagens e Inteligência Artificial Específicas do Cliente
                         sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : '');
                         sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : '');
                         sessionStorage.setItem('t_gemini', (dados.apiKeys && dados.apiKeys.gemini) ? dados.apiKeys.gemini : '');
-                        
-                        // Executa a Mágica: Direciona para o Painel certo
                         rotearParaNicho(dados.nicho);
                     }
                 } 
                 else {
-                    // NIVEL 3: FUNCIONÁRIOS (MECÂNICOS, DENTISTAS, SECRETÁRIAS, PROFESSORES)
+                    // Validação do Funcionário / Mecânico
                     const funcSnap = await db.collection('funcionarios').where('usuario', '==', usr).get();
-                    
                     if (!funcSnap.empty) {
                         const docF = funcSnap.docs[0];
                         const dadosF = docF.data();
-                        
-                        if (dadosF.senha !== pwd) { 
-                            showToast('Senha do colaborador incorreta.'); 
-                        }
+                        if (dadosF.senha !== pwd) { showToast('Senha incorreta.'); }
                         else {
-                            // Verifica se a empresa deste funcionário pagou a mensalidade
                             const empresaMae = await db.collection('oficinas').doc(dadosF.tenantId).get();
-                            
                             if(!empresaMae.exists || empresaMae.data().status === 'Bloqueado') {
-                                showToast('A matriz desta empresa está com a licença inativa. Acesso negado.');
+                                showToast('Matriz inativa. Acesso negado.');
                             } else {
-                                sessionStorage.setItem('t_id', dadosF.tenantId);
-                                sessionStorage.setItem('t_nome', empresaMae.data().nomeFantasia);
-                                sessionStorage.setItem('t_nicho', empresaMae.data().nicho);
-                                sessionStorage.setItem('f_id', docF.id); 
-                                sessionStorage.setItem('f_nome', dadosF.nome); // O nome exato para a auditoria
-                                sessionStorage.setItem('f_comissao', dadosF.comissao || '0'); // O % de comissão do funcionário
-                                sessionStorage.setItem('t_role', 'equipe'); // Restringe as abas financeiras
-                                
-                                sessionStorage.setItem('t_mods', JSON.stringify(empresaMae.data().modulos || {}));
+                                sessionStorage.setItem('t_id', dadosF.tenantId); sessionStorage.setItem('t_nome', empresaMae.data().nomeFantasia);
+                                sessionStorage.setItem('t_nicho', empresaMae.data().nicho); sessionStorage.setItem('f_id', docF.id); 
+                                sessionStorage.setItem('f_nome', dadosF.nome); sessionStorage.setItem('f_comissao', dadosF.comissao || '0'); 
+                                sessionStorage.setItem('t_role', 'equipe'); sessionStorage.setItem('t_mods', JSON.stringify(empresaMae.data().modulos || {}));
                                 sessionStorage.setItem('t_cloudName', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryName) ? empresaMae.data().apiKeys.cloudinaryName : '');
                                 sessionStorage.setItem('t_cloudPreset', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryPreset) ? empresaMae.data().apiKeys.cloudinaryPreset : '');
-                                sessionStorage.setItem('t_gemini', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.gemini) ? empresaMae.data().apiKeys.gemini : '');
-                                
-                                // Direciona para o Painel certo
                                 rotearParaNicho(empresaMae.data().nicho);
                             }
                         }
-                    } else {
-                        showToast('Usuário não localizado no ecossistema.');
-                    }
+                    } else { showToast('Usuário não localizado no ecossistema.'); }
                 }
-            } catch (err) {
-                console.error(err);
-                showToast('Falha de rede ao contatar a nuvem estrutural.');
-            }
-            
-            btn.innerHTML = 'INICIAR SESSÃO SEGURA';
-            btn.disabled = false;
+            } catch (err) { console.error(err); showToast('Falha de rede estrutural.'); }
+            btn.innerHTML = 'INICIAR SESSÃO SEGURA'; btn.disabled = false;
         }
     </script>
 </body>
