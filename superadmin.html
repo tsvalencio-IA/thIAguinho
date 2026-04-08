@@ -69,7 +69,7 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <div>
                                 <h4 class="mb-1 text-white fw-bold">Gestão de Ecossistemas</h4>
-                                <p class="mb-0 text-white-50 small">Gerencie as empresas, nichos e acessos.</p>
+                                <p class="mb-0 text-white-50 small">Gerencie as empresas, nichos, acessos e remoções.</p>
                             </div>
                             <button class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow" onclick="abrirModalTenant('add')"><i class="bi bi-plus-lg me-2"></i> NOVO TENANT</button>
                         </div>
@@ -133,8 +133,7 @@
                                 <select class="form-select" id="importColecao">
                                     <option value="clientes">Base de Clientes (CRM)</option>
                                     <option value="estoque">Base de Produtos (Estoque)</option>
-                                    <option value="prontuarios">Prontuários / O.S. Antigas</option>
-                                    <option value="conhecimento_ia">Base de Conhecimento da I.A.</option>
+                                    <option value="ordens_servico">Prontuários / O.S. Antigas</option>
                                 </select>
                             </div>
                             <div class="col-12">
@@ -171,28 +170,27 @@
                             <div class="col-md-8">
                                 <label class="form-label text-primary fw-bold">Motor Principal (Nicho de Atuação da Empresa)</label>
                                 <select class="form-select border-primary text-white fw-bold" id="tntNicho" required style="background: rgba(59, 130, 246, 0.1) !important;">
-                                    <option value="" disabled selected>Selecione o nicho. Isso mudará completamente a interface do painel do cliente...</option>
+                                    <option value="" disabled selected>Selecione o nicho. Isso mudará a interface do painel...</option>
                                     <optgroup label="Automotivo & Manutenção">
-                                        <option value="oficina_carros">Oficina / Auto Center (Veículos, Placas, Peças)</option>
+                                        <option value="oficina_carros">Oficina / Auto Center (Carros)</option>
                                         <option value="oficina_motos">Oficina de Motos (Evolution)</option>
-                                        <option value="retifica">Retífica de Motores (Ronaldinho)</option>
+                                        <option value="retifica">Retífica de Motores</option>
                                     </optgroup>
                                     <optgroup label="Saúde">
-                                        <option value="odontologia">Clínica Odontológica (Pacientes, Prontuários Dentários)</option>
+                                        <option value="odontologia">Clínica Odontológica</option>
                                     </optgroup>
                                     <optgroup label="Educação">
-                                        <option value="educacao_kumon">Escola / Método de Ensino (Alunos, Kumon, Estágios)</option>
+                                        <option value="educacao_kumon">Escola / Método de Ensino</option>
                                     </optgroup>
                                     <optgroup label="Varejo, E-commerce & Serviços">
-                                        <option value="distribuidora">Distribuidora B2B (MS Distribuidora)</option>
-                                        <option value="barbearia">Barbearia / Salão (Habibi)</option>
-                                        <option value="marcenaria">Marcenaria (Projetos 3D, Móveis)</option>
+                                        <option value="distribuidora">Distribuidora B2B / Loja</option>
+                                        <option value="barbearia">Barbearia / Salão</option>
+                                        <option value="marcenaria">Marcenaria / Projetos 3D</option>
                                     </optgroup>
                                     <optgroup label="Aplicações Especiais">
-                                        <option value="eventos_corridas">Gestão de Corridas (LeRunnersRP, Inscrições)</option>
-                                        <option value="games">Plataforma de Jogos (Admin Game)</option>
-                                        <option value="gerador_cv">Gerador de Currículos (PDF)</option>
-                                        <option value="generico">ERP Genérico Administrativo</option>
+                                        <option value="eventos_corridas">Gestão de Eventos e Corridas</option>
+                                        <option value="games">Plataforma de Jogos</option>
+                                        <option value="generico">ERP Genérico</option>
                                     </optgroup>
                                 </select>
                             </div>
@@ -206,19 +204,19 @@
                         <div class="row g-4 mb-5 p-4 rounded-4" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05);">
                             <div class="col-md-6"><label class="text-white-50 mb-2">Usuário do Dono (Admin)</label><input type="text" class="form-control border-warning text-warning" id="tntUser" required></div>
                             <div class="col-md-6"><label class="text-white-50 mb-2">Senha do Dono</label><input type="text" class="form-control border-warning text-warning" id="tntPass" required></div>
-                            <div class="col-md-12"><label class="text-white-50 mb-2">Google Gemini API Key (Para a I.A. funcionar neste cliente)</label><input type="password" class="form-control border-success text-success font-monospace" id="tntGemini" placeholder="AIzaSy..."></div>
-                            <div class="col-md-6"><label class="text-white-50 mb-2">Cloudinary: Cloud Name (Banco de Fotos)</label><input type="text" class="form-control border-info text-info font-monospace" id="tntCloudName" placeholder="Ex: dl6gxeamz"></div>
+                            <div class="col-md-12"><label class="text-white-50 mb-2">Google Gemini API Key (I.A.)</label><input type="password" class="form-control border-success text-success font-monospace" id="tntGemini" placeholder="AIzaSy..."></div>
+                            <div class="col-md-6"><label class="text-white-50 mb-2">Cloudinary: Cloud Name (Fotos)</label><input type="text" class="form-control border-info text-info font-monospace" id="tntCloudName" placeholder="Ex: dl6gxeamz"></div>
                             <div class="col-md-6"><label class="text-white-50 mb-2">Cloudinary: Upload Preset</label><input type="text" class="form-control border-info text-info font-monospace" id="tntCloudPreset" placeholder="Ex: ml_default"></div>
                         </div>
 
-                        <h5 class="text-white fw-bold border-bottom border-secondary pb-3 mb-4">Plataforma Modular (Habilite as Ferramentas)</h5>
+                        <h5 class="text-white fw-bold border-bottom border-secondary pb-3 mb-4">Plataforma Modular (Ferramentas)</h5>
                         <div class="module-grid mb-5">
                             <div class="module-card"><div><h6 class="text-white mb-0">Financeiro Pro</h6><small class="text-white-50">Despesas/Receitas</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modFin"></div></div>
                             <div class="module-card"><div><h6 class="text-white mb-0">CRM Base</h6><small class="text-white-50">Clientes/Pacientes</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modCrm"></div></div>
                             <div class="module-card"><div><h6 class="text-white mb-0">Estoque / Peças</h6><small class="text-white-50">Produtos B2B/B2C</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modEstoque"></div></div>
-                            <div class="module-card" style="border-color: rgba(59, 130, 246, 0.5);"><div><h6 class="text-primary mb-0">Kanban Atendimento</h6><small class="text-white-50">O.S. / Prontuários</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modKanban"></div></div>
-                            <div class="module-card" style="border-color: rgba(16, 185, 129, 0.5);"><div><h6 class="text-success mb-0">Chat CRM Web</h6><small class="text-white-50">Link de Aprovação</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modChat"></div></div>
-                            <div class="module-card" style="border-color: rgba(245, 158, 11, 0.5);"><div><h6 class="text-warning mb-0">I.A. Cérebro RAG</h6><small class="text-white-50">Treinamento de Dados</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modIa"></div></div>
+                            <div class="module-card" style="border-color: rgba(59, 130, 246, 0.5);"><div><h6 class="text-primary mb-0">Kanban Atendimento</h6><small class="text-white-50">Fluxo Operacional</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modKanban"></div></div>
+                            <div class="module-card" style="border-color: rgba(16, 185, 129, 0.5);"><div><h6 class="text-success mb-0">Chat CRM Web</h6><small class="text-white-50">Aprovação Online</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modChat"></div></div>
+                            <div class="module-card" style="border-color: rgba(245, 158, 11, 0.5);"><div><h6 class="text-warning mb-0">I.A. Cérebro RAG</h6><small class="text-white-50">Treinamento Gemini</small></div><div class="form-switch"><input class="form-check-input" type="checkbox" id="modIa"></div></div>
                         </div>
 
                         <div class="mt-4 pt-4 border-top border-secondary d-flex justify-content-end gap-3">
@@ -252,7 +250,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // FIREBASE DA THIAGUINHO SOLUÇÕES
         const firebaseConfig = {
             apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
             authDomain: "hub-thiaguinho.firebaseapp.com",
@@ -277,11 +274,9 @@
         let dbTenants = [];
         let dbSaaSFinanceiro = [];
 
-        // VERIFICA SE É O THIAGO (MASTER) MESMO
         document.addEventListener('DOMContentLoaded', () => {
             if (sessionStorage.getItem('thiaguinho_master') !== 'true') { window.location.replace('index.html'); return; }
             
-            // COLEÇÃO 'oficinas' PARA MANTER A CHEVRON VIVA E PUXAR TODOS OS NICHOS
             db.collection('oficinas').onSnapshot(snap => {
                 dbTenants = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderizarTenants();
@@ -313,7 +308,10 @@
                     <td><span class="badge bg-primary bg-opacity-25 text-primary border border-primary px-2 py-1">${(t.nicho||'GENÉRICO').toUpperCase().replace('_', ' ')}</span></td>
                     <td><div class="bg-dark p-2 rounded small border border-secondary text-white-50">U: <span class="text-warning">${t.usuario}</span><br>S: <span class="text-warning">${t.senha}</span></div></td>
                     <td>${bStatus}</td>
-                    <td class="text-end pe-4"><button class="btn btn-sm btn-outline-light" onclick="abrirModalTenant('edit', '${t.id}')"><i class="bi bi-gear-fill"></i> Editar</button></td>
+                    <td class="text-end pe-4">
+                        <button class="btn btn-sm btn-outline-light me-1" onclick="abrirModalTenant('edit', '${t.id}')" title="Editar Configuração"><i class="bi bi-gear-fill"></i></button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="apagarTenant('${t.id}')" title="Excluir Empresa"><i class="bi bi-trash-fill"></i></button>
+                    </td>
                 </tr>`;
             }).join('');
         }
@@ -387,6 +385,15 @@
             } catch (err) { showToast("Erro: " + err.message, "error"); }
         }
 
+        async function apagarTenant(id) {
+            if(confirm("ALERTA MÁXIMO: Tem certeza que deseja excluir permanentemente esta empresa/tenant do seu ecossistema? Todos os acessos serão revogados imediatamente.")) {
+                try {
+                    await db.collection('oficinas').doc(id).delete();
+                    showToast("Cliente removido permanentemente.", "success");
+                } catch(e) { showToast("Falha ao excluir: " + e.message, "error"); }
+            }
+        }
+
         // ---------------- FINANCEIRO MASTER ----------------
         function renderizarFinanceiroSaaS() {
             let ent = 0, sai = 0;
@@ -407,7 +414,7 @@
             const payload = { tipo: document.getElementById('sfTipo').value, desc: document.getElementById('sfDesc').value, valor: parseFloat(document.getElementById('sfValor').value), data: document.getElementById('sfData').value, registradoEm: new Date().toISOString() };
             await db.collection('saas_financeiro').add(payload); showToast("Contabilizado."); e.target.reset(); bootstrap.Modal.getInstance(document.getElementById('modalSaasFin')).hide();
         }
-        async function deletarRegistroSaaS(id) { if(confirm("Apagar registro?")) { await db.collection('saas_financeiro').doc(id).delete(); showToast("Removido."); } }
+        async function deletarRegistroSaaS(id) { if(confirm("Apagar registro financeiro interno?")) { await db.collection('saas_financeiro').doc(id).delete(); showToast("Removido."); } }
 
         // ---------------- IMPORTAÇÃO DE DADOS (ARRASTE E COLE JSON) ----------------
         function popularSelectImportacao() {
@@ -425,7 +432,7 @@
                 if(!Array.isArray(dados)) throw new Error("O JSON precisa ser um Array [...]");
                 const batch = db.batch();
                 dados.forEach(item => {
-                    item.tenantId = tenantId; // O CÓDIGO CRÍTICO PARA NÃO MISTURAR EMPRESAS
+                    item.tenantId = tenantId; 
                     item.importadoEm = new Date().toISOString();
                     batch.set(db.collection(colecao).doc(), item);
                 });
