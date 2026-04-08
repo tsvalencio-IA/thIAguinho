@@ -338,7 +338,7 @@
                             </div>
                         </div>
 
-                        <h5 class="text-white fw-bold mb-4 border-bottom border-secondary pb-2"><i class="bi bi-shield-lock text-warning me-2"></i> 2. Acesso Master e Integrações I.A.</h5>
+                        <h5 class="text-white fw-bold mb-4 border-bottom border-secondary pb-2"><i class="bi bi-shield-lock text-warning me-2"></i> 2. Acesso Master e Integrações de API</h5>
                         <div class="row g-4 mb-5 p-4 bg-black rounded-4 border border-secondary">
                             <div class="col-md-4">
                                 <label class="form-label text-white-50">Usuário do Dono/Gestor</label>
@@ -349,9 +349,16 @@
                                 <input type="text" class="form-control text-warning fw-bold border-warning" id="tntPass" required>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label text-white-50">API Key (Google Gemini)</label>
+                                <label class="form-label text-white-50">API Key (Google Gemini AI)</label>
                                 <input type="password" class="form-control text-success fw-bold border-success" id="tntGemini" placeholder="AIzaSy...">
-                                <small class="text-white-50 mt-1 d-block">Isolada e encriptada para este tenant.</small>
+                            </div>
+                            <div class="col-md-6 mt-3">
+                                <label class="form-label text-white-50">Cloudinary - Cloud Name (Imagens)</label>
+                                <input type="text" class="form-control text-primary fw-bold border-primary" id="tntCloudName" placeholder="Ex: dl6gxeamz">
+                            </div>
+                            <div class="col-md-6 mt-3">
+                                <label class="form-label text-white-50">Cloudinary - Upload Preset</label>
+                                <input type="text" class="form-control text-primary fw-bold border-primary" id="tntCloudPreset" placeholder="Ex: ml_default">
                             </div>
                         </div>
 
@@ -487,24 +494,20 @@
     <script>
         // =====================================================================
         // ENGINE PRINCIPAL - thIAguinho Soluções (Master Hub)
-        // Arquitetura elaborada para escalabilidade infinita de tenants.
         // =====================================================================
 
-        // 1. Inicialização do Banco de Dados Central (O Cérebro)
-        // ATENÇÃO: Substitua pelas chaves reais do seu projeto Firebase "thIAguinho Solucoes"
-      const firebaseConfig = {
-  apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
-  authDomain: "hub-thiaguinho.firebaseapp.com",
-  projectId: "hub-thiaguinho",
-  storageBucket: "hub-thiaguinho.firebasestorage.app",
-  messagingSenderId: "453508098543",
-  appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
+            authDomain: "hub-thiaguinho.firebaseapp.com",
+            projectId: "hub-thiaguinho",
+            storageBucket: "hub-thiaguinho.firebasestorage.app",
+            messagingSenderId: "453508098543",
+            appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
+        };
         
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
 
-        // 2. Sistema de Notificações Profissional
         function showToast(msg, type = 'info') {
             const id = 'toast_' + Date.now();
             const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
@@ -523,8 +526,6 @@
             setTimeout(() => { const el = document.getElementById(id); if (el) el.remove(); }, 4000);
         }
 
-        // 3. Controle de Sessão (Hardcoded por segurança master local)
-        // Em produção pesada, poderíamos usar Firebase Auth, mas para o "Painel do Dono da Agência", a sessão em sessionStorage é eficiente.
         if (sessionStorage.getItem('thiaguinho_master') === 'true') {
             document.getElementById('loginScreen').style.setProperty('display', 'none', 'important');
             document.getElementById('adminPanel').style.setProperty('display', 'flex', 'important');
@@ -536,13 +537,12 @@
             const usr = document.getElementById('lUser').value.trim();
             const pwd = document.getElementById('lPass').value.trim();
             
-            // Credenciais de Arquiteto (Altere para o que desejar)
             if (usr === 'thiaguinho' && pwd === 'master2026') {
                 sessionStorage.setItem('thiaguinho_master', 'true');
-                showToast("Acesso Master Concedido. Bem-vindo Arquiteto.", "success");
+                showToast("Acesso Master Concedido.", "success");
                 setTimeout(() => window.location.reload(), 1000);
             } else {
-                showToast("Acesso Negado. Intrusão detectada.", "error");
+                showToast("Acesso Negado.", "error");
             }
         }
 
@@ -550,30 +550,22 @@
             sessionStorage.removeItem('thiaguinho_master');
             window.location.reload();
         }
-
-        // =====================================================================
-        // REGRAS DE NEGÓCIO: GESTÃO MULTITENANT
-        // =====================================================================
         
         let dbTenants = [];
         let dbSaaSFinanceiro = [];
 
-        // Escuta Ativa (Real-time) das Coleções Master
         function iniciarLeituraDeDados() {
-            // Escuta os Tenants (Clientes da Agência)
             db.collection('oficinas').onSnapshot(snap => {
                 dbTenants = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderizarTenants();
-            }, error => showToast("Erro ao ler base de clientes: " + error.message, "error"));
+            }, error => showToast("Erro ao ler clientes: " + error.message, "error"));
 
-            // Escuta o Financeiro do SaaS
             db.collection('saas_financeiro').onSnapshot(snap => {
                 dbSaaSFinanceiro = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderizarFinanceiroSaaS();
             }, error => showToast("Erro ao ler caixa: " + error.message, "error"));
         }
 
-        // Mapeamento visual de nichos para ícones bonitos
         const iconesNicho = {
             'oficina_motos': '<i class="bi bi-scooter text-warning"></i>',
             'oficina_carros': '<i class="bi bi-car-front-fill text-primary"></i>',
@@ -587,9 +579,7 @@
             'generico': '<i class="bi bi-pc-display text-white"></i>'
         };
 
-        // Função de Renderização: Clientes
         function renderizarTenants() {
-            // Atualiza KPIs
             const total = dbTenants.length;
             const ativos = dbTenants.filter(t => t.status === 'Ativo').length;
             const bloq = dbTenants.filter(t => t.status === 'Bloqueado').length;
@@ -598,17 +588,15 @@
             document.getElementById('kpiAtivos').innerText = ativos;
             document.getElementById('kpiBloqueados').innerText = bloq;
 
-            // Renderiza Tabela
             const tbody = document.getElementById('tabelaTenants');
             if (total === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-white-50">Nenhum cliente cadastrado no Hub. O seu império começa agora.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-white-50">Nenhum cliente cadastrado no Hub.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = dbTenants.map(t => {
                 const badgeStatus = t.status === 'Ativo' ? '<span class="badge bg-success px-3 py-2">Ativo</span>' : '<span class="badge bg-danger px-3 py-2">Bloqueado</span>';
                 
-                // Mapeia os módulos ativos para exibi-los como tags visuais
                 let badgesMods = '';
                 const m = t.modulos || {};
                 if(m.financeiro) badgesMods += '<span class="badge border border-success text-success me-1 mb-1">FIN</span>';
@@ -653,14 +641,12 @@
             }).join('');
         }
 
-        // Lógica do Modal do Cliente (Tenant)
         let modalTenantInstance = null;
         
         window.abrirModalTenant = function(mode, id = '') {
             const form = document.getElementById('formTenant');
             if(form) form.reset();
             
-            // Reseta todos os checkboxes de módulos
             document.querySelectorAll('.module-card input[type="checkbox"]').forEach(cb => cb.checked = false);
 
             if (mode === 'edit') {
@@ -674,9 +660,12 @@
                     document.getElementById('tntStatus').value = t.status || 'Ativo';
                     document.getElementById('tntUser').value = t.usuario || '';
                     document.getElementById('tntPass').value = t.senha || '';
+                    
+                    // Lendo as chaves do banco de dados (Gemini e Cloudinary)
                     document.getElementById('tntGemini').value = (t.apiKeys && t.apiKeys.gemini) ? t.apiKeys.gemini : '';
+                    document.getElementById('tntCloudName').value = (t.apiKeys && t.apiKeys.cloudinaryName) ? t.apiKeys.cloudinaryName : '';
+                    document.getElementById('tntCloudPreset').value = (t.apiKeys && t.apiKeys.cloudinaryPreset) ? t.apiKeys.cloudinaryPreset : '';
 
-                    // Carrega os módulos
                     if(t.modulos) {
                         if(t.modulos.financeiro) document.getElementById('modFin').checked = true;
                         if(t.modulos.estoque) document.getElementById('modEstoque').checked = true;
@@ -701,7 +690,6 @@
             modalTenantInstance.show();
         };
 
-        // Salvar as Configurações (Deploy do Banco de Dados)
         async function salvarTenant(e) {
             e.preventDefault();
             const btn = document.getElementById('btnSalvarTenant');
@@ -711,7 +699,6 @@
 
             const id = document.getElementById('tntId').value;
             
-            // Monta o Objeto Arquitetural do Cliente
             const payload = {
                 nomeFantasia: document.getElementById('tntNome').value.trim(),
                 responsavel: document.getElementById('tntResp').value.trim(),
@@ -720,8 +707,11 @@
                 status: document.getElementById('tntStatus').value,
                 usuario: document.getElementById('tntUser').value.trim(),
                 senha: document.getElementById('tntPass').value.trim(),
+                // Salvando as chaves
                 apiKeys: {
-                    gemini: document.getElementById('tntGemini').value.trim()
+                    gemini: document.getElementById('tntGemini').value.trim(),
+                    cloudinaryName: document.getElementById('tntCloudName').value.trim(),
+                    cloudinaryPreset: document.getElementById('tntCloudPreset').value.trim()
                 },
                 modulos: {
                     financeiro: document.getElementById('modFin').checked,
@@ -740,7 +730,7 @@
 
             try {
                 if (id) {
-                    await db.collection('oficinas').doc(id).update(payload); // Mantemos a collection 'oficinas' por compatibilidade com projetos legados, mas conceitualmente ela é a 'tenants'.
+                    await db.collection('oficinas').doc(id).update(payload);
                     showToast("Configurações atualizadas com sucesso!", "success");
                 } else {
                     payload.criadoEm = new Date().toISOString();
@@ -757,10 +747,6 @@
             }
         }
 
-        // =====================================================================
-        // REGRAS DE NEGÓCIO: CAIXA DO SAAS (A GESTÃO FINANCEIRA DA SUA AGÊNCIA)
-        // =====================================================================
-
         function renderizarFinanceiroSaaS() {
             let totalEntradas = 0;
             let totalSaidas = 0;
@@ -770,16 +756,10 @@
             if (dbSaaSFinanceiro.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-white-50">Caixa vazio. Inicie os faturamentos.</td></tr>';
             } else {
-                // Ordena por data decrescente
                 const dadosOrdenados = dbSaaSFinanceiro.sort((a, b) => new Date(b.data) - new Date(a.data));
                 
                 tbody.innerHTML = dadosOrdenados.map(f => {
-                    if (f.tipo === 'Entrada') {
-                        totalEntradas += f.valor;
-                    } else {
-                        totalSaidas += f.valor;
-                    }
-                    
+                    if (f.tipo === 'Entrada') { totalEntradas += f.valor; } else { totalSaidas += f.valor; }
                     const cor = f.tipo === 'Entrada' ? 'text-success' : 'text-danger';
                     const icone = f.tipo === 'Entrada' ? '<i class="bi bi-arrow-up-right-circle-fill"></i>' : '<i class="bi bi-arrow-down-left-circle-fill"></i>';
                     
@@ -798,7 +778,6 @@
                 }).join('');
             }
 
-            // Atualiza Painéis Superiores
             document.getElementById('saasReceitas').innerText = `R$ ${totalEntradas.toFixed(2).replace('.', ',')}`;
             document.getElementById('saasDespesas').innerText = `R$ ${totalSaidas.toFixed(2).replace('.', ',')}`;
         }
@@ -820,8 +799,6 @@
                 await db.collection('saas_financeiro').add(payload);
                 showToast("Registro contabilizado no caixa geral.", "success");
                 e.target.reset();
-                
-                // Pega a instância do modal ativo e fecha
                 const modal = bootstrap.Modal.getInstance(document.getElementById('modalSaasFin'));
                 if (modal) modal.hide();
             } catch (err) {
@@ -832,22 +809,17 @@
         }
 
         async function deletarRegistroSaaS(id) {
-            if(confirm("Confirma a exclusão deste registro financeiro na sua agência? O impacto é irreversível nos relatórios.")) {
+            if(confirm("Confirma a exclusão deste registro financeiro na sua agência?")) {
                 try {
                     await db.collection('saas_financeiro').doc(id).delete();
                     showToast("Registro removido.", "success");
-                } catch(e) {
-                    showToast("Erro: " + e.message, "error");
-                }
+                } catch(e) { showToast("Erro: " + e.message, "error"); }
             }
         }
 
-        // Script complementar para definir data de hoje nos inputs tipo date
         document.addEventListener('DOMContentLoaded', () => {
             const dataInput = document.getElementById('sfData');
-            if (dataInput) {
-                dataInput.value = new Date().toISOString().split('T')[0];
-            }
+            if (dataInput) { dataInput.value = new Date().toISOString().split('T')[0]; }
         });
 
     </script>
