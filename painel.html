@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>thIAguinho Soluções - Painel do Cliente</title>
+    <title>thIAguinho Hub - Painel Operacional</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     
+    <script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript"></script>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     
@@ -31,81 +33,28 @@
         ::-webkit-scrollbar-track { background: var(--bg-darker); } 
         ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; } 
         
-        /* SIDEBAR (Menu Lateral Mutante) */
-        .sidebar {
-            width: var(--sidebar-width);
-            background-color: var(--bg-card);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            transition: all 0.3s;
-            z-index: 1040;
-        }
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid var(--border-color);
-            text-align: center;
-        }
-        .nav-sidebar {
-            padding: 15px 10px;
-            flex-grow: 1;
-            overflow-y: auto;
-        }
-        .nav-sidebar .nav-link {
-            color: #adb5bd;
-            padding: 12px 20px;
-            border-radius: 8px;
-            margin-bottom: 5px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.2s;
-        }
-        .nav-sidebar .nav-link:hover {
-            background-color: rgba(255,255,255,0.05);
-            color: #fff;
-        }
-        .nav-sidebar .nav-link.active {
-            background-color: var(--bs-accent);
-            color: #000;
-            font-weight: 800;
-        }
+        /* SIDEBAR */
+        .sidebar { width: var(--sidebar-width); background-color: var(--bg-card); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; z-index: 1040; transition: all 0.3s;}
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); text-align: center; }
+        .nav-sidebar { padding: 15px 10px; flex-grow: 1; overflow-y: auto; }
+        .nav-sidebar .nav-link { color: #adb5bd; padding: 12px 20px; border-radius: 8px; margin-bottom: 5px; font-weight: 600; display: flex; align-items: center; gap: 12px; transition: all 0.2s; }
+        .nav-sidebar .nav-link:hover { background-color: rgba(255,255,255,0.05); color: #fff; }
+        .nav-sidebar .nav-link.active { background-color: var(--bs-accent); color: #000; font-weight: 800; }
         
-        /* ÁREA DE CONTEÚDO (Onde as telas vão renderizar) */
-        .main-content {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
-        .topbar {
-            background-color: var(--bg-card);
-            border-bottom: 1px solid var(--border-color);
-            padding: 15px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .content-area {
-            padding: 30px;
-            overflow-y: auto;
-            flex-grow: 1;
-        }
+        /* MAIN CONTENT */
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh;}
+        .topbar { background-color: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .content-area { padding: 20px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; }
 
-        .card { 
-            background-color: var(--bg-card); 
-            border: 1px solid var(--border-color); 
-            border-radius: 16px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1060; }
-
-        /* Esconder Sidebar em telas pequenas */
-        @media (max-width: 768px) {
-            .sidebar { position: fixed; height: 100vh; transform: translateX(-100%); }
-            .sidebar.show { transform: translateX(0); }
-        }
+        /* KANBAN STYLES */
+        .kanban-board { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 15px; flex-grow: 1; min-height: 500px;}
+        .kanban-col { background: rgba(30, 41, 59, 0.5); border: 1px dashed var(--border-color); border-radius: 12px; padding: 15px; min-width: 300px; width: 300px; display: flex; flex-direction: column; }
+        .kanban-cards { flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .os-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; cursor: pointer; transition: transform 0.2s, border-color 0.2s; }
+        .os-card:hover { transform: translateY(-3px); border-color: var(--bs-accent); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 2000; }
+        .admin-only { display: block; } /* Oculto via JS se for mecânico */
     </style>
 </head>
 <body>
@@ -116,44 +65,228 @@
             <h5 class="mt-2 text-white fw-bold" id="lblEmpresa">Carregando...</h5>
             <span class="badge bg-dark border border-secondary text-white-50" id="lblNicho">Segmento</span>
         </div>
-        <div class="nav-sidebar d-flex flex-column" id="menuLateral">
-            </div>
-        <div class="p-3 border-top border-secondary mt-auto text-center">
-            <small class="text-white-50 d-block mb-2">Usuário: <strong class="text-info" id="lblUsuario">User</strong></small>
-            <button class="btn btn-outline-danger w-100 fw-bold" onclick="sair()">
-                <i class="bi bi-power me-2"></i> Encerrar Sessão
-            </button>
+        <div class="nav-sidebar" id="menuLateral"></div>
+        <div class="p-3 border-top border-secondary text-center">
+            <small class="text-white-50 d-block mb-2">Logado como: <strong class="text-info" id="lblUsuario">User</strong></small>
+            <button class="btn btn-outline-danger w-100 fw-bold" onclick="sair()"><i class="bi bi-power me-2"></i> Sair</button>
         </div>
     </nav>
 
     <div class="main-content">
         <header class="topbar">
-            <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-dark d-md-none border-secondary" onclick="document.getElementById('sidebar').classList.toggle('show')">
-                    <i class="bi bi-list fs-4"></i>
-                </button>
-                <h4 class="mb-0 fw-bold text-white" id="tituloPagina">Dashboard Geral</h4>
-            </div>
-            <div class="d-flex align-items-center gap-3">
-                <span class="badge bg-success p-2"><i class="bi bi-cloud-check-fill me-1"></i> Online</span>
-            </div>
+            <h4 class="mb-0 fw-bold text-white" id="tituloPagina">Dashboard</h4>
+            <span class="badge bg-success p-2"><i class="bi bi-cloud-check-fill me-1"></i> Sistema Online</span>
         </header>
 
         <main class="content-area" id="areaTelas">
             
             <div id="tela_dashboard" class="modulo-tela">
-                <div class="row g-4 mb-4">
-                    <div class="col-12">
-                        <div class="card border-0 bg-info bg-opacity-10 p-4 border-start border-info border-5">
-                            <h3 class="text-info fw-bold">Bem-vindo ao seu ERP Inteligente!</h3>
-                            <p class="text-white-50 mb-0">Utilize o menu lateral para navegar pelos módulos habilitados para a sua empresa.</p>
-                        </div>
-                    </div>
+                <div class="card border-0 bg-info bg-opacity-10 p-4 border-start border-info border-5 mb-4">
+                    <h3 class="text-info fw-bold">Bem-vindo(a) à sua Operação!</h3>
+                    <p class="text-white-50 mb-0">Navegue pelos módulos ao lado. O sistema ajusta suas permissões automaticamente.</p>
                 </div>
-                <div id="dashboard_dinamico" class="row g-4"></div>
             </div>
 
-            </main>
+            <div id="tela_os" class="modulo-tela h-100" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-kanban me-2 text-info"></i> Pátio de Veículos / O.S.</h4>
+                        <small class="text-white-50">Arraste e clique nos cards para atualizar laudos e fotos.</small>
+                    </div>
+                    <button class="btn btn-info fw-bold shadow admin-only" onclick="abrirModalOS()">
+                        <i class="bi bi-plus-lg me-1"></i> Nova Ordem de Serviço
+                    </button>
+                </div>
+                
+                <div class="kanban-board">
+                    <div class="kanban-col">
+                        <h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 text-uppercase fw-bold">
+                            <i class="bi bi-cone-striped text-warning me-2"></i> Na Fila / Pátio
+                            <span class="badge bg-secondary float-end" id="count_patio">0</span>
+                        </h6>
+                        <div class="kanban-cards" id="col_patio"></div>
+                    </div>
+                    
+                    <div class="kanban-col">
+                        <h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 text-uppercase fw-bold">
+                            <i class="bi bi-tools text-info me-2"></i> No Box (Desmontando)
+                            <span class="badge bg-secondary float-end" id="count_box">0</span>
+                        </h6>
+                        <div class="kanban-cards" id="col_box"></div>
+                    </div>
+                    
+                    <div class="kanban-col">
+                        <h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 text-uppercase fw-bold">
+                            <i class="bi bi-hourglass-split text-danger me-2"></i> Aguardando Cliente
+                            <span class="badge bg-secondary float-end" id="count_aprovacao">0</span>
+                        </h6>
+                        <div class="kanban-cards" id="col_aprovacao"></div>
+                    </div>
+                    
+                    <div class="kanban-col">
+                        <h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 text-uppercase fw-bold">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i> Serviço Concluído
+                            <span class="badge bg-secondary float-end" id="count_pronto">0</span>
+                        </h6>
+                        <div class="kanban-cards" id="col_pronto"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tela_equipe" class="modulo-tela" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="text-white fw-bold"><i class="bi bi-people-fill me-2 text-info"></i> Gestão da Equipe</h4>
+                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#modalEquipe">
+                        <i class="bi bi-person-plus-fill me-1"></i> Cadastrar Colaborador
+                    </button>
+                </div>
+                <div class="card bg-transparent border-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle border-secondary">
+                            <thead>
+                                <tr>
+                                    <th>Nome do Colaborador</th>
+                                    <th>Cargo / Função</th>
+                                    <th>Usuário de Acesso</th>
+                                    <th>Senha</th>
+                                    <th>Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaEquipe"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <div class="modal fade" id="modalOS" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white fw-bold"><i class="bi bi-card-checklist text-info me-2"></i> Ficha da Ordem de Serviço</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form id="formOS">
+                        <input type="hidden" id="os_id">
+                        
+                        <div class="row g-3 mb-4 p-3 rounded-3" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color);">
+                            <div class="col-md-3">
+                                <label class="form-label text-white-50 small">Placa</label>
+                                <input type="text" class="form-control bg-black text-white text-uppercase fw-bold" id="os_placa" required placeholder="ABC-1234">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label text-white-50 small">Veículo / Modelo</label>
+                                <input type="text" class="form-control bg-black text-white" id="os_veiculo" required placeholder="Ex: Honda Civic">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-white-50 small">Nome do Cliente</label>
+                                <input type="text" class="form-control bg-black text-white" id="os_cliente" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label text-white-50 small">Status Atual</label>
+                                <select class="form-select bg-black text-info fw-bold" id="os_status">
+                                    <option value="patio">Na Fila / Pátio</option>
+                                    <option value="box">No Box (Execução)</option>
+                                    <option value="aprovacao">Aguardando Aprovação</option>
+                                    <option value="pronto">Pronto p/ Entrega</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <ul class="nav nav-tabs border-secondary mb-3" role="tablist">
+                            <li class="nav-item"><button class="nav-link active bg-transparent text-info fw-bold border-secondary border-bottom-0" data-bs-toggle="tab" data-bs-target="#tabLaudo" type="button">Diagnóstico & Fotos (Mecânico)</button></li>
+                            <li class="nav-item"><button class="nav-link bg-transparent text-white-50 border-secondary border-bottom-0" data-bs-toggle="tab" data-bs-target="#tabPecas" type="button">Peças & Orçamento</button></li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="tabLaudo">
+                                <div class="mb-3">
+                                    <label class="form-label text-white fw-bold">Relato do Problema / Diagnóstico do Mecânico</label>
+                                    <textarea class="form-control bg-black text-white" id="os_diagnostico" rows="4" placeholder="Descreva os defeitos encontrados..."></textarea>
+                                </div>
+                                <div class="p-3 border border-secondary rounded-3 bg-black">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="text-white mb-0"><i class="bi bi-camera-fill text-warning me-2"></i> Laudo Fotográfico (Evidências)</h6>
+                                        <button type="button" class="btn btn-sm btn-warning fw-bold text-dark" id="btnUploadCloudinary">
+                                            <i class="bi bi-cloud-arrow-up-fill me-1"></i> Anexar Foto do Defeito
+                                        </button>
+                                    </div>
+                                    <div id="galeriaFotosOS" class="d-flex gap-2 flex-wrap min-h-100"></div>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="tabPecas">
+                                <div class="d-flex justify-content-between mb-3 align-items-end">
+                                    <h6 class="text-white"><i class="bi bi-box-seam text-info me-2"></i> Relação de Peças e Serviços</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="adicionarLinhaPeca()">+ Adicionar Item</button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-sm align-middle" id="tabelaPecas">
+                                        <thead>
+                                            <tr>
+                                                <th>Descrição da Peça / Serviço</th>
+                                                <th width="100">Qtd</th>
+                                                <th class="admin-only" width="150">Vlr. Unitário (R$)</th>
+                                                <th class="admin-only" width="150">Total (R$)</th>
+                                                <th width="50"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="listaPecasCorpo"></tbody>
+                                    </table>
+                                </div>
+                                <div class="text-end mt-3 admin-only">
+                                    <h4 class="text-white">Total Geral: <span class="text-success fw-bold" id="os_total_geral">R$ 0,00</span></h4>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-secondary justify-content-between bg-black">
+                    <div class="text-white-50 small">Mecânico Responsável: <strong class="text-info" id="os_mecanico_nome">Você</strong></div>
+                    <div>
+                        <button type="button" class="btn btn-outline-light me-2" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-info fw-bold shadow-sm" onclick="salvarOS()"><i class="bi bi-save-fill me-2"></i> Salvar Ordem de Serviço</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalEquipe" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white"><i class="bi bi-person-badge text-info me-2"></i> Novo Colaborador</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form onsubmit="salvarFuncionario(event)">
+                        <div class="mb-3">
+                            <label class="text-white-50">Nome Completo</label>
+                            <input type="text" class="form-control bg-black text-white" id="f_nome" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="text-white-50">Cargo</label>
+                            <input type="text" class="form-control bg-black text-white" id="f_cargo" placeholder="Ex: Mecânico Chefe" required>
+                        </div>
+                        <div class="row g-3 mb-4">
+                            <div class="col-6">
+                                <label class="text-white-50">Usuário de Login</label>
+                                <input type="text" class="form-control border-info text-info bg-black fw-bold" id="f_user" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="text-white-50">Senha</label>
+                                <input type="text" class="form-control border-warning text-warning bg-black fw-bold" id="f_pass" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 fw-bold">Criar Acesso</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
@@ -161,154 +294,325 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // =====================================================================
-        // CONFIGURAÇÃO DO FIREBASE (COLE AS SUAS CHAVES AQUI)
-        // =====================================================================
-      const firebaseConfig = {
-  apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
-  authDomain: "hub-thiaguinho.firebaseapp.com",
-  projectId: "hub-thiaguinho",
-  storageBucket: "hub-thiaguinho.firebasestorage.app",
-  messagingSenderId: "453508098543",
-  appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
-};
-        
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
+            authDomain: "hub-thiaguinho.firebaseapp.com",
+            projectId: "hub-thiaguinho",
+            storageBucket: "hub-thiaguinho.firebasestorage.app",
+            messagingSenderId: "453508098543",
+            appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
+        };
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
 
-        // =====================================================================
-        // VALIDAÇÃO DE SEGURANÇA (VERIFICA SE ALGUÉM CAIU AQUI DE PARAQUEDAS)
-        // =====================================================================
+        // CHAVES DO CLOUDINARY DINÂMICAS (Lidas da Sessão do Navegador)
+        const CLOUDINARY_CLOUD_NAME = sessionStorage.getItem('t_cloudName');
+        const CLOUDINARY_UPLOAD_PRESET = sessionStorage.getItem('t_cloudPreset');
+
         const t_id = sessionStorage.getItem('t_id');
         const t_nome = sessionStorage.getItem('t_nome');
         const t_nicho = sessionStorage.getItem('t_nicho');
-        const t_role = sessionStorage.getItem('t_role'); // 'admin' ou 'equipe'
-        const f_nome = sessionStorage.getItem('f_nome'); // Nome do funcionário, se houver
+        const t_role = sessionStorage.getItem('t_role'); 
+        const user_nome = t_role === 'admin' ? 'Gestor Master' : sessionStorage.getItem('f_nome');
         const t_mods = JSON.parse(sessionStorage.getItem('t_mods') || '{}');
 
-        // Se não tiver ID do Tenant, expulsa de volta pro login
-        if (!t_id || !t_role) {
-            window.location.replace('index.html');
-        }
+        if (!t_id) window.location.replace('index.html');
 
-        // =====================================================================
-        // INICIALIZAÇÃO DA INTERFACE (O ALFAIATE EM AÇÃO)
-        // =====================================================================
+        let fotosOSAtual = [];
+
         document.addEventListener('DOMContentLoaded', () => {
-            // Preenche os dados básicos na tela
             document.getElementById('lblEmpresa').innerText = t_nome;
-            document.getElementById('lblNicho').innerText = t_nicho ? t_nicho.replace('_', ' ').toUpperCase() : 'B2B';
-            document.getElementById('lblUsuario').innerText = t_role === 'admin' ? 'Gestor' : f_nome;
+            document.getElementById('lblNicho').innerText = t_nicho ? t_nicho.replace('_', ' ').toUpperCase() : '';
+            document.getElementById('lblUsuario').innerText = user_nome;
+
+            if (t_role === 'equipe') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.setProperty('display', 'none', 'important'));
+            }
 
             construirMenuMutante();
-            mostrarTela('tela_dashboard', 'Dashboard Geral');
+            mostrarTela('tela_dashboard', 'Dashboard');
+
+            iniciarEscutaOS();
+            if(t_role === 'admin') iniciarEscutaEquipe();
+            
+            configurarCloudinary();
         });
 
-        // Função para construir o menu baseado no que o Master liberou
+        function showToast(msg, type='success') {
+            const bg = type === 'success' ? 'bg-success' : 'bg-danger';
+            const t = document.createElement('div');
+            t.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow" role="alert"><div class="d-flex"><div class="toast-body fw-bold">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
+            document.getElementById('toastContainer').appendChild(t.firstChild);
+            setTimeout(() => { if(document.getElementById('toastContainer').firstChild) document.getElementById('toastContainer').firstChild.remove() }, 4000);
+        }
+
         function construirMenuMutante() {
             const menu = document.getElementById('menuLateral');
-            let htmlMenu = '';
-
-            // 1. Dashboard (Sempre visível)
-            htmlMenu += criarBotaoMenu('tela_dashboard', 'bi-grid-1x2-fill', 'Dashboard');
-
-            // 2. Módulos Core (Depende das permissões do Tenant)
-            if (t_mods.agenda) {
-                htmlMenu += criarBotaoMenu('tela_agenda', 'bi-calendar-event', 'Agenda Inteligente');
+            let htmlMenu = `<a href="#" class="nav-link active" onclick="mostrarTela('tela_dashboard', 'Dashboard', this)"><i class="bi bi-grid-1x2"></i> Início</a>`;
+            
+            if (t_nicho.includes('oficina') || t_mods.os) {
+                htmlMenu += `<a href="#" class="nav-link" onclick="mostrarTela('tela_os', 'Pátio Kanban O.S.', this)"><i class="bi bi-kanban text-info"></i> Pátio de Veículos</a>`;
             }
-            if (t_mods.estoque) {
-                htmlMenu += criarBotaoMenu('tela_estoque', 'bi-box-seam-fill', 'Estoque & NFs');
-            }
-
-            // 3. Módulos Específicos por Nicho (A Mágica do Alfaiate)
-            if (t_nicho === 'oficina_motos' || t_nicho === 'oficina_carros' || t_mods.os) {
-                htmlMenu += criarBotaoMenu('tela_os', 'bi-kanban', 'Pátio O.S. (Kanban)');
-            }
-            if (t_nicho === 'odontologia' || t_mods.prontuario) {
-                htmlMenu += criarBotaoMenu('tela_prontuario', 'bi-clipboard2-pulse', 'Prontuários');
-            }
-            if (t_nicho === 'marcenaria' || t_mods.motor3d) {
-                htmlMenu += criarBotaoMenu('tela_motor3d', 'bi-box', 'Motor 3D & Projetos');
-            }
-            if (t_mods.listas) {
-                htmlMenu += criarBotaoMenu('tela_listas', 'bi-card-checklist', 'Listas Inteligentes');
-            }
-            if (t_mods.eventos) {
-                htmlMenu += criarBotaoMenu('tela_eventos', 'bi-trophy-fill', 'Eventos / Inscrições');
-            }
-
-            // 4. Módulos Premium & IA
-            // O Financeiro geralmente só é visível para o 'admin', escondemos da 'equipe'
-            if (t_mods.financeiro && t_role === 'admin') {
-                htmlMenu += criarBotaoMenu('tela_financeiro', 'bi-bank', 'Financeiro', 'text-success');
-            }
-            if (t_mods.chat) {
-                htmlMenu += criarBotaoMenu('tela_chat', 'bi-chat-left-dots-fill', 'CRM Chat Omnichannel', 'text-info');
-            }
-            if (t_mods.ia) {
-                htmlMenu += criarBotaoMenu('tela_ia', 'bi-robot', 'RAG Auditor I.A.', 'text-warning');
-            }
-
-            // Clientes e Funcionários (Geralmente todos têm, mas podemos refinar)
-            htmlMenu += criarBotaoMenu('tela_clientes', 'bi-people-fill', 'Base de Clientes');
+            
             if (t_role === 'admin') {
-                htmlMenu += criarBotaoMenu('tela_equipe', 'bi-person-badge', 'Minha Equipe');
+                htmlMenu += `<a href="#" class="nav-link" onclick="mostrarTela('tela_equipe', 'Gestão de Equipe', this)"><i class="bi bi-people-fill"></i> Minha Equipe</a>`;
             }
-
             menu.innerHTML = htmlMenu;
         }
 
-        function criarBotaoMenu(idTela, icone, texto, corExtra = '') {
-            return `
-                <a href="#" class="nav-link" id="btn_${idTela}" onclick="mostrarTela('${idTela}', '${texto}')">
-                    <i class="bi ${icone} fs-5 ${corExtra}"></i> <span>${texto}</span>
-                </a>
-            `;
-        }
-
-        // Sistema de navegação SPA (Single Page Application)
-        function mostrarTela(idTela, titulo) {
-            // Esconde todas as telas
-            document.querySelectorAll('.modulo-tela').forEach(tela => {
-                tela.style.display = 'none';
-            });
-            
-            // Remove a classe active de todos os botões do menu
-            document.querySelectorAll('.nav-sidebar .nav-link').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // Tenta mostrar a tela solicitada (se ela já existir no HTML)
-            const tela = document.getElementById(idTela);
-            if (tela) {
-                tela.style.display = 'block';
-            } else {
-                // Se a tela ainda não foi programada, mostra um aviso amigável
-                document.getElementById('areaTelas').innerHTML += `
-                    <div id="${idTela}" class="modulo-tela text-center py-5 mt-5">
-                        <i class="bi bi-cone-striped display-1 text-warning mb-3"></i>
-                        <h3 class="text-white">Módulo em Construção</h3>
-                        <p class="text-white-50">A tela de <b>${titulo}</b> está sendo costurada pelo nosso Alfaiate Digital.</p>
-                    </div>
-                `;
-            }
-
-            // Ativa o botão clicado
-            const btn = document.getElementById('btn_' + idTela);
-            if (btn) btn.classList.add('active');
-
-            // Atualiza o Topbar
+        function mostrarTela(idTela, titulo, btnContext) {
+            document.querySelectorAll('.modulo-tela').forEach(t => t.style.display = 'none');
+            document.getElementById(idTela).style.display = 'block';
             document.getElementById('tituloPagina').innerText = titulo;
-
-            // Em telas mobile, esconde a sidebar após o clique
-            if (window.innerWidth <= 768) {
-                document.getElementById('sidebar').classList.remove('show');
+            if(btnContext) {
+                document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+                btnContext.classList.add('active');
             }
         }
 
-        function sair() {
-            sessionStorage.clear();
-            window.location.href = 'index.html';
+        function sair() { sessionStorage.clear(); window.location.href = 'index.html'; }
+
+        let bancoOS = [];
+
+        function iniciarEscutaOS() {
+            db.collection('ordens_servico').where('tenantId', '==', t_id).onSnapshot(snap => {
+                bancoOS = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderizarKanban();
+            });
+        }
+
+        function renderizarKanban() {
+            const cols = { patio: '', box: '', aprovacao: '', pronto: '' };
+            let counts = { patio: 0, box: 0, aprovacao: 0, pronto: 0 };
+
+            bancoOS.forEach(os => {
+                const s = os.status || 'patio';
+                if(counts[s] !== undefined) {
+                    counts[s]++;
+                    let colorBorda = s === 'pronto' ? 'border-success' : s === 'aprovacao' ? 'border-danger' : s === 'box' ? 'border-info' : 'border-secondary';
+                    const anexoIcon = (os.fotos && os.fotos.length > 0) ? `<i class="bi bi-paperclip text-warning"></i>` : '';
+
+                    cols[s] += `
+                    <div class="os-card border-start border-4 ${colorBorda}" onclick="abrirModalOS('edit', '${os.id}')">
+                        <div class="d-flex justify-content-between mb-2 align-items-center">
+                            <span class="badge bg-dark border border-secondary text-white fw-bold fs-6 tracking-wide">${os.placa}</span>
+                            <span class="text-white-50 small">#${os.id.substring(0,5).toUpperCase()} ${anexoIcon}</span>
+                        </div>
+                        <h6 class="text-white mb-1 fw-bold">${os.veiculo}</h6>
+                        <p class="text-white-50 small mb-2 text-truncate"><i class="bi bi-person-fill"></i> ${os.cliente}</p>
+                        <div class="border-top border-secondary pt-2 mt-2 d-flex justify-content-between align-items-center">
+                            <small class="text-info"><i class="bi bi-wrench"></i> ${os.mecanico || 'Não Atribuído'}</small>
+                            ${t_role === 'admin' ? `<small class="text-success fw-bold">R$ ${(os.total || 0).toFixed(2)}</small>` : ''}
+                        </div>
+                    </div>`;
+                }
+            });
+
+            document.getElementById('col_patio').innerHTML = cols.patio || '<p class="text-center text-white-50 mt-4 small">Nenhum veículo.</p>';
+            document.getElementById('col_box').innerHTML = cols.box || '<p class="text-center text-white-50 mt-4 small">Box livre.</p>';
+            document.getElementById('col_aprovacao').innerHTML = cols.aprovacao || '<p class="text-center text-white-50 mt-4 small">Nenhum orçamento pendente.</p>';
+            document.getElementById('col_pronto').innerHTML = cols.pronto || '<p class="text-center text-white-50 mt-4 small">Pátio vazio.</p>';
+
+            document.getElementById('count_patio').innerText = counts.patio;
+            document.getElementById('count_box').innerText = counts.box;
+            document.getElementById('count_aprovacao').innerText = counts.aprovacao;
+            document.getElementById('count_pronto').innerText = counts.pronto;
+        }
+
+        const modalOSInstance = new bootstrap.Modal(document.getElementById('modalOS'));
+
+        function abrirModalOS(mode = 'nova', id = '') {
+            document.getElementById('formOS').reset();
+            document.getElementById('listaPecasCorpo').innerHTML = '';
+            document.getElementById('galeriaFotosOS').innerHTML = '';
+            fotosOSAtual = [];
+            calcularTotalOS();
+
+            if (mode === 'edit') {
+                const os = bancoOS.find(x => x.id === id);
+                if (os) {
+                    document.getElementById('os_id').value = os.id;
+                    document.getElementById('os_placa').value = os.placa || '';
+                    document.getElementById('os_veiculo').value = os.veiculo || '';
+                    document.getElementById('os_cliente').value = os.cliente || '';
+                    document.getElementById('os_status').value = os.status || 'patio';
+                    document.getElementById('os_diagnostico').value = os.diagnostico || '';
+                    document.getElementById('os_mecanico_nome').innerText = os.mecanico || 'Admin';
+                    
+                    if (os.fotos && os.fotos.length > 0) {
+                        fotosOSAtual = os.fotos;
+                        renderizarGaleria();
+                    }
+
+                    if (os.pecas && os.pecas.length > 0) {
+                        os.pecas.forEach(p => adicionarLinhaPeca(p.desc, p.qtd, p.valor));
+                    } else {
+                        adicionarLinhaPeca();
+                    }
+                }
+            } else {
+                document.getElementById('os_id').value = '';
+                document.getElementById('os_mecanico_nome').innerText = user_nome;
+                adicionarLinhaPeca(); 
+            }
+            
+            modalOSInstance.show();
+        }
+
+        function adicionarLinhaPeca(desc = '', qtd = 1, valor = 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary peca-desc" value="${desc}" placeholder="Correia Dentada, Óleo..."></td>
+                <td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary peca-qtd" value="${qtd}" min="1" onchange="calcularTotalOS()"></td>
+                <td class="admin-only"><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success fw-bold border-secondary peca-valor" value="${valor}" onchange="calcularTotalOS()"></td>
+                <td class="admin-only"><input type="text" class="form-control form-control-sm bg-black text-white border-0 peca-total" readonly value="0.00"></td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="this.closest('tr').remove(); calcularTotalOS()"><i class="bi bi-trash"></i></button></td>
+            `;
+            document.getElementById('listaPecasCorpo').appendChild(tr);
+            calcularTotalOS();
+        }
+
+        function calcularTotalOS() {
+            let totalGeral = 0;
+            const linhas = document.querySelectorAll('#listaPecasCorpo tr');
+            linhas.forEach(tr => {
+                const qtd = parseFloat(tr.querySelector('.peca-qtd').value) || 0;
+                const valor = parseFloat(tr.querySelector('.peca-valor').value) || 0;
+                const sub = qtd * valor;
+                tr.querySelector('.peca-total').value = sub.toFixed(2);
+                totalGeral += sub;
+            });
+            document.getElementById('os_total_geral').innerText = `R$ ${totalGeral.toFixed(2)}`;
+        }
+
+        function configurarCloudinary() {
+            if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+                document.getElementById("btnUploadCloudinary").addEventListener("click", function(){
+                    showToast("O dono da oficina ainda não configurou o sistema de imagens. Fale com a Administração.", "error");
+                });
+                return;
+            }
+
+            var myWidget = cloudinary.createUploadWidget({
+                cloudName: CLOUDINARY_CLOUD_NAME, 
+                uploadPreset: CLOUDINARY_UPLOAD_PRESET,
+                sources: ['local', 'camera'],
+                multiple: true,
+                language: 'pt',
+                text: { pt: { menu: { files: 'Meus Arquivos', camera: 'Câmera' } } }
+            }, (error, result) => { 
+                if (!error && result && result.event === "success") { 
+                    const fotoUrl = result.info.secure_url;
+                    fotosOSAtual.push(fotoUrl);
+                    renderizarGaleria();
+                    showToast("Foto anexada com sucesso!");
+                }
+            });
+
+            document.getElementById("btnUploadCloudinary").addEventListener("click", function(){
+                myWidget.open();
+            }, false);
+        }
+
+        function renderizarGaleria() {
+            const galeria = document.getElementById('galeriaFotosOS');
+            galeria.innerHTML = fotosOSAtual.map((url, index) => `
+                <div class="position-relative" style="width: 100px; height: 100px;">
+                    <img src="${url}" class="img-thumbnail bg-dark border-secondary w-100 h-100 object-fit-cover rounded">
+                    <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 p-0 px-1 rounded-circle" onclick="removerFoto(${index})"><i class="bi bi-x"></i></button>
+                </div>
+            `).join('');
+        }
+        function removerFoto(index) { fotosOSAtual.splice(index, 1); renderizarGaleria(); }
+
+        async function salvarOS() {
+            const id = document.getElementById('os_id').value;
+            
+            let pecasArray = [];
+            document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => {
+                const desc = tr.querySelector('.peca-desc').value.trim();
+                if (desc !== '') {
+                    pecasArray.push({
+                        desc: desc,
+                        qtd: parseFloat(tr.querySelector('.peca-qtd').value) || 1,
+                        valor: parseFloat(tr.querySelector('.peca-valor').value) || 0
+                    });
+                }
+            });
+
+            const total = pecasArray.reduce((acc, p) => acc + (p.qtd * p.valor), 0);
+
+            const payload = {
+                tenantId: t_id,
+                placa: document.getElementById('os_placa').value.toUpperCase(),
+                veiculo: document.getElementById('os_veiculo').value,
+                cliente: document.getElementById('os_cliente').value,
+                status: document.getElementById('os_status').value,
+                diagnostico: document.getElementById('os_diagnostico').value,
+                pecas: pecasArray,
+                total: total,
+                fotos: fotosOSAtual,
+                ultimaAtualizacao: new Date().toISOString()
+            };
+
+            if (!id) payload.mecanico = user_nome;
+
+            try {
+                if (id) {
+                    await db.collection('ordens_servico').doc(id).update(payload);
+                    showToast("Ordem de Serviço atualizada.");
+                } else {
+                    payload.criadoEm = new Date().toISOString();
+                    await db.collection('ordens_servico').add(payload);
+                    showToast("Veículo adicionado ao Pátio.");
+                }
+                modalOSInstance.hide();
+            } catch (err) {
+                showToast("Erro ao salvar: " + err.message, "error");
+            }
+        }
+
+        function iniciarEscutaEquipe() {
+            db.collection('funcionarios').where('tenantId', '==', t_id).onSnapshot(snap => {
+                const tbody = document.getElementById('tabelaEquipe');
+                if(snap.empty) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-white-50 py-4">Nenhum funcionário cadastrado.</td></tr>'; return; }
+                
+                tbody.innerHTML = snap.docs.map(doc => {
+                    const f = doc.data();
+                    return `
+                    <tr>
+                        <td class="fw-bold text-white"><i class="bi bi-person-circle text-secondary me-2"></i> ${f.nome}</td>
+                        <td class="text-white-50">${f.cargo}</td>
+                        <td class="text-info">${f.usuario}</td>
+                        <td class="text-warning font-monospace">${f.senha}</td>
+                        <td><button class="btn btn-sm btn-danger border-0" onclick="apagarFuncionario('${doc.id}')"><i class="bi bi-trash"></i></button></td>
+                    </tr>`;
+                }).join('');
+            });
+        }
+
+        async function salvarFuncionario(e) {
+            e.preventDefault();
+            try {
+                await db.collection('funcionarios').add({
+                    tenantId: t_id,
+                    nome: document.getElementById('f_nome').value,
+                    cargo: document.getElementById('f_cargo').value,
+                    usuario: document.getElementById('f_user').value,
+                    senha: document.getElementById('f_pass').value,
+                    role: 'equipe'
+                });
+                showToast("Acesso liberado para o colaborador!");
+                e.target.reset();
+                bootstrap.Modal.getInstance(document.getElementById('modalEquipe')).hide();
+            } catch(err) { showToast("Erro: " + err.message, "error"); }
+        }
+
+        async function apagarFuncionario(id) {
+            if(confirm("Deseja revogar o acesso deste funcionário?")) {
+                await db.collection('funcionarios').doc(id).delete();
+                showToast("Acesso bloqueado.");
+            }
         }
     </script>
 </body>
