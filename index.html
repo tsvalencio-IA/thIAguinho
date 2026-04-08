@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>thIAguinho Hub - Gateway de Acesso</title>
+    <title>thIAguinho Hub - Acesso ao Ecossistema Digital</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -43,6 +43,7 @@
                     <input type="text" class="form-control" id="loginUser" required placeholder="Digite seu usuário">
                 </div>
             </div>
+            
             <div class="mb-5 text-start">
                 <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Chave de Segurança</label>
                 <div class="input-group shadow-sm">
@@ -50,8 +51,12 @@
                     <input type="password" class="form-control" id="loginPass" required placeholder="••••••••">
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary w-100 shadow" id="btnAcesso">AUTENTICAR SISTEMA</button>
+            
+            <button type="submit" class="btn btn-primary w-100 shadow" id="btnAcesso">
+                AUTENTICAR SISTEMA
+            </button>
         </form>
+        
         <div class="mt-5 pt-4 border-top border-secondary" style="opacity: 0.3;">
             <small class="text-white fw-bold">Plataforma Global thIAguinho.Digital &copy; 2026</small>
         </div>
@@ -66,13 +71,14 @@
             messagingSenderId: "453508098543",
             appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
         };
+        
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
 
         function showToast(msg, isError = true) {
             const bg = isError ? 'bg-danger' : 'bg-success';
             const t = document.createElement('div');
-            t.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-4"><div class="d-flex"><div class="toast-body fw-bold fs-6">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
+            t.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-4" role="alert"><div class="d-flex"><div class="toast-body fw-bold fs-6">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
             document.getElementById('toastContainer').appendChild(t.firstChild);
             setTimeout(() => { if(document.getElementById('toastContainer').firstChild) document.getElementById('toastContainer').firstChild.remove() }, 4000);
         }
@@ -82,6 +88,7 @@
             const usr = document.getElementById('loginUser').value.trim();
             const pwd = document.getElementById('loginPass').value.trim();
             const btn = document.getElementById('btnAcesso');
+            
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processando...';
             btn.disabled = true;
 
@@ -92,31 +99,45 @@
                     return;
                 }
 
-                const tenantSnap = await db.collection('tenants').where('usuario', '==', usr).get();
+                // CORREÇÃO CRÍTICA: Voltando para 'oficinas' para resgatar a Chevron e todas as suas contas.
+                const tenantSnap = await db.collection('oficinas').where('usuario', '==', usr).get();
+                
                 if (!tenantSnap.empty) {
                     const doc = tenantSnap.docs[0];
                     const dados = doc.data();
-                    if (dados.senha !== pwd) { showToast('Credenciais inválidas.'); }
-                    else if (dados.status === 'Bloqueado') { showToast('Sua licença está suspensa.'); }
+                    
+                    if (dados.senha !== pwd) { 
+                        showToast('Credenciais inválidas. Acesso negado.'); 
+                    }
+                    else if (dados.status === 'Bloqueado') { 
+                        showToast('Sua licença SaaS encontra-se suspensa. Contate o Suporte.'); 
+                    }
                     else {
                         sessionStorage.setItem('t_id', doc.id);
                         sessionStorage.setItem('t_nome', dados.nomeFantasia);
-                        sessionStorage.setItem('t_nicho', dados.nicho);
+                        sessionStorage.setItem('t_nicho', dados.nicho); 
                         sessionStorage.setItem('t_role', 'admin');
-                        sessionStorage.setItem('f_nome', 'Gestor Admin'); // Para a linha do tempo
+                        sessionStorage.setItem('f_nome', 'Gestor Principal'); // Identificação no Histórico da O.S.
                         sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {}));
+                        
                         sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : '');
                         sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : '');
+                        
                         window.location.href = 'painel.html'; 
                     }
-                } else {
+                } 
+                else {
                     const funcSnap = await db.collection('funcionarios').where('usuario', '==', usr).get();
+                    
                     if (!funcSnap.empty) {
                         const docF = funcSnap.docs[0];
                         const dadosF = docF.data();
-                        if (dadosF.senha !== pwd) { showToast('Credenciais inválidas.'); }
+                        
+                        if (dadosF.senha !== pwd) { 
+                            showToast('Credenciais inválidas.'); 
+                        }
                         else {
-                            const empresaMae = await db.collection('tenants').doc(dadosF.tenantId).get();
+                            const empresaMae = await db.collection('oficinas').doc(dadosF.tenantId).get();
                             if(!empresaMae.exists || empresaMae.data().status === 'Bloqueado') {
                                 showToast('A matriz desta empresa está com a licença suspensa.');
                             } else {
@@ -124,18 +145,27 @@
                                 sessionStorage.setItem('t_nome', empresaMae.data().nomeFantasia);
                                 sessionStorage.setItem('t_nicho', empresaMae.data().nicho);
                                 sessionStorage.setItem('f_id', docF.id); 
-                                sessionStorage.setItem('f_nome', dadosF.nome); // NOME EXATO PARA O LOG
-                                sessionStorage.setItem('t_role', 'equipe');
+                                sessionStorage.setItem('f_nome', dadosF.nome); // Nome do mecânico que vai pro histórico
+                                sessionStorage.setItem('t_role', 'equipe'); 
+                                
                                 sessionStorage.setItem('t_mods', JSON.stringify(empresaMae.data().modulos || {}));
                                 sessionStorage.setItem('t_cloudName', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryName) ? empresaMae.data().apiKeys.cloudinaryName : '');
                                 sessionStorage.setItem('t_cloudPreset', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryPreset) ? empresaMae.data().apiKeys.cloudinaryPreset : '');
+                                
                                 window.location.href = 'painel.html';
                             }
                         }
-                    } else { showToast('Entidade não localizada.'); }
+                    } else {
+                        showToast('Entidade não localizada na malha de dados.');
+                    }
                 }
-            } catch (err) { showToast('Falha na conexão.'); console.log(err); }
-            btn.innerHTML = 'AUTENTICAR SISTEMA'; btn.disabled = false;
+            } catch (err) {
+                console.error(err);
+                showToast('Falha na conexão com a nuvem estrutural.');
+            }
+            
+            btn.innerHTML = 'AUTENTICAR SISTEMA';
+            btn.disabled = false;
         }
     </script>
 </body>
