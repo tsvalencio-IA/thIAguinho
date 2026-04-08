@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>thIAguinho Soluções - Acesso ao Sistema</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #0f172a;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        /* Fundo Animado e Elegante */
+        .bg-animated {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            z-index: 1;
+        }
+        
+        .login-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 50px 40px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 2;
+        }
+
+        .form-control {
+            background-color: #0f172a !important;
+            border: 1px solid #334155 !important;
+            color: #fff !important;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+        }
+
+        .form-control:focus {
+            border-color: #0dcaf0 !important;
+            box-shadow: 0 0 0 0.25rem rgba(13,202,240,0.15);
+        }
+
+        .input-group-text {
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            border-right: none;
+            color: #0dcaf0;
+        }
+        .form-control { border-left: none; }
+
+        .btn-primary {
+            background-color: #0dcaf0;
+            border: none;
+            font-weight: bold;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            color: #000;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #0baccc;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(13,202,240,0.2);
+        }
+
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1055; }
+    </style>
+</head>
+<body>
+
+    <div class="bg-animated"></div>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="login-card text-center">
+        <i class="bi bi-fingerprint display-1" style="color: #0dcaf0; filter: drop-shadow(0 0 10px rgba(13,202,240,0.3));"></i>
+        <h2 class="fw-bold mt-3 mb-1 tracking-wide">THIAGUINHO HUB</h2>
+        <p class="text-white-50 mb-5 small text-uppercase" style="letter-spacing: 2px;">Soluções Inteligentes B2B</p>
+        
+        <form onsubmit="realizarLoginUniversal(event)">
+            <div class="mb-4 text-start">
+                <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Usuário / Identificação</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                    <input type="text" class="form-control" id="loginUser" required placeholder="Digite seu usuário">
+                </div>
+            </div>
+            
+            <div class="mb-5 text-start">
+                <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Chave de Segurança</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                    <input type="password" class="form-control" id="loginPass" required placeholder="••••••••">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-100 shadow" id="btnAcesso">
+                ENTRAR NO SISTEMA
+            </button>
+        </form>
+        
+        <div class="mt-5 pt-4 border-top border-secondary">
+            <small class="text-white-50 fw-bold">Powered by <span class="text-info">thIAguinho Soluções</span> &copy; 2026</small>
+        </div>
+    </div>
+
+    <script>
+        // =====================================================================
+        // CONFIGURAÇÃO DO FIREBASE (COLE AS SUAS CHAVES AQUI)
+        // =====================================================================
+        const firebaseConfig = { 
+            apiKey: "COLE_SUA_API_KEY_AQUI", 
+            authDomain: "COLE_SEU_AUTH_DOMAIN_AQUI", 
+            projectId: "COLE_SEU_PROJECT_ID_AQUI", 
+            storageBucket: "COLE_SEU_STORAGE_BUCKET_AQUI", 
+            messagingSenderId: "COLE_SEU_SENDER_ID_AQUI", 
+            appId: "COLE_SEU_APP_ID_AQUI" 
+        };
+        
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.firestore();
+
+        // Sistema de Mensagens (Toast)
+        function showToast(msg, isError = true) {
+            const bg = isError ? 'bg-danger' : 'bg-success';
+            const t = document.createElement('div');
+            t.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded" role="alert"><div class="d-flex"><div class="toast-body fw-bold fs-6">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
+            document.getElementById('toastContainer').appendChild(t.firstChild);
+            setTimeout(() => { if(document.getElementById('toastContainer').firstChild) document.getElementById('toastContainer').firstChild.remove() }, 4000);
+        }
+
+        // =====================================================================
+        // LÓGICA DE ROTEAMENTO DO HUB UNIVERSAL
+        // =====================================================================
+        async function realizarLoginUniversal(e) {
+            e.preventDefault();
+            const usr = document.getElementById('loginUser').value.trim();
+            const pwd = document.getElementById('loginPass').value.trim();
+            const btn = document.getElementById('btnAcesso');
+            
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Autenticando...';
+            btn.disabled = true;
+
+            try {
+                // 1. VERIFICAÇÃO DO SUPER ADMIN (Você, o Alfaiate)
+                if (usr === 'thiaguinho' && pwd === 'master2026') {
+                    sessionStorage.setItem('thiaguinho_master', 'true');
+                    window.location.href = 'superadmin.html';
+                    return;
+                }
+
+                // 2. VERIFICAÇÃO DOS CLIENTES / TENANTS (Donos das Oficinas, Consultórios, etc)
+                const tenantSnap = await db.collection('oficinas').where('usuario', '==', usr).get();
+                
+                if (!tenantSnap.empty) {
+                    const doc = tenantSnap.docs[0];
+                    const dados = doc.data();
+                    
+                    if (dados.senha !== pwd) { 
+                        showToast('Senha incorreta. Tente novamente.'); 
+                    }
+                    else if (dados.status === 'Bloqueado') { 
+                        showToast('Licença suspensa. Entre em contato com a thIAguinho Soluções.'); 
+                    }
+                    else {
+                        // Salva os dados do cliente no navegador para carregar os módulos certos
+                        sessionStorage.setItem('t_id', doc.id); // Tenant ID
+                        sessionStorage.setItem('t_nome', dados.nomeFantasia);
+                        sessionStorage.setItem('t_nicho', dados.nicho); // oficina_motos, odontologia, etc
+                        sessionStorage.setItem('t_role', 'admin'); // Papel de gestor
+                        sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {})); // Módulos comprados
+                        
+                        // Redireciona para o Painel Dinâmico que criaremos a seguir
+                        window.location.href = 'painel.html'; 
+                    }
+                } 
+                else {
+                    // 3. VERIFICAÇÃO DE FUNCIONÁRIOS (Mecânicos, Secretárias, etc)
+                    const funcSnap = await db.collection('funcionarios').where('usuario', '==', usr).get();
+                    
+                    if (!funcSnap.empty) {
+                        const docF = funcSnap.docs[0];
+                        const dadosF = docF.data();
+                        
+                        if (dadosF.senha !== pwd) { 
+                            showToast('Senha incorreta.'); 
+                        }
+                        else {
+                            // Verifica se a empresa mãe deste funcionário não está bloqueada
+                            const ofcMae = await db.collection('oficinas').doc(dadosF.tenantId).get();
+                            if(!ofcMae.exists || ofcMae.data().status === 'Bloqueado') {
+                                showToast('A Licença desta empresa encontra-se suspensa.');
+                            } else {
+                                sessionStorage.setItem('t_id', dadosF.tenantId);
+                                sessionStorage.setItem('t_nome', ofcMae.data().nomeFantasia);
+                                sessionStorage.setItem('t_nicho', ofcMae.data().nicho);
+                                sessionStorage.setItem('f_id', docF.id); // Funcionario ID
+                                sessionStorage.setItem('f_nome', dadosF.nome);
+                                sessionStorage.setItem('t_role', 'equipe'); // Papel de funcionário
+                                
+                                // Redireciona para o Painel Dinâmico
+                                window.location.href = 'painel.html';
+                            }
+                        }
+                    } else {
+                        showToast('Usuário não localizado em nossos servidores.');
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Falha de conexão com a Nuvem. Tente novamente.');
+            }
+            
+            btn.innerHTML = 'ENTRAR NO SISTEMA';
+            btn.disabled = false;
+        }
+    </script>
+</body>
+</html>
