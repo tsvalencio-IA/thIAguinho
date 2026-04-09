@@ -25,7 +25,10 @@
         }
         .bg-animated { 
             position: absolute; 
-            top: 0; left: 0; width: 100%; height: 100%; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
             background: radial-gradient(circle at top left, #1e293b 0%, #050505 100%); 
             z-index: -1; 
         }
@@ -60,7 +63,12 @@
         .btn-primary:hover { 
             background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); 
         }
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+        .toast-container { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            z-index: 9999; 
+        }
     </style>
 </head>
 <body>
@@ -108,12 +116,25 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
+        // Limpa qualquer sessão travada ao carregar a página de login
+        window.onload = function() {
+            sessionStorage.clear();
+        };
+
         function showToast(msg, type='error') {
             const bg = type === 'success' ? 'bg-success' : 'bg-danger';
             const t = document.createElement('div');
             t.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg"><div class="d-flex"><div class="toast-body fw-bold">${msg}</div></div></div>`;
             document.getElementById('toastContainer').appendChild(t.firstChild);
             setTimeout(() => { if(t.firstChild) t.firstChild.remove() }, 4000);
+        }
+
+        function rotearParaNicho(nicho) {
+            if (nicho === 'Oficinas e Estética Automotiva') {
+                window.location.href = 'painel_oficina.html';
+            } else {
+                window.location.href = 'painel.html'; // Padrão Genérico
+            }
         }
 
         async function realizarLogin(e) {
@@ -126,15 +147,16 @@
             const pwd = document.getElementById('password').value.trim();
 
             try {
-                // 1. TENTA ENTRAR COMO SUPER ADMIN (DONO DA PLATAFORMA)
+                // =========================================================
+                // CAMADA 1: TENTA ENTRAR COMO SUPER ADMIN (DONO DA PLATAFORMA)
+                // =========================================================
                 const snapS = await db.collection('superadmin').where('usuario', '==', user).get();
                 if (!snapS.empty) {
                     if (snapS.docs[0].data().senha === pwd) {
-                        sessionStorage.clear(); // Limpa resíduos para não gerar conflitos de roteamento
                         sessionStorage.setItem('t_role', 'superadmin');
                         sessionStorage.setItem('f_nome', 'Master Admin');
                         window.location.href = 'superadmin.html';
-                        return; // TRAVA DE SEGURANÇA: Impede que o código continue e o envie para a oficina
+                        return; // OBRIGATÓRIO: Impede que a leitura prossiga e caia no fallback
                     } else {
                         showToast('Palavra-passe do SuperAdmin incorreta.');
                         btn.innerHTML = 'INICIAR SESSÃO SEGURA'; btn.disabled = false;
@@ -142,7 +164,9 @@
                     }
                 }
 
-                // 2. TENTA ENTRAR COMO ADMIN DO TENANT (DONO DA OFICINA/EMPRESA)
+                // =========================================================
+                // CAMADA 2: TENTA ENTRAR COMO ADMIN DO TENANT (DONO DA OFICINA)
+                // =========================================================
                 const snapA = await db.collection('clientes_saas').where('loginAdmin', '==', user).get();
                 if (!snapA.empty) {
                     const dados = snapA.docs[0].data();
@@ -153,24 +177,25 @@
                         showToast('Licença Bloqueada. Fale com o suporte da plataforma.'); 
                     }
                     else {
-                        sessionStorage.clear(); // Limpa resíduos
                         sessionStorage.setItem('t_id', snapA.docs[0].id); 
                         sessionStorage.setItem('t_nome', dados.nomeFantasia || 'A Minha Oficina'); 
                         sessionStorage.setItem('t_nicho', dados.nicho || 'Oficinas e Estética Automotiva'); 
-                        sessionStorage.setItem('t_role', 'admin'); // Nível Master da Oficina
+                        sessionStorage.setItem('t_role', 'admin'); 
                         sessionStorage.setItem('f_nome', 'Administrador'); 
                         sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {}));
                         
-                        // Chaves de API (Essenciais para o funcionamento do Cloudinary e IA)
+                        // Chaves de API Globais da Empresa
                         sessionStorage.setItem('t_gemini', (dados.apiKeys && dados.apiKeys.gemini) ? dados.apiKeys.gemini : '');
-                        sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : '');
-                        sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : '');
+                        sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : 'dmuvm1o6m');
+                        sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : 'evolution');
                         
-                        window.location.href = 'painel_oficina.html';
+                        rotearParaNicho(dados.nicho);
                         return;
                     }
                 } else {
-                    // 3. TENTA ENTRAR COMO FUNCIONÁRIO (GERENTE OU MECÂNICO)
+                    // =========================================================
+                    // CAMADA 3: TENTA ENTRAR COMO FUNCIONÁRIO (GERENTE OU MECÂNICO)
+                    // =========================================================
                     const snapF = await db.collection('funcionarios').where('usuario', '==', user).get();
                     if (!snapF.empty) {
                         const docF = snapF.docs[0];
@@ -179,12 +204,11 @@
                         if (dadosF.senha !== pwd) { 
                             showToast('Palavra-passe corporativa incorreta.'); 
                         } else {
-                            // Verifica o Status da Empresa Mãe
+                            // Verifica o Status da Empresa Mãe antes de deixar o funcionário entrar
                             const empresaMae = await db.collection('clientes_saas').doc(dadosF.tenantId).get();
                             if(!empresaMae.exists || empresaMae.data().status === 'Bloqueado') {
                                 showToast('A matriz encontra-se com a licença suspensa. Acesso negado.');
                             } else {
-                                sessionStorage.clear(); // Limpa resíduos
                                 sessionStorage.setItem('t_id', dadosF.tenantId); 
                                 sessionStorage.setItem('t_nome', empresaMae.data().nomeFantasia || 'A Minha Oficina');
                                 sessionStorage.setItem('t_nicho', empresaMae.data().nicho || 'Oficinas e Estética Automotiva'); 
@@ -194,12 +218,12 @@
                                 sessionStorage.setItem('t_role', dadosF.role || 'equipe'); // 'gerente' ou 'equipe'
                                 sessionStorage.setItem('t_mods', JSON.stringify(empresaMae.data().modulos || {}));
                                 
-                                // Herda as Chaves de API do Dono
+                                // O Funcionário herda as Chaves de API do Dono da Oficina
                                 sessionStorage.setItem('t_gemini', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.gemini) ? empresaMae.data().apiKeys.gemini : '');
-                                sessionStorage.setItem('t_cloudName', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryName) ? empresaMae.data().apiKeys.cloudinaryName : '');
-                                sessionStorage.setItem('t_cloudPreset', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryPreset) ? empresaMae.data().apiKeys.cloudinaryPreset : '');
+                                sessionStorage.setItem('t_cloudName', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryName) ? empresaMae.data().apiKeys.cloudinaryName : 'dmuvm1o6m');
+                                sessionStorage.setItem('t_cloudPreset', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryPreset) ? empresaMae.data().apiKeys.cloudinaryPreset : 'evolution');
                                 
-                                window.location.href = 'painel_oficina.html';
+                                rotearParaNicho(empresaMae.data().nicho);
                                 return;
                             }
                         }
@@ -208,11 +232,11 @@
                     }
                 }
             } catch (err) { 
-                console.error(err); 
+                console.error("Erro no Processo de Login: ", err); 
                 showToast('Falha de rede ou estrutural. Tente novamente.'); 
             }
             
-            // Se chegou aqui é porque o login falhou. Restaura o botão.
+            // Restaura o botão caso o login falhe em todas as etapas
             btn.innerHTML = 'INICIAR SESSÃO SEGURA'; 
             btn.disabled = false;
         }
