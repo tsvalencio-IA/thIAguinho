@@ -322,7 +322,7 @@
                 <div id="tela_ia" class="modulo-tela h-100" style="display: none;">
                     <div class="row h-100 g-4 admin-only">
                         <div class="col-md-12 d-flex flex-column h-100">
-                            <h5 class="text-warning fw-bold mb-3"><i class="bi bi-database-fill-up me-2"></i> Base de Conhecimento RAG (I.A. Gemini 2.5 Flash)</h5>
+                            <h5 class="text-warning fw-bold mb-3"><i class="bi bi-database-fill-up me-2"></i> Base de Conhecimento RAG (I.A. Gemini 1.5 Flash)</h5>
                             <p class="text-white-50 small">Alimente a Inteligência Artificial com manuais de mecânica. Ela usará isso para responder no Consultor Técnico aos Mecânicos.</p>
                             <div class="mb-3">
                                 <label class="btn btn-outline-warning w-100 fw-bold p-4 mb-3 border-dashed shadow-sm">
@@ -732,8 +732,15 @@
                         <input type="hidden" id="fin_tipo">
                         
                         <div class="mb-3">
-                            <label class="text-white-50 small fw-bold">Descrição / Fornecedor / Origem / Funcionário (Vale)</label>
-                            <input type="text" class="form-control bg-black text-white fw-bold" id="fin_desc" required placeholder="Ex: Conta de Luz ou Vale do João">
+                            <label class="text-white-50 small fw-bold">Descrição / Fornecedor / Motivo</label>
+                            <input type="text" class="form-control bg-black text-white fw-bold" id="fin_desc" required placeholder="Ex: Conta de Luz, Fornecedor X...">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="text-warning small fw-bold"><i class="bi bi-person-badge"></i> Vínculo RH / Pró-labore (Opcional)</label>
+                            <select class="form-select bg-black text-white border-warning fw-bold" id="fin_vinculo_rh">
+                                <option value="">Nenhum vínculo (Despesa da Oficina)</option>
+                            </select>
                         </div>
                         
                         <div class="row g-3 mb-3">
