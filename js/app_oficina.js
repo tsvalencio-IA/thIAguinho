@@ -833,29 +833,60 @@ app.processarFaturamentoCompleto = async function() {
 // 9. DRE PROFISSIONAL (COM VÍNCULO RH)
 // =====================================================================
 app.abrirModalFinanceiro = function(mode='nova', tipo='', id='') {
-    document.getElementById('formFinanceiro').reset(); document.getElementById('fin_id').value = '';
-    app.popularSelectVinculoRH(); document.getElementById('div_vinculo_rh').style.display = 'none'; document.getElementById('fin_vinculo_rh').removeAttribute('required');
+    const formFin = document.getElementById('formFinanceiro'); if(formFin) formFin.reset();
+    const finId = document.getElementById('fin_id'); if(finId) finId.value = '';
+    
+    app.popularSelectVinculoRH();
+    const divVinculo = document.getElementById('div_vinculo_rh'); if(divVinculo) divVinculo.style.display = 'none';
+    const finVinculo = document.getElementById('fin_vinculo_rh'); if(finVinculo) finVinculo.removeAttribute('required');
 
     if(mode === 'edit' && !tipo) { const f = app.bancoFin.find(x => x.id === id); if(f) tipo = f.tipo === 'ENTRADA' ? 'receita' : 'despesa'; }
-    document.getElementById('fin_tipo').value = tipo;
-    document.getElementById('fin_titulo').innerHTML = tipo === 'receita' ? '<i class="bi bi-plus-circle text-success me-2"></i> Receita Avulsa' : '<i class="bi bi-dash-circle text-danger me-2"></i> Lançar Despesa / NF';
-    document.getElementById('fin_data').value = new Date().toISOString().split('T')[0];
+    
+    const finTipo = document.getElementById('fin_tipo'); if(finTipo) finTipo.value = tipo;
+    const finTitulo = document.getElementById('fin_titulo');
+    if(finTitulo) finTitulo.innerHTML = tipo === 'receita' ? '<i class="bi bi-plus-circle text-success me-2"></i> Receita Avulsa' : '<i class="bi bi-dash-circle text-danger me-2"></i> Lançar Despesa / NF';
+    
+    const finData = document.getElementById('fin_data');
+    if(finData) finData.value = new Date().toISOString().split('T')[0];
     
     if(mode === 'edit') {
         const f = app.bancoFin.find(x => x.id === id);
         if(f) {
-            document.getElementById('fin_id').value = f.id; document.getElementById('fin_desc').value = f.desc || ''; document.getElementById('fin_valor').value = f.valor || 0; document.getElementById('fin_data').value = f.vencimento ? f.vencimento.split('T')[0] : ''; document.getElementById('fin_metodo').value = f.metodo || 'Dinheiro'; 
-            if(document.getElementById('fin_categoria')) { document.getElementById('fin_categoria').value = f.categoria || 'OUTROS'; document.getElementById('fin_categoria').dispatchEvent(new Event('change')); }
-            if(document.getElementById('fin_vinculo_rh') && f.pessoaId) { document.getElementById('fin_vinculo_rh').value = `${f.pessoaId}|${f.pessoaNome}`; }
-            document.getElementById('divStatusEdit').style.display = 'block'; document.getElementById('fin_status').value = f.status || 'pendente'; document.getElementById('divParcelas').style.display = 'none';
+            if(finId) finId.value = f.id;
+            const finDesc = document.getElementById('fin_desc'); if(finDesc) finDesc.value = f.desc || '';
+            const finValor = document.getElementById('fin_valor'); if(finValor) finValor.value = f.valor || 0;
+            if(finData) finData.value = f.vencimento ? f.vencimento.split('T')[0] : '';
+            const finMetodo = document.getElementById('fin_metodo'); if(finMetodo) finMetodo.value = f.metodo || 'Dinheiro';
+            
+            const finCat = document.getElementById('fin_categoria');
+            if(finCat) { finCat.value = f.categoria || 'OUTROS'; finCat.dispatchEvent(new Event('change')); }
+            
+            if(finVinculo && f.pessoaId) { finVinculo.value = `${f.pessoaId}|${f.pessoaNome}`; }
+            
+            const divStatus = document.getElementById('divStatusEdit'); if(divStatus) divStatus.style.display = 'block';
+            const finStatus = document.getElementById('fin_status'); if(finStatus) finStatus.value = f.status || 'pendente';
+            const divParc = document.getElementById('divParcelas'); if(divParc) divParc.style.display = 'none';
         }
-    } else { document.getElementById('divStatusEdit').style.display = 'none'; document.getElementById('divParcelas').style.display = 'block'; if(tipo === 'receita') document.getElementById('fin_parcelas').value = '1'; }
-    new bootstrap.Modal(document.getElementById('modalFin')).show();
+    } else {
+        const divStatus = document.getElementById('divStatusEdit'); if(divStatus) divStatus.style.display = 'none';
+        const divParc = document.getElementById('divParcelas'); if(divParc) divParc.style.display = 'block';
+        const finParc = document.getElementById('fin_parcelas'); if(finParc && tipo === 'receita') finParc.value = '1';
+    }
+    const modalFin = document.getElementById('modalFin');
+    if(modalFin) new bootstrap.Modal(modalFin).show();
+    else app.showToast("Erro: Modal financeiro não encontrado no HTML.", "error");
 };
 
 app.verificarPgtoFinManual = function() {
-    const f = document.getElementById('fin_metodo').value; const d = document.getElementById('divParcelas');
-    if(d) { if(f.includes('Parcelado') || f.includes('Boleto')) d.style.display = 'block'; else { d.style.display = 'none'; document.getElementById('fin_parcelas').value = '1'; } }
+    const elMetodo = document.getElementById('fin_metodo'); if(!elMetodo) return;
+    const f = elMetodo.value; const d = document.getElementById('divParcelas');
+    if(d) { 
+        if(f.includes('Parcelado') || f.includes('Boleto')) d.style.display = 'block'; 
+        else { 
+            d.style.display = 'none'; 
+            const elParc = document.getElementById('fin_parcelas'); if(elParc) elParc.value = '1';
+        } 
+    }
 };
 
 app.salvarLancamentoFinanceiro = async function(e) {
