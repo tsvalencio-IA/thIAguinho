@@ -1113,9 +1113,20 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO COM REQUISITO DE FONTES)
+// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO) - CORRIGIDO PELO PERITO
 // =====================================================================
+app.minhaGeminiKey = null;
+
 app.iniciarEscutaIA = function() {
+    // O SEGREDO DO SEU CÓDIGO: Buscar a chave em tempo real do Firebase (Igual ao admin.html)
+    if(app.t_id) {
+        app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => { 
+            if(doc.exists && doc.data().geminiKey) {
+                app.minhaGeminiKey = doc.data().geminiKey; 
+            }
+        });
+    }
+
     app.db.collection('conhecimento_ia').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoIA = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         app.renderizarListaIA();
@@ -1132,59 +1143,54 @@ app.salvarConhecimentoIA = async function(textoAvulso = null) {
     const textarea = document.getElementById('iaConhecimentoTexto'); const valor = textoAvulso || (textarea ? textarea.value.trim() : '');
     if(!valor) { app.showToast("O input de dados não pode ser vazio.", "warning"); return; }
     await app.db.collection('conhecimento_ia').add({ tenantId: app.t_id, texto: valor, dataImportacao: new Date().toISOString() });
-    app.showToast("Deep Learning concluído. Regra injetada na I.A.", "success"); if(textarea && !textoAvulso) textarea.value = '';
-    app.registrarAuditoriaGlobal("Gestão RAG", "Injetou novo conhecimento na base da IA.");
+    app.showToast("Conhecimento gravado.", "success"); if(textarea && !textoAvulso) textarea.value = '';
 };
 
 app.apagarConhecimentoIA = async function(id) {
-    if(confirm("Deseja apagar este fragmento de memória da I.A.?")) {
-        await app.db.collection('conhecimento_ia').doc(id).delete(); app.showToast("Célula de Memória expurgada.", "success");
-        app.registrarAuditoriaGlobal("Gestão RAG", "Apagou conhecimento da base da IA.");
+    if(confirm("Deseja apagar esta memória?")) {
+        await app.db.collection('conhecimento_ia').doc(id).delete(); app.showToast("Memória apagada.", "success");
     }
 };
 
 app.processarArquivoParaIA = function(event) {
     const file = event.target.files[0]; if(!file) return;
     const statusLabel = document.getElementById('iaFileStatus');
-    if(statusLabel) { statusLabel.className = "text-warning fw-bold d-block text-center"; statusLabel.innerText = "A ler matriz física do ficheiro e a traduzir para RAG..."; }
+    if(statusLabel) { statusLabel.className = "text-warning fw-bold d-block text-center"; statusLabel.innerText = "Lendo matriz física do arquivo e traduzindo para RAG..."; }
     
     const reader = new FileReader();
     reader.onload = async function(e) {
         const text = e.target.result; const txtLimpo = text.substring(0, 10000);
         await app.salvarConhecimentoIA(`[ARQUIVO IMPORTADO: ${file.name}]\n\n${txtLimpo}`);
-        if(statusLabel) { statusLabel.className = "text-success fw-bold d-block text-center"; statusLabel.innerText = "Aquisição e Sinapse concluídas com êxito!"; setTimeout(() => { statusLabel.innerText = ""; }, 5000); }
+        if(statusLabel) { statusLabel.className = "text-success fw-bold d-block text-center"; statusLabel.innerText = "Aquisição concluída!"; setTimeout(() => { statusLabel.innerText = ""; }, 5000); }
     };
     reader.readAsText(file); 
 };
 
-// Conector Exato e Validado com Proteção contra chaves "null"
-app.chamarGemini = async function(prompt) {
-    // Puxa a chave atualizada diretamente da sessão no momento do clique
-    let key = sessionStorage.getItem('t_gemini');
+// CONECTOR EXATO DO CHEVRON USANDO systemInstruction
+app.chamarGemini = async function(prompt, sysInstruction) {
+    const key = app.minhaGeminiKey;
     
-    // Bloqueio absoluto se a chave for nula, vazia ou texto "null"
-    if(!key || key === 'null' || key === 'undefined' || key.trim() === '') { 
-        app.showToast("Chave da API inválida. Saia do sistema e faça Login novamente.", "error"); 
-        return "Erro: Chave API ausente ou nula. Por favor, clique em 'Encerrar Sessão' (botão vermelho no menu lateral) e faça o Login novamente para puxar a nova chave do banco de dados."; 
+    if(!key) { 
+        app.showToast("A chave da IA não foi configurada no SuperAdmin.", "error"); 
+        return "Erro: Google Gemini API Key ausente na oficina."; 
     }
-
+    
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: sysInstruction }] },
+                generationConfig: { temperature: 0.1 }
+            })
         });
-        
         const data = await res.json(); 
-        
-        if(data.error) {
-            console.error("Erro da API:", data.error);
-            return "Erro retornado pela IA: " + data.error.message;
-        }
-        
+        if(data.error) throw new Error(data.error.message);
         return data.candidates[0].content.parts[0].text;
     } catch(e) { 
         console.error(e);
-        return "Erro na ligação com a Inteligência Artificial."; 
+        return "Erro na conexão com a Inteligência Artificial: " + e.message; 
     }
 };
 
@@ -1192,14 +1198,15 @@ app.perguntarJarvis = async function() {
     const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
     if(!inp || !inp.value) return; 
     resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está a processar...';
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está analisando...';
 
     const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
     const dadosOS = app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => `[Placa: ${o.placa} | Veículo: ${o.veiculo} | Status: ${o.status} | Problema: ${o.relatoCliente || ''}]`).join('\n');
     
-    const prompt = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DE TREINAMENTO (RAG): ${contexto}\nCARROS NO PÁTIO: ${dadosOS}\nPERGUNTA: ${inp.value}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual.`;
+    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DE TREINAMENTO (RAG): ${contexto}\nCARROS NO PÁTIO: ${dadosOS}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
+    const prompt = inp.value;
     
-    const resposta = await app.chamarGemini(prompt);
+    const resposta = await app.chamarGemini(prompt, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
     inp.value = '';
 };
@@ -1208,26 +1215,28 @@ app.perguntarJarvisMecanico = async function() {
     const inp = document.getElementById('jarvisInputMecanico'); const resDiv = document.getElementById('jarvisRespostaMecanico');
     if(!inp || !inp.value) return; 
     resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está a processar...';
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando nos manuais...';
 
     const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
-    const prompt = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".\nMANUAIS (RAG): ${contexto}\nDÚVIDA DO BOX: ${inp.value}\nRegra: Responda direto e CITE a fonte se usar um manual.`;
+    const sys = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".\nMANUAIS (RAG): ${contexto}\nRegra: Responda direto e CITE a fonte se usar um manual. Jamais invente especificações.`;
+    const prompt = inp.value;
     
-    const resposta = await app.chamarGemini(prompt);
+    const resposta = await app.chamarGemini(prompt, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
     inp.value = '';
 };
 
 app.jarvisAnalisarRevisoes = async function() {
     const div = document.getElementById('jarvisCRMInsights'); if(!div) return;
-    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> A escanear o Histórico...';
+    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando Histórico...';
     
     const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
-    if(historicoMorto.length === 0) { div.innerHTML = '<span class="text-white-50">Não há registos suficientes.</span>'; return; }
+    if(historicoMorto.length === 0) { div.innerHTML = '<span class="text-white-50">Não há registros suficientes.</span>'; return; }
     
     const dadosParaIA = historicoMorto.map(o => `Data Faturada: ${new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR')} | Cliente: ${o.cliente} | Veículo: ${o.veiculo} | Placa: ${o.placa}`).join('\n');
-    const prompt = `Gestor de Remarketing da oficina ${app.t_nome}.\nBASE:\n${dadosParaIA}\nTarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
+    const sys = `Gestor de Remarketing da oficina ${app.t_nome}.\nBASE:\n${dadosParaIA}\nTarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
+    const prompt = "Analise o histórico e me dê os clientes para remarketing.";
     
-    const resposta = await app.chamarGemini(prompt);
+    const resposta = await app.chamarGemini(prompt, sys);
     div.innerHTML = resposta;
 };
