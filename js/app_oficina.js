@@ -36,6 +36,7 @@ app.bancoCrm = [];
 app.bancoIA = [];
 app.bancoMensagens = [];
 app.bancoAuditoria = [];
+app.bancoEquipe = []; // Adicionado para carregar a equipe no modal de Box
 app.fotosOSAtual = [];
 app.historicoOSAtual = [];
 app.chatActiveClienteId = null;
@@ -86,12 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     app.construirMenuLateral();
     const linkInicio = document.querySelector('.nav-sidebar .nav-link');
-    if(linkInicio) app.mostrarTela('tela_jarvis', 'Inteligência Automotiva', linkInicio);
+    if(linkInicio) app.mostrarTela('tela_jarvis', 'thIAguinho Inteligência Automotiva', linkInicio);
     
     app.iniciarEscutaOS();
     app.iniciarEscutaCrm();
     app.iniciarEscutaMensagens();
     app.iniciarEscutaMensagensInternas();
+    app.iniciarEscutaEquipeInternaParaBox(); // Carrega equipe para atribuição
     
     if(app.t_role === 'admin' || app.t_role === 'gerente') {
         app.iniciarEscutaEstoque();
@@ -104,6 +106,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     app.configurarCloudinary();
 });
+
+app.iniciarEscutaEquipeInternaParaBox = function() {
+    app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        app.bancoEquipe = snap.docs.map(doc => doc.data());
+    });
+};
 
 app.showToast = function(msg, type='success') {
     const bg = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-warning text-dark';
@@ -118,7 +126,7 @@ app.sair = function() { sessionStorage.clear(); window.location.href = 'index.ht
 
 app.construirMenuLateral = function() {
     const menu = document.getElementById('menuLateral'); if (!menu) return;
-    let html = `<a class="nav-link active" onclick="app.mostrarTela('tela_jarvis', 'Central J.A.R.V.I.S', this)"><i class="bi bi-robot"></i> Central J.A.R.V.I.S</a>`;
+    let html = `<a class="nav-link active" onclick="app.mostrarTela('tela_jarvis', 'Central thIAguinho', this)"><i class="bi bi-robot"></i> Central thIAguinho (I.A)</a>`;
     html += `<a class="nav-link" onclick="app.mostrarTela('tela_os', 'Pátio Kanban', this)"><i class="bi bi-kanban text-info"></i> Pátio Kanban (O.S)</a>`;
     html += `<a class="nav-link" onclick="app.mostrarTela('tela_arquivo', 'Arquivo Morto', this); app.renderizarTabelaArquivo();"><i class="bi bi-archive text-warning"></i> Arquivo Morto / Entregues</a>`;
     html += `<a class="nav-link" onclick="app.mostrarTela('tela_chat_interno', 'Chat Equipe', this)"><i class="bi bi-headset text-warning"></i> Chat Equipe Interna</a>`;
@@ -507,13 +515,13 @@ app.apagarProduto = async function(id) {
 };
 
 // =====================================================================
-// 6. MOTOR KANBAN E GESTÃO DE O.S.
+// 6. MOTOR KANBAN E GESTÃO DE O.S. (ATUALIZADO COM ATRIBUIÇÃO DE BOX E WHATSAPP)
 // =====================================================================
 app.iniciarEscutaOS = function() {
     app.db.collection('ordens_servico').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoOSCompleto = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if(app.t_role === 'equipe') {
-            let minhaCom = 0; app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.mecanicoReal === app.user_nome).forEach(o => minhaCom += (o.comissaoProcessada||0));
+            let minhaCom = 0; app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.mecanicoAtribuido === app.user_nome).forEach(o => minhaCom += (o.comissaoProcessada||0));
             const divKpi = document.getElementById('kpiMinhaComissao'); if(divKpi) divKpi.innerText = `R$ ${minhaCom.toFixed(2).replace('.',',')}`;
         }
         app.renderizarKanban(); app.renderizarTabelaArquivo();
@@ -539,17 +547,109 @@ app.renderizarKanban = function() {
         let btnBack = prevS ? `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm me-1" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${prevS}')" title="Voltar Fase"><i class="bi bi-arrow-left-circle text-white-50"></i></button>` : '';
         let btnFwd = s === 'pronto' ? `<button class="btn btn-sm btn-success p-1 px-3 shadow fw-bold gestao-only" onclick="event.stopPropagation(); app.abrirFaturamentoDireto('${os.id}')"><i class="bi bi-cash-coin me-1"></i> FATURAR VEÍCULO</button>` : `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${nextS}')" title="Avançar Fase"><i class="bi bi-arrow-right-circle text-info"></i></button>`;
 
-        cols[s] += `<div class="os-card border-start border-4 ${cor}" onclick="app.abrirModalOS('edit', '${os.id}')"><div class="fast-actions">${btnBack}${btnFwd}</div><div class="d-flex justify-content-between mb-2"><span class="badge bg-dark border border-secondary text-white py-2 px-3">${os.placa}</span></div><h6 class="text-white fw-bold mb-1 w-75 text-truncate">${os.veiculo}</h6><small class="text-white-50"><i class="bi bi-person-fill"></i> ${os.cliente}</small></div>`;
+        let tagsBox = '';
+        if (s === 'box' || s === 'pronto') {
+            const m = os.mecanicoAtribuido ? os.mecanicoAtribuido : 'Mecânico Não Definido';
+            const b = os.boxAtribuido ? os.boxAtribuido : 'Box ?';
+            tagsBox = `<div class="mt-2 d-flex gap-1 flex-wrap"><span class="badge bg-dark border border-info text-info"><i class="bi bi-person-workspace"></i> ${m}</span><span class="badge bg-dark border border-warning text-warning"><i class="bi bi-geo-alt"></i> ${b}</span></div>`;
+        }
+
+        cols[s] += `<div class="os-card border-start border-4 ${cor}" onclick="app.abrirModalOS('edit', '${os.id}')"><div class="fast-actions">${btnBack}${btnFwd}</div><div class="d-flex justify-content-between mb-2"><span class="badge bg-dark border border-secondary text-white py-2 px-3 fw-bold tracking-wide">${os.placa}</span></div><h6 class="text-white fw-bold mb-1 w-75 text-truncate">${os.veiculo}</h6><small class="text-white-50"><i class="bi bi-person-fill"></i> ${os.cliente}</small>${tagsBox}</div>`;
     });
     ordem.forEach(id => { const col = document.getElementById('col_'+id); const cnt = document.getElementById('count_'+id); if(col) col.innerHTML = cols[id]; if(cnt) cnt.innerText = counts[id]; });
 };
 
 app.mudarStatusRapido = async function(id, novoStatus) {
+    if (novoStatus === 'box') {
+        app.iniciarAtribuicaoBox(id);
+        return; // Interrompe para obrigar o Gestor a definir quem vai fazer o serviço
+    }
+    
     const osRef = app.db.collection('ordens_servico').doc(id); const doc = await osRef.get();
     let h = doc.data().historico || [];
-    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Arrastou o cartão da O.S. para a coluna: ${novoStatus.toUpperCase()}` });
+    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Moveu a O.S. para: ${novoStatus.toUpperCase()}` });
     await osRef.update({ status: novoStatus, historico: h, ultimaAtualizacao: new Date().toISOString() });
-    app.registrarAuditoriaGlobal("Pátio Kanban", `Moveu O.S. ${doc.data().placa} para ${novoStatus}`);
+    
+    if (novoStatus === 'pronto') {
+        app.abrirModalNotificacaoWhatsApp(id, 'pronto');
+    }
+};
+
+// =====================================================================
+// FLUXOS DE ATRIBUIÇÃO E NOTIFICAÇÃO (WHATSAPP E BOX)
+// =====================================================================
+app.iniciarAtribuicaoBox = function(id) {
+    document.getElementById('atrib_os_id').value = id;
+    
+    const selectMecanico = document.getElementById('atrib_mecanico');
+    if (selectMecanico) {
+        selectMecanico.innerHTML = '<option value="">Selecione a equipe disponível...</option>' + 
+        app.bancoEquipe.filter(f => f.role === 'equipe').map(f => `<option value="${f.nome}">${f.nome}</option>`).join('');
+    }
+    
+    new bootstrap.Modal(document.getElementById('modalAtribuicaoBox')).show();
+};
+
+app.confirmarAtribuicaoBox = async function() {
+    const id = document.getElementById('atrib_os_id').value;
+    const mecanico = document.getElementById('atrib_mecanico').value;
+    const box = document.getElementById('atrib_box').value;
+    
+    if (!mecanico) { app.showToast("É obrigatório definir um mecânico responsável.", "warning"); return; }
+    
+    const osRef = app.db.collection('ordens_servico').doc(id);
+    const doc = await osRef.get();
+    let h = doc.data().historico || [];
+    
+    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Serviço Aprovado. Direcionado para o [${box}] sob responsabilidade de [${mecanico}]. Status: BOX` });
+    
+    await osRef.update({ 
+        status: 'box', 
+        mecanicoAtribuido: mecanico, 
+        boxAtribuido: box, 
+        historico: h, 
+        ultimaAtualizacao: new Date().toISOString() 
+    });
+    
+    app.showToast("Veículo encaminhado para execução!", "success");
+    bootstrap.Modal.getInstance(document.getElementById('modalAtribuicaoBox')).hide();
+};
+
+app.abrirModalNotificacaoWhatsApp = function(id, tipo) {
+    document.getElementById('whats_os_id').value = id;
+    document.getElementById('whats_tipo_msg').value = tipo;
+    
+    const os = app.bancoOSCompleto.find(x => x.id === id);
+    if(os) {
+        if(tipo === 'pronto') {
+            document.getElementById('whatsTituloModal').innerText = 'Veículo Pronto!';
+            document.getElementById('whatsTextoModal').innerText = `Deseja enviar uma mensagem automática para ${os.cliente} informando que o ${os.veiculo} está pronto para ser retirado?`;
+        }
+        new bootstrap.Modal(document.getElementById('modalNotificaWhatsApp')).show();
+    }
+};
+
+app.dispararWhatsAppAtivo = function() {
+    const id = document.getElementById('whats_os_id').value;
+    const tipo = document.getElementById('whats_tipo_msg').value;
+    const os = app.bancoOSCompleto.find(x => x.id === id);
+    
+    if (os && os.celular) {
+        let texto = '';
+        if (tipo === 'pronto') {
+            texto = `Olá ${os.cliente}, ótimas notícias da *${app.t_nome}*! 🚀\nO serviço no seu *${os.veiculo}* foi concluído com sucesso e ele já se encontra no pátio, finalizado e revisado.\nPor favor, confirme por aqui o melhor horário para agendarmos a sua retirada. Muito obrigado pela confiança!`;
+        }
+        window.open(`https://wa.me/55${os.celular.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`, '_blank');
+        
+        // Registrar na auditoria
+        const h = os.historico || [];
+        h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Disparou aviso de CONCLUSÃO via WhatsApp para o cliente.` });
+        app.db.collection('ordens_servico').doc(id).update({ historico: h });
+        
+    } else {
+        app.showToast("Este cliente não tem um celular válido cadastrado.", "error");
+    }
+    bootstrap.Modal.getInstance(document.getElementById('modalNotificaWhatsApp')).hide();
 };
 
 // =====================================================================
@@ -653,13 +753,22 @@ app.salvarOS = async function() {
     });
     
     const novoStatus = document.getElementById('os_status') ? document.getElementById('os_status').value : 'patio';
+    
+    // Se o Gestor estiver apenas editando e tentar jogar para 'box' direto pelo Select, abrimos o Modal de Atribuição.
+    if(novoStatus === 'box' && id) {
+         const oldData = app.bancoOSCompleto.find(o => o.id === id);
+         if(oldData && oldData.status !== 'box' && (!oldData.mecanicoAtribuido || !oldData.boxAtribuido)) {
+             app.iniciarAtribuicaoBox(id);
+             return;
+         }
+    }
+
     app.historicoOSAtual.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: id ? `Editou o orçamento/evidências. Status: ${novoStatus.toUpperCase()}` : "Abriu a Ficha (Pátio)." });
     
     const payload = {
         tenantId: app.t_id, placa: document.getElementById('os_placa') ? document.getElementById('os_placa').value.toUpperCase() : '', veiculo: document.getElementById('os_veiculo') ? document.getElementById('os_veiculo').value : '', cliente: clienteOS, clienteId: cId, celular: telOS, clienteCpf: cpfOS, status: novoStatus, relatoCliente: document.getElementById('os_relato_cliente') ? document.getElementById('os_relato_cliente').value : '', diagnostico: document.getElementById('os_diagnostico') ? document.getElementById('os_diagnostico').value : '', chk_combustivel: document.getElementById('chk_combustivel') ? document.getElementById('chk_combustivel').checked : false, chk_arranhado: document.getElementById('chk_arranhado') ? document.getElementById('chk_arranhado').checked : false, chk_bateria: document.getElementById('chk_bateria') ? document.getElementById('chk_bateria').checked : false, chk_pneus: document.getElementById('chk_pneus') ? document.getElementById('chk_pneus').checked : false, pecas: pecasArray, total: metricasTotais.total, custoTotal: metricasTotais.custo, maoObraTotal: metricasTotais.maoObra, pecasTotal: metricasTotais.pecas, fotos: app.fotosOSAtual, historico: app.historicoOSAtual, ultimaAtualizacao: new Date().toISOString()
     };
     
-    if (!id) payload.mecanico = app.user_nome; 
     if (novoStatus === 'entregue') { app.showToast("ATENÇÃO: Use o botão Verde de Faturar para Baixar Estoque.", "warning"); return; }
     if (id) await app.db.collection('ordens_servico').doc(id).update(payload); else await app.db.collection('ordens_servico').add(payload);
     
@@ -709,7 +818,7 @@ app.processarFaturamentoCompleto = async function() {
     let h = app.osParaFaturar.historico || [];
     h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `FATURAMENTO CONCLUÍDO: ${nP}x (${fp}). Estoque Baixado e comissão calculada.` });
     
-    batch.update(app.db.collection('ordens_servico').doc(app.osParaFaturar.id), { status: 'entregue', baixaEstoqueFeita: true, comissaoProcessada: comissaoReais, mecanicoReal: app.osParaFaturar.mecanico || app.user_nome, historico: h, ultimaAtualizacao: new Date().toISOString() });
+    batch.update(app.db.collection('ordens_servico').doc(app.osParaFaturar.id), { status: 'entregue', baixaEstoqueFeita: true, comissaoProcessada: comissaoReais, mecanicoReal: app.osParaFaturar.mecanicoAtribuido || app.user_nome, historico: h, ultimaAtualizacao: new Date().toISOString() });
     
     await batch.commit(); 
     app.registrarAuditoriaGlobal("Faturamento O.S.", `Faturou a O.S placa ${app.osParaFaturar.placa} no valor de R$ ${totalVenda.toFixed(2)}`);
@@ -932,7 +1041,6 @@ app.renderizarTabelaArquivo = function() {
     if(tbody) tbody.innerHTML = entregues.map(os => `<tr><td class="text-white-50 small"><i class="bi bi-calendar-check text-success me-2"></i> ${new Date(os.ultimaAtualizacao).toLocaleDateString('pt-BR')}</td><td><span class="badge bg-dark border px-3 py-2 fs-6 shadow-sm">${os.placa}</span></td><td class="text-white fw-bold">${os.veiculo}</td><td class="text-white-50">${os.cliente}</td><td class="gestao-only text-success fw-bold">R$ ${(os.total||0).toFixed(2).replace('.',',')}</td><td class="text-center"><button class="btn btn-outline-info shadow-sm fw-bold px-4" onclick="app.abrirModalOS('edit', '${os.id}')"><i class="bi bi-folder-symlink-fill me-2"></i> Prontuário</button></td></tr>`).join('');
 };
 
-// Aqui o Arquivo Morto se torna a verdadeira Central de Auditoria
 app.iniciarEscutaLixeira = function() {
     app.db.collection('lixeira_auditoria').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoAuditoria = snap.docs.map(d => d.data());
@@ -942,7 +1050,6 @@ app.iniciarEscutaLixeira = function() {
             tb.innerHTML = app.bancoAuditoria.map(l => `<tr><td class="text-white-50 small">${new Date(l.apagadoEm).toLocaleString('pt-BR')}</td><td class="text-white fw-bold">${l.placaOriginal}</td><td><i class="bi bi-person-badge text-danger"></i> ${l.apagadoPor}</td><td class="text-warning">${l.motivo}</td></tr>`).join('');
         }
         
-        // Injeta Botão de Exportar Auditoria se não existir
         const lixeiraHeader = document.querySelector('#tela_arquivo .text-danger.fw-bold');
         if(lixeiraHeader && !document.getElementById('btnExportarAuditoria')) {
             lixeiraHeader.innerHTML += ` <button id="btnExportarAuditoria" class="btn btn-sm btn-outline-danger shadow-sm ms-3" onclick="app.exportarAuditoriaPDF()"><i class="bi bi-file-pdf"></i> Exportar Auditoria</button>`;
@@ -1113,7 +1220,7 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (MOTOR SÊNIOR COM AUTO-FALLBACK SEGURO)
+// 12. CÉREBRO DA I.A. CORRIGIDO E ATUALIZADO (1.5-FLASH NATIVO E ESTÁVEL)
 // =====================================================================
 app.minhaGeminiKey = null;
 app.iaTrabalhando = false; // Trava Global Anti-Spam de Simultaneidade
@@ -1167,7 +1274,9 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// CONECTOR BLINDADO COM DESVIO INSTANTÂNEO DE ROTA (SEM ERRO 404)
+// =========================================================
+// O VERDADEIRO MOTOR GEMINI (FIXADO E CORRIGIDO PARA REST)
+// =========================================================
 app.chamarGemini = async function(prompt, sysInstruction) {
     const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
     
@@ -1176,73 +1285,51 @@ app.chamarGemini = async function(prompt, sysInstruction) {
         return "Erro: Google Gemini API Key ausente na oficina."; 
     }
 
+    // CORREÇÃO CRÍTICA: system_instruction com underscore e formato JSON exigido pela API Rest oficial.
     const payloadOptions = {
         method: 'POST', 
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            systemInstruction: { parts: [{ text: sysInstruction }] },
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            system_instruction: { parts: [{ text: sysInstruction }] },
             generationConfig: { temperature: 0.1 }
         })
     };
 
     try {
-        // Tenta PRIMEIRO o modelo do Admin (2.5-flash)
-        let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, payloadOptions);
+        // CORREÇÃO DE ROTA: gemini-1.5-flash (Estável e Rápido) ao invés do inexistente 2.5
+        let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, payloadOptions);
         
-        // Se a Google bloquear por Simultaneidade (429) ou erro temporário...
-        if (!res.ok) {
-            console.warn("Rota 2.5-flash sobrecarregada. Acionando rota secundária 1.5-flash...");
-            // Desvia automaticamente para o modelo 1.5-flash oficial, sem sufixos bizarros.
-            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, payloadOptions);
-        }
-
         const data = await res.json(); 
-        if(data.error) throw new Error(data.error.message);
+        
+        if (!res.ok || data.error) {
+             console.error("Erro I.A:", data.error);
+             throw new Error(data.error ? data.error.message : "Erro desconhecido da Google");
+        }
         
         return data.candidates[0].content.parts[0].text;
     } catch(e) { 
         console.error(e);
-        return "A I.A. da Google bloqueou a requisição. Aguarde 1 minuto e faça a pergunta novamente sem clicar em outros botões ao mesmo tempo. Erro: " + e.message; 
+        return "A I.A. da Google encontrou uma instabilidade. Aguarde 1 minuto e tente novamente. Erro técnico: " + e.message; 
     }
 };
 
 app.perguntarJarvis = async function() {
-    if(app.iaTrabalhando) return; // Se o radar estiver rodando, ignora o clique
+    if(app.iaTrabalhando) return;
     
     const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
     if(!inp || !inp.value) return; 
     
-    app.iaTrabalhando = true; // Trava a API
+    app.iaTrabalhando = true;
     resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está analisando...';
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Processando Cognição...';
 
     const ctx = { 
         manuais: app.bancoIA.map(ia => ia.texto), 
         patio: app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => ({placa: o.placa, def: o.relatoCliente, st: o.status})) 
     };
     
-    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DA OFICINA: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
-    
-    const resposta = await app.chamarGemini(inp.value, sys);
-    resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
-    
-    inp.value = '';
-    app.iaTrabalhando = false; // Libera a API
-};
-
-app.perguntarJarvisMecanico = async function() {
-    if(app.iaTrabalhando) return;
-    
-    const inp = document.getElementById('jarvisInputMecanico'); const resDiv = document.getElementById('jarvisRespostaMecanico');
-    if(!inp || !inp.value) return; 
-    
-    app.iaTrabalhando = true;
-    resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando nos manuais...';
-
-    const ctx = { manuais: app.bancoIA.map(ia => ia.texto) };
-    const sys = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".\nMANUAIS (RAG): ${JSON.stringify(ctx)}\nRegra: Responda direto e CITE a fonte se usar um manual. Jamais invente especificações.`;
+    const sys = `Você é a Inteligência thIAguinho, o consultor sênior da oficina "${app.t_nome}".\nDADOS DA OFICINA: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados. Seja técnico e preciso.`;
     
     const resposta = await app.chamarGemini(inp.value, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
@@ -1260,7 +1347,7 @@ app.jarvisAnalisarRevisoes = async function() {
     const div = document.getElementById('jarvisCRMInsights'); if(!div) return;
     
     app.iaTrabalhando = true;
-    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando Histórico...';
+    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando Histórico de Faturamento...';
     
     const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
     if(historicoMorto.length === 0) { 
@@ -1273,9 +1360,9 @@ app.jarvisAnalisarRevisoes = async function() {
         historico: historicoMorto.slice(-50).map(o => ({ dt: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), cli: o.cliente, pl: o.placa })) 
     };
 
-    const sys = `Gestor de Remarketing da oficina ${app.t_nome}.\nBASE:\n${JSON.stringify(ctx)}\nTarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
+    const sys = `Você é o Gestor de Remarketing Sênior da oficina ${app.t_nome}.\nBASE RECENTE:\n${JSON.stringify(ctx)}\nTarefa: Identifique clientes com potencial de retorno preventivo (troca de óleo, revisão 10k) para contato HOJE. Devolva em formato HTML limpo (apenas <ul><li>) justificando o motivo técnico. Seja agressivo comercialmente.`;
     
-    const resposta = await app.chamarGemini("Analise o histórico e me dê os clientes para remarketing.", sys);
+    const resposta = await app.chamarGemini("Exija a lista de clientes para remarketing de hoje.", sys);
     div.innerHTML = resposta;
     app.iaTrabalhando = false;
 };
