@@ -133,7 +133,7 @@
                 <div id="tela_jarvis" class="modulo-tela">
                     <div class="card border-0 bg-dark p-5 mb-4 shadow text-center position-relative overflow-hidden" style="border: 1px solid #0dcaf0 !important;">
                         <i class="bi bi-robot position-absolute opacity-10" style="font-size: 15rem; left: -20px; bottom: -40px; color: #0dcaf0;"></i>
-                        <h2 class="text-info fw-bold z-1 position-relative">t.h.I.A.g.u.i.n.h.o - Inteligência Automotiva</h2>
+                        <h2 class="text-info fw-bold z-1 position-relative">thIAguinho - Inteligência Automotiva</h2>
                         <p class="text-white-50 mb-4 fs-5 z-1 position-relative">Gestor Virtual de CRM, Estoque e Dúvidas Técnicas da sua Oficina.</p>
                         
                         <div class="row g-4 z-1 position-relative justify-content-center gestao-only">
@@ -337,7 +337,7 @@
                 <div id="tela_ia" class="modulo-tela h-100" style="display: none;">
                     <div class="row h-100 g-4 admin-only">
                         <div class="col-md-12 d-flex flex-column h-100">
-                            <h5 class="text-warning fw-bold mb-3"><i class="bi bi-database-fill-up me-2"></i> Base de Conhecimento RAG (I.A. Gemini 2.5)</h5>
+                            <h5 class="text-warning fw-bold mb-3"><i class="bi bi-database-fill-up me-2"></i> Base de Conhecimento RAG (I.A. Gemini 1.5)</h5>
                             <p class="text-white-50 small">Alimente a Inteligência Artificial com manuais de mecânica, PDFs de regras ou catálogos de peças. Ela usará isso para responder no Consultor Técnico e guiar os mecânicos no Box.</p>
                             <div class="mb-3">
                                 <label class="btn btn-outline-warning w-100 fw-bold p-4 mb-3 border-dashed shadow-sm">
@@ -492,6 +492,61 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modalAtribuicaoBox" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark border-info" style="border-width: 2px;">
+                <div class="modal-header border-secondary bg-black">
+                    <h5 class="modal-title text-info fw-bold"><i class="bi bi-tools me-2"></i> Direcionar para Execução (Box)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-white-50 mb-4">O orçamento foi aprovado! Para iniciar o conserto, defina qual mecânico será responsável e em qual elevador/box o veículo ficará.</p>
+                    <input type="hidden" id="atrib_os_id">
+                    <div class="mb-3">
+                        <label class="text-warning fw-bold small">Mecânico / Especialista Responsável</label>
+                        <select class="form-select bg-black text-white border-secondary fw-bold p-3" id="atrib_mecanico">
+                            <option value="">Selecione a equipe disponível...</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="text-info fw-bold small">Número do Elevador / Box / Pátio</label>
+                        <select class="form-select bg-black text-white border-secondary fw-bold p-3" id="atrib_box">
+                            <option value="Box 1">Box 1 (Elevador Principal)</option>
+                            <option value="Box 2">Box 2 (Elevador Secundário)</option>
+                            <option value="Box 3">Box 3 (Alinhamento/Geometria)</option>
+                            <option value="Box 4">Box 4 (Elétrica/Diagnóstico)</option>
+                            <option value="Pátio Interno">Pátio Interno (Sem Elevador)</option>
+                            <option value="Lavagem">Área de Lavagem/Estética</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-info w-100 fw-bold py-3 fs-5" onclick="app.confirmarAtribuicaoBox()"><i class="bi bi-check-circle-fill me-2"></i> CONFIRMAR E INICIAR SERVIÇO</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalNotificaWhatsApp" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark border-success">
+                <div class="modal-header border-secondary bg-black">
+                    <h5 class="modal-title text-success fw-bold"><i class="bi bi-whatsapp me-2"></i> Notificar Cliente</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <i class="bi bi-check-circle-fill display-1 text-success mb-3 d-block opacity-75"></i>
+                    <h4 class="text-white fw-bold mb-3" id="whatsTituloModal">Veículo Pronto!</h4>
+                    <p class="text-white-50 mb-4" id="whatsTextoModal">Deseja enviar uma mensagem automática via WhatsApp para o cliente informando sobre a atualização e agendando a retirada?</p>
+                    <input type="hidden" id="whats_os_id">
+                    <input type="hidden" id="whats_tipo_msg">
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">Não Notificar</button>
+                        <button type="button" class="btn btn-success px-4 fw-bold shadow" onclick="app.dispararWhatsAppAtivo()"><i class="bi bi-send-fill me-2"></i> Abrir WhatsApp Web</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="modalOS" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content bg-dark border-info" style="border-width: 2px;">
@@ -531,8 +586,8 @@
                                 <label class="text-warning fw-bold small">FLUXO KANBAN (ETAPA DO CARRO NA OFICINA)</label>
                                 <select class="form-select bg-black text-white fw-bold border-secondary p-3" id="os_status" onchange="app.verificarStatusLink()">
                                     <option value="patio">🟢 Fase 1: Veículo no Pátio / Avaliação Inicial</option>
-                                    <option value="orcamento" class="text-primary">🔵 Fase 2: Orçamento Finalizado (Aguardando Envio)</option>
-                                    <option value="aprovacao" class="text-warning">🟡 Fase 3: Orçamento Enviado. Aguardando Cliente Aprovar no Portal</option>
+                                    <option value="orcamento" class="text-primary">🔵 Fase 2: Orçamento Feito (Aguardando Envio)</option>
+                                    <option value="aprovacao" class="text-warning">🟡 Fase 3: Orçamento Enviado. Aguardando Cliente Aprovar</option>
                                     <option value="box" class="text-info">🛠️ Fase 4: O.S. Aprovada! / Veículo em Manutenção (Box)</option>
                                     <option value="pronto" class="text-success">🟣 Fase 5: Serviço Pronto / Aguard. Faturamento e Retirada</option>
                                 </select>
