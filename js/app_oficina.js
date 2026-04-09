@@ -1113,9 +1113,10 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH) - ESTRUTURA SÊNIOR OTIMIZADA
+// 12. CÉREBRO DA I.A. (MOTOR SÊNIOR COM AUTO-FALLBACK E ANTI-SPAM)
 // =====================================================================
 app.minhaGeminiKey = null;
+app.iaEmProcessamento = false; // Trava de segurança Anti-Spam
 
 app.iniciarEscutaIA = function() {
     if(app.t_id) {
@@ -1166,17 +1167,18 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// CONECTOR EXATO DO CHEVRON USANDO systemInstruction e modelo 2.5-flash
+// CONECTOR DE ALTA DISPONIBILIDADE COM ROTA ALTERNATIVA
 app.chamarGemini = async function(prompt, sysInstruction) {
     const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
     
     if(!key || key === 'null' || key === 'undefined') { 
-        app.showToast("A chave da IA não foi encontrada no banco nem na sessão.", "error"); 
+        app.showToast("A chave da IA não foi encontrada.", "error"); 
         return "Erro: Google Gemini API Key ausente na oficina."; 
     }
     
-    try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+    // Função interna para executar a chamada isolada
+    const executarFetch = async (modeloName) => {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloName}:generateContent?key=${key}`, {
             method: 'POST', 
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -1185,71 +1187,95 @@ app.chamarGemini = async function(prompt, sysInstruction) {
                 generationConfig: { temperature: 0.1 }
             })
         });
-        const data = await res.json(); 
-        if(data.error) throw new Error(data.error.message);
+        return await res.json();
+    };
+
+    try {
+        // Tenta a Rota 1: O modelo original do seu sistema admin.html
+        let data = await executarFetch('gemini-2.5-flash');
+
+        // O SEGREDO: Se a Google bloquear por Cota (429) ou modelo não encontrado (404)...
+        if (data.error && (data.error.code === 429 || data.error.code === 404)) {
+            console.warn(`[I.A] Rota primária bloqueada pela Google (Erro ${data.error.code}). Acionando Fallback Automático...`);
+            // Faz o desvio automático e transparente para a rota oficial estável sem o cliente ver o erro
+            data = await executarFetch('gemini-1.5-flash-latest');
+        }
+        
+        if (data.error) throw new Error(data.error.message);
+        
         return data.candidates[0].content.parts[0].text;
+
     } catch(e) { 
-        console.error(e);
-        return "Erro na resposta da API (Verifique limites da Cota): " + e.message; 
+        console.error("Falha geral na IA: ", e);
+        return "A I.A. da Google está sobrecarregada ou bloqueou temporariamente a requisição. Aguarde um minuto e tente novamente. Detalhe: " + e.message; 
     }
 };
 
 app.perguntarJarvis = async function() {
+    if(app.iaEmProcessamento) return; // Bloqueia cliques múltiplos (Anti-Spam)
+    
     const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
     if(!inp || !inp.value) return; 
+    
+    app.iaEmProcessamento = true; // Ativa a trava
     resDiv.classList.remove('d-none'); 
     resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está analisando...';
 
-    // OTIMIZAÇÃO: JSON Compresso igual ao seu admin.html para evitar o Erro 429 (Cota Excedida)
     const ctx = { 
         manuais: app.bancoIA.map(ia => ia.texto), 
         patio: app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => ({placa: o.placa, def: o.relatoCliente, st: o.status})) 
     };
     
-    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".
-DADOS DE TREINAMENTO E PÁTIO: ${JSON.stringify(ctx)}
-Regra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
+    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DE TREINAMENTO E PÁTIO: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
     
-    const prompt = inp.value;
-    const resposta = await app.chamarGemini(prompt, sys);
+    const resposta = await app.chamarGemini(inp.value, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
+    
     inp.value = '';
+    app.iaEmProcessamento = false; // Libera a trava
 };
 
 app.perguntarJarvisMecanico = async function() {
+    if(app.iaEmProcessamento) return;
+    
     const inp = document.getElementById('jarvisInputMecanico'); const resDiv = document.getElementById('jarvisRespostaMecanico');
     if(!inp || !inp.value) return; 
+    
+    app.iaEmProcessamento = true;
     resDiv.classList.remove('d-none'); 
     resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando nos manuais...';
 
     const ctx = { manuais: app.bancoIA.map(ia => ia.texto) };
-    const sys = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".
-MANUAIS (RAG): ${JSON.stringify(ctx)}
-Regra: Responda direto e CITE a fonte se usar um manual. Jamais invente especificações.`;
+    const sys = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".\nMANUAIS (RAG): ${JSON.stringify(ctx)}\nRegra: Responda direto e CITE a fonte se usar um manual. Jamais invente especificações.`;
     
-    const prompt = inp.value;
-    const resposta = await app.chamarGemini(prompt, sys);
+    const resposta = await app.chamarGemini(inp.value, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
+    
     inp.value = '';
+    app.iaEmProcessamento = false;
 };
 
 app.jarvisAnalisarRevisoes = async function() {
+    if(app.iaEmProcessamento) return;
+    
     const div = document.getElementById('jarvisCRMInsights'); if(!div) return;
+    app.iaEmProcessamento = true;
     div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando Histórico...';
     
     const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
-    if(historicoMorto.length === 0) { div.innerHTML = '<span class="text-white-50">Não há registros suficientes.</span>'; return; }
+    if(historicoMorto.length === 0) { 
+        div.innerHTML = '<span class="text-white-50">Não há registros suficientes.</span>'; 
+        app.iaEmProcessamento = false;
+        return; 
+    }
     
-    // OTIMIZAÇÃO: Pega só os últimos 50 registros no máximo
     const ctx = { 
         historico: historicoMorto.slice(-50).map(o => ({ dt: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), cli: o.cliente, pl: o.placa })) 
     };
 
-    const sys = `Gestor de Remarketing da oficina ${app.t_nome}.
-BASE: ${JSON.stringify(ctx)}
-Tarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
+    const sys = `Gestor de Remarketing da oficina ${app.t_nome}.\nBASE:\n${JSON.stringify(ctx)}\nTarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
     
-    const prompt = "Analise o histórico e me dê os clientes para remarketing.";
-    const resposta = await app.chamarGemini(prompt, sys);
+    const resposta = await app.chamarGemini("Analise o histórico e me dê os clientes para remarketing.", sys);
     div.innerHTML = resposta;
+    app.iaEmProcessamento = false;
 };
