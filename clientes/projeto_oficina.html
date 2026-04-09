@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Garagem Online - Portal do Cliente</title>
+    <title>Garagem Online - Portal Oficial do Cliente</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -12,17 +12,82 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <style>
-        body { background-color: #0f172a; color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
-        .login-card { max-width: 400px; margin: 100px auto; background: #1e293b; padding: 40px; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .portal-header { background: #000; border-bottom: 2px solid #0dcaf0; padding: 15px 30px; display: flex; justify-content: space-between; }
+        body { 
+            background-color: #0f172a; 
+            color: #fff; 
+            font-family: 'Segoe UI', sans-serif; 
+            min-height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .login-card { 
+            max-width: 400px; 
+            margin: 100px auto; 
+            background: #1e293b; 
+            padding: 40px; 
+            border-radius: 12px; 
+            border: 1px solid #334155; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+        }
+        .portal-header { 
+            background: #000; 
+            border-bottom: 2px solid #0dcaf0; 
+            padding: 15px 30px; 
+            display: flex; 
+            justify-content: space-between; 
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
         
-        .chat-container { background: #000; border: 1px solid #334155; border-radius: 12px; height: 500px; display: flex; flex-direction: column; }
-        .chat-messages { flex-grow: 1; overflow-y: auto; padding: 15px; }
-        .message { margin-bottom: 10px; max-width: 80%; padding: 10px 15px; border-radius: 10px; }
-        .message.cliente { background: #0dcaf0; color: #000; align-self: flex-end; margin-left: auto; font-weight: 500;}
-        .message.oficina { background: #334155; align-self: flex-start; }
+        /* Estilização do Chat Nativo */
+        .chat-container { 
+            background: #000; 
+            border: 1px solid #334155; 
+            border-radius: 12px; 
+            height: 600px; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden;
+        }
+        .chat-messages { 
+            flex-grow: 1; 
+            overflow-y: auto; 
+            padding: 20px; 
+            display: flex;
+            flex-direction: column;
+        }
+        .message { 
+            margin-bottom: 15px; 
+            max-width: 85%; 
+            padding: 12px 15px; 
+            border-radius: 12px; 
+            font-size: 0.95rem;
+            word-wrap: break-word;
+        }
+        .message.cliente { 
+            background: #0dcaf0; 
+            color: #000; 
+            align-self: flex-end; 
+            border-bottom-right-radius: 2px;
+            font-weight: 500;
+        }
+        .message.oficina { 
+            background: #334155; 
+            color: #fff;
+            align-self: flex-start; 
+            border-bottom-left-radius: 2px;
+            border: 1px solid #475569;
+        }
         
-        .os-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .os-card { 
+            background: #1e293b; 
+            border: 1px solid #334155; 
+            border-radius: 10px; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
     </style>
 </head>
 <body>
@@ -31,58 +96,63 @@
         <div class="login-card text-center">
             <i class="bi bi-car-front-fill display-1 text-info mb-3"></i>
             <h3 class="fw-bold mb-4">Garagem Online</h3>
-            <p class="text-white-50 mb-4">Acesse com os dados fornecidos pela sua oficina.</p>
+            <p class="text-white-50 mb-4">Acesse com o Login e PIN fornecidos pela sua oficina.</p>
             <form onsubmit="realizarLogin(event)">
                 <input type="text" id="loginUser" class="form-control bg-dark text-white border-secondary mb-3" placeholder="E-mail ou Login do Portal" required>
                 <input type="password" id="loginPass" class="form-control bg-dark text-white border-secondary mb-4" placeholder="Senha Segura (PIN)" required>
-                <button type="submit" class="btn btn-info w-100 fw-bold py-3">ACESSAR MEU VEÍCULO</button>
+                <button type="submit" id="btnAcesso" class="btn btn-info w-100 fw-bold py-3 text-dark">ACESSAR MEU VEÍCULO</button>
             </form>
             <div id="loginError" class="text-danger mt-3 fw-bold" style="display:none;">Login ou Senha incorretos.</div>
         </div>
     </div>
 
-    <div id="dashboardScreen" style="display: none; flex-grow: 1;">
+    <div id="dashboardScreen" style="display: none; flex-grow: 1; flex-direction: column;">
         <header class="portal-header align-items-center">
-            <h4 class="mb-0 fw-bold text-info"><i class="bi bi-car-front-fill me-2"></i> Meu Histórico</h4>
+            <h4 class="mb-0 fw-bold text-info"><i class="bi bi-car-front-fill me-2"></i> Meu Portal</h4>
             <div>
-                <span class="me-3">Olá, <strong id="lblNomeCliente">Cliente</strong>!</span>
+                <span class="me-3 d-none d-sm-inline">Olá, <strong id="lblNomeCliente">Cliente</strong>!</span>
                 <button class="btn btn-sm btn-outline-danger" onclick="sair()"><i class="bi bi-box-arrow-right"></i> Sair</button>
             </div>
         </header>
 
-        <div class="container py-5">
-            <div class="row g-4">
-                <div class="col-lg-7">
+        <div class="container py-4 flex-grow-1">
+            <div class="row g-4 h-100">
+                <div class="col-lg-7 d-flex flex-column">
                     <div class="row g-3 mb-4">
                         <div class="col-6">
-                            <div class="card bg-black border-secondary p-4 text-center">
-                                <h6 class="text-white-50">Total Gasto na Oficina</h6>
-                                <h3 class="text-success fw-bold mb-0" id="totalGasto">R$ 0,00</h3>
+                            <div class="card bg-black border-secondary p-4 text-center h-100">
+                                <h6 class="text-white-50 small text-uppercase fw-bold">Total Gasto na Oficina</h6>
+                                <h3 class="text-success fw-bold mb-0 mt-2" id="totalGasto">R$ 0,00</h3>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="card bg-black border-secondary p-4 text-center">
-                                <h6 class="text-white-50">Veículos Atendidos</h6>
-                                <h3 class="text-info fw-bold mb-0" id="totalVeiculos">0</h3>
+                            <div class="card bg-black border-secondary p-4 text-center h-100">
+                                <h6 class="text-white-50 small text-uppercase fw-bold">Passagens da Placa</h6>
+                                <h3 class="text-info fw-bold mb-0 mt-2" id="totalVeiculos">0</h3>
                             </div>
                         </div>
                     </div>
                     
-                    <h5 class="text-warning fw-bold border-bottom border-secondary pb-2 mb-3"><i class="bi bi-tools me-2"></i> Ordens de Serviço</h5>
-                    <div id="listaOS">
-                        <div class="text-center text-white-50 py-5">Buscando histórico de veículos...</div>
+                    <h5 class="text-warning fw-bold border-bottom border-secondary pb-2 mb-3"><i class="bi bi-tools me-2"></i> Fichas Técnicas e Orçamentos</h5>
+                    <div id="listaOS" class="flex-grow-1 overflow-y-auto pe-2" style="max-height: 500px;">
+                        <div class="text-center text-white-50 py-5">
+                            <div class="spinner-border spinner-border-sm text-info mb-2"></div><br>
+                            Buscando histórico de veículos...
+                        </div>
                     </div>
                 </div>
                 
-                <div class="col-lg-5">
+                <div class="col-lg-5 d-flex flex-column">
                     <h5 class="text-info fw-bold border-bottom border-secondary pb-2 mb-3"><i class="bi bi-chat-dots-fill me-2"></i> Fale com a Oficina</h5>
-                    <div class="chat-container">
-                        <div class="chat-messages" id="chatMessages"></div>
-                        <div class="p-3 border-top border-secondary d-flex bg-dark">
-                            <input type="file" id="chatFile" accept="image/*,video/*,audio/*" class="d-none" onchange="enviarAnexo()">
-                            <button class="btn btn-dark border-secondary rounded-circle me-2" onclick="document.getElementById('chatFile').click()"><i class="bi bi-paperclip text-info"></i></button>
-                            <input type="text" id="chatInput" class="form-control bg-black text-white border-secondary rounded-pill px-4" placeholder="Sua mensagem, dúvida ou aprovação...">
-                            <button class="btn btn-info rounded-circle ms-2" onclick="enviarMensagem()"><i class="bi bi-send-fill text-dark"></i></button>
+                    <div class="chat-container shadow-lg">
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="text-center text-white-50 my-auto">Sincronizando mensagens...</div>
+                        </div>
+                        <div class="p-3 border-top border-secondary d-flex align-items-center bg-dark">
+                            <button class="btn btn-outline-secondary rounded-circle me-2 flex-shrink-0" onclick="document.getElementById('chatFile').click()"><i class="bi bi-paperclip"></i></button>
+                            <input type="file" id="chatFile" accept="image/*,video/*,audio/*,application/pdf" class="d-none" onchange="enviarAnexo()">
+                            <input type="text" id="chatInput" class="form-control bg-black text-white border-secondary rounded-pill px-4 flex-grow-1" placeholder="Sua dúvida ou aprovação...">
+                            <button class="btn btn-info rounded-circle ms-2 flex-shrink-0" onclick="enviarMensagem()"><i class="bi bi-send-fill text-dark"></i></button>
                         </div>
                     </div>
                 </div>
@@ -91,6 +161,7 @@
     </div>
 
     <script>
+        // 1. Conexão ao Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
             authDomain: "hub-thiaguinho.firebaseapp.com",
@@ -104,118 +175,235 @@
 
         let meuClienteId = sessionStorage.getItem('cli_id');
         let meuTenantId = sessionStorage.getItem('cli_tenant');
-        let cloudinaryPreset = 'evolution'; // Padrão
+        let cloudinaryPreset = 'evolution'; // O preset de fallback seguro
 
-        if(meuClienteId) {
+        // Verificação de Sessão Local
+        if(meuClienteId && meuTenantId) {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('dashboardScreen').style.display = 'flex';
-            document.getElementById('lblNomeCliente').innerText = sessionStorage.getItem('cli_nome');
-            carregarDados();
+            document.getElementById('lblNomeCliente').innerText = sessionStorage.getItem('cli_nome') || 'Cliente';
+            carregarDadosPortal();
         }
 
+        // 2. Sistema de Autenticação Direta no CRM
         async function realizarLogin(e) {
             e.preventDefault();
-            const u = document.getElementById('loginUser').value;
-            const p = document.getElementById('loginPass').value;
+            const btn = document.getElementById('btnAcesso');
+            btn.innerHTML = 'VERIFICANDO...'; btn.disabled = true;
+            document.getElementById('loginError').style.display = 'none';
+
+            const u = document.getElementById('loginUser').value.trim();
+            const p = document.getElementById('loginPass').value.trim();
             
-            const snap = await db.collection('clientes_base').where('usuario', '==', u).where('senha', '==', p).get();
-            if(snap.empty) {
-                document.getElementById('loginError').style.display = 'block';
-            } else {
-                const doc = snap.docs[0];
-                sessionStorage.setItem('cli_id', doc.id);
-                sessionStorage.setItem('cli_tenant', doc.data().tenantId);
-                sessionStorage.setItem('cli_nome', doc.data().nome);
-                location.reload();
+            try {
+                // Procura na Base Global de Clientes (CRM)
+                const snap = await db.collection('clientes_base').where('usuario', '==', u).where('senha', '==', p).get();
+                if(snap.empty) {
+                    document.getElementById('loginError').style.display = 'block';
+                } else {
+                    const doc = snap.docs[0];
+                    sessionStorage.setItem('cli_id', doc.id);
+                    sessionStorage.setItem('cli_tenant', doc.data().tenantId);
+                    sessionStorage.setItem('cli_nome', doc.data().nome);
+                    location.reload(); // Recarrega a página já logado
+                }
+            } catch(e) {
+                alert("Erro de comunicação com o servidor da oficina.");
             }
+            btn.innerHTML = 'ACESSAR MEU VEÍCULO'; btn.disabled = false;
         }
 
-        function sair() { sessionStorage.clear(); location.reload(); }
+        function sair() { 
+            sessionStorage.clear(); 
+            location.reload(); 
+        }
 
-        function carregarDados() {
-            // Histórico de O.S.
-            db.collection('ordens_servico').where('clienteId', '==', meuClienteId).onSnapshot(snap => {
+        // 3. O Carregamento Dinâmico de Dados (O.S e Chat)
+        function carregarDadosPortal() {
+            
+            // A. Escuta o Histórico de Ordens de Serviço do Cliente
+            db.collection('ordens_servico')
+              .where('clienteId', '==', meuClienteId)
+              .onSnapshot(snap => {
                 const div = document.getElementById('listaOS');
-                let tot = 0; let veiculos = new Set();
+                let totGasto = 0; 
+                let passagens = 0;
                 
-                if(snap.empty) { div.innerHTML = '<p class="text-white-50">Nenhuma O.S. encontrada.</p>'; return; }
+                if(snap.empty) { 
+                    div.innerHTML = '<div class="alert alert-dark border-secondary text-center text-white-50">Nenhuma Ordem de Serviço encontrada no seu histórico.</div>'; 
+                    return; 
+                }
                 
-                div.innerHTML = snap.docs.map(d => {
-                    const os = d.data();
-                    tot += (os.total||0); veiculos.add(os.placa);
+                // Ordena as O.S da mais nova para a mais antiga
+                const docs = snap.docs.map(d=>({id: d.id, ...d.data()})).sort((a,b) => new Date(b.ultimaAtualizacao) - new Date(a.ultimaAtualizacao));
+                
+                div.innerHTML = docs.map(os => {
+                    passagens++;
+                    // Soma apenas O.S. que já foram faturadas/entregues para não assustar o cliente
+                    if(os.status === 'entregue') { totGasto += (os.total||0); }
                     
-                    let bg = os.status === 'entregue' ? 'border-success' : 'border-warning';
-                    let stsTxt = os.status === 'entregue' ? '<span class="badge bg-success">Concluído/Entregue</span>' : '<span class="badge bg-warning text-dark">Em Andamento na Oficina</span>';
+                    let bgBorder = os.status === 'entregue' ? 'border-success' : (os.status === 'aprovacao' ? 'border-warning' : 'border-info');
+                    let badgeSts = '';
+                    if(os.status === 'entregue') badgeSts = '<span class="badge bg-success">Concluído e Faturado</span>';
+                    else if(os.status === 'aprovacao') badgeSts = '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill"></i> Aguardando Sua Aprovação</span>';
+                    else badgeSts = '<span class="badge bg-info text-dark">Em Avaliação/Box</span>';
                     
+                    const pecasHtml = os.pecas && os.pecas.length > 0 
+                        ? os.pecas.map(p => `<div class="d-flex justify-content-between small text-white border-bottom border-secondary py-2"><span>${p.qtd}x ${p.desc}</span><span class="text-success">R$ ${(p.qtd*p.venda).toFixed(2)}</span></div>`).join('') 
+                        : '<div class="small text-white-50 py-2">A oficina ainda não lançou os itens orçados.</div>';
+                    
+                    const btnAprovarHtml = os.status === 'aprovacao' 
+                        ? `<button class="btn btn-warning fw-bold w-100 mt-3 text-dark shadow-sm" onclick="aprovarOrcamento('${os.id}', '${os.placa}')"><i class="bi bi-check-circle-fill me-1"></i> APROVAR ORÇAMENTO</button>` 
+                        : '';
+
                     return `
-                    <div class="os-card border-start border-4 ${bg}">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="fw-bold text-info fs-5">${os.placa}</span>
-                            ${stsTxt}
+                    <div class="os-card border-start border-4 ${bgBorder}">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <span class="fw-bold text-white fs-4">${os.placa}</span><br>
+                                <small class="text-white-50">${os.veiculo}</small>
+                            </div>
+                            <div class="text-end">
+                                ${badgeSts}<br>
+                                <small class="text-white-50" style="font-size: 0.7rem;">Modificado: ${new Date(os.ultimaAtualizacao).toLocaleDateString('pt-BR')}</small>
+                            </div>
                         </div>
-                        <h6 class="text-white mb-3">${os.veiculo}</h6>
-                        <p class="text-white-50 small mb-1"><strong>Diagnóstico:</strong> ${os.diagnostico || 'Aguardando avaliação técnica.'}</p>
-                        <p class="text-white-50 small mb-3"><strong>Relato Inicial:</strong> ${os.relatoCliente || '-'}</p>
+                        
+                        <p class="text-white-50 small mb-1"><strong>Sua Solicitação:</strong> ${os.relatoCliente || '-'}</p>
+                        <p class="text-info small mb-3"><strong>Diagnóstico Mecânico:</strong> ${os.diagnostico || 'Aguardando avaliação técnica oficial.'}</p>
                         
                         <div class="bg-black p-3 rounded border border-secondary mb-3">
-                            <h6 class="text-white-50 border-bottom border-secondary pb-1 mb-2 small">Serviços e Peças Adicionadas</h6>
-                            ${os.pecas ? os.pecas.map(p => `<div class="d-flex justify-content-between small text-white"><span>${p.qtd}x ${p.desc}</span><span class="text-success">R$ ${(p.qtd*p.venda).toFixed(2)}</span></div>`).join('') : '<div class="small text-white-50">Nenhuma peça orçada ainda.</div>'}
+                            <h6 class="text-white border-bottom border-secondary pb-2 mb-2 small fw-bold">Relação do Orçamento (Peças e Serviços)</h6>
+                            ${pecasHtml}
+                            <div class="text-end mt-2 pt-2 fw-bold text-white">Total Previsto: <span class="text-success fs-5">R$ ${(os.total||0).toFixed(2)}</span></div>
                         </div>
                         
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="text-white mb-0">Total: <span class="text-success fw-bold">R$ ${(os.total||0).toFixed(2)}</span></h5>
-                            ${os.status === 'aprovacao' ? `<button class="btn btn-success fw-bold shadow-lg" onclick="aprovarOS('${d.id}')">Aprovar Orçamento</button>` : ''}
-                        </div>
+                        ${btnAprovarHtml}
                     </div>`;
                 }).join('');
                 
-                document.getElementById('totalGasto').innerText = `R$ ${tot.toFixed(2).replace('.',',')}`;
-                document.getElementById('totalVeiculos').innerText = veiculos.size;
+                document.getElementById('totalGasto').innerText = `R$ ${totGasto.toFixed(2).replace('.',',')}`;
+                document.getElementById('totalVeiculos').innerText = passagens;
             });
 
-            // Chat Global RTM
-            db.collection('mensagens').where('clienteId', '==', meuClienteId).orderBy('timestamp', 'asc').onSnapshot(snap => {
+            // B. Escuta o Chat Global da Oficina (RTM)
+            db.collection('mensagens')
+              .where('clienteId', '==', meuClienteId)
+              .orderBy('timestamp', 'asc')
+              .onSnapshot(snap => {
                 const cx = document.getElementById('chatMessages');
+                if(snap.empty) {
+                    cx.innerHTML = '<div class="text-center text-white-50 my-5"><i class="bi bi-headset display-1 opacity-25"></i><p class="mt-3">A oficina está online. Mande sua mensagem.</p></div>';
+                    return;
+                }
+                
                 cx.innerHTML = snap.docs.map(d => {
                     const m = d.data();
-                    if(m.sender === 'admin' && !m.lidaCliente) db.collection('mensagens').doc(d.id).update({lidaCliente:true});
+                    
+                    // Se o cliente abriu o chat e há msg da oficina não lida, ele "lê" agora
+                    if(m.sender === 'admin' && !m.lidaCliente) {
+                        db.collection('mensagens').doc(d.id).update({lidaCliente:true});
+                    }
                     
                     let cnt = m.text;
+                    const cssSender = m.sender === 'cliente' ? 'cliente' : 'oficina text-white shadow-sm';
+                    const dataHora = m.timestamp ? new Date(m.timestamp.toDate()).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '...';
+                    
+                    // Renderiza Mídias (Vídeo, Áudio, Foto, PDF)
                     if(m.fileUrl) {
-                        if(m.fileType==='video'||m.fileUrl.includes('.mp4')) cnt += `<br><video src="${m.fileUrl}" controls class="mw-100 rounded mt-2"></video>`;
-                        else if(m.fileType==='audio'||m.fileUrl.includes('.mp3')) cnt += `<br><audio src="${m.fileUrl}" controls class="mw-100 mt-2"></audio>`;
-                        else cnt += `<br><img src="${m.fileUrl}" class="mw-100 rounded mt-2 shadow-sm" onclick="window.open('${m.fileUrl}')">`;
+                        if(m.fileType === 'video' || m.fileUrl.includes('.mp4')) cnt += `<br><video src="${m.fileUrl}" controls class="mw-100 rounded mt-2"></video>`;
+                        else if(m.fileType === 'audio' || m.fileUrl.includes('.mp3') || m.fileUrl.includes('.ogg')) cnt += `<br><audio src="${m.fileUrl}" controls class="mw-100 mt-2"></audio>`;
+                        else if(m.fileUrl.includes('.pdf')) cnt += `<br><a href="${m.fileUrl}" target="_blank" class="btn btn-sm btn-light mt-2 text-dark"><i class="bi bi-file-pdf text-danger"></i> Abrir Arquivo PDF</a>`;
+                        else cnt += `<br><img src="${m.fileUrl}" class="mw-100 rounded mt-2 shadow-sm" style="cursor:pointer;" onclick="window.open('${m.fileUrl}')">`;
                     }
-                    return `<div class="message ${m.sender === 'cliente' ? 'cliente' : 'oficina text-white'} d-flex flex-column">${cnt}<small class="text-end opacity-50 mt-1" style="font-size:0.6rem;">${m.timestamp ? new Date(m.timestamp.toDate()).toLocaleTimeString('pt-BR') : ''}</small></div>`;
+                    
+                    return `<div class="message ${cssSender} d-flex flex-column">${cnt}<small class="text-end opacity-50 mt-1" style="font-size:0.65rem;">${dataHora}</small></div>`;
                 }).join('');
+                
+                // Rola o chat para o final
                 cx.scrollTop = cx.scrollHeight;
             });
         }
 
-        async function aprovarOS(id) {
-            if(confirm("Deseja autorizar a oficina a iniciar o serviço?")) {
-                await db.collection('ordens_servico').doc(id).update({status: 'box'});
-                await db.collection('mensagens').add({ tenantId: meuTenantId, clienteId: meuClienteId, sender: 'cliente', text: "✅ Aprovei o orçamento da OS pelo Portal. Podem iniciar o serviço!", lidaAdmin: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-                alert("Orçamento Aprovado! A oficina foi notificada.");
+        // 4. Ação de Aprovação Direta
+        async function aprovarOrcamento(osId, placa) {
+            if(confirm("Deseja autorizar a oficina a iniciar o serviço de forma oficial?")) {
+                try {
+                    // Atualiza a O.S para a Fase de Box
+                    await db.collection('ordens_servico').doc(osId).update({
+                        status: 'box', 
+                        ultimaAtualizacao: new Date().toISOString()
+                    });
+                    
+                    // Notifica a oficina pelo Chat Global
+                    await db.collection('mensagens').add({ 
+                        tenantId: meuTenantId, 
+                        clienteId: meuClienteId, 
+                        sender: 'cliente', 
+                        text: `✅ *Aprovação Rápida:* Autorizei o orçamento do veículo placa [${placa}] pelo portal. Podem iniciar!`, 
+                        lidaAdmin: false, 
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp() 
+                    });
+                    
+                    alert("Aprovado com sucesso! Nossa equipe foi notificada na hora.");
+                } catch(e) {
+                    alert("Falha na comunicação. Fale no chat.");
+                }
             }
         }
 
+        // 5. Motor de Envio do Chat
         async function enviarMensagem() {
             const inp = document.getElementById('chatInput');
             if(!inp.value.trim()) return;
-            await db.collection('mensagens').add({ tenantId: meuTenantId, clienteId: meuClienteId, sender: 'cliente', text: inp.value.trim(), lidaAdmin: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            
+            await db.collection('mensagens').add({ 
+                tenantId: meuTenantId, 
+                clienteId: meuClienteId, 
+                sender: 'cliente', 
+                text: inp.value.trim(), 
+                lidaAdmin: false, 
+                timestamp: firebase.firestore.FieldValue.serverTimestamp() 
+            });
             inp.value = '';
         }
 
+        // Permitir envio com tecla Enter
+        document.getElementById("chatInput").addEventListener("keyup", function(event) {
+            if (event.key === "Enter") enviarMensagem();
+        });
+
+        // 6. Motor de Upload do Cliente
         async function enviarAnexo() {
-            const inp = document.getElementById('chatFile'); if(!inp.files[0]) return;
-            alert("Enviando arquivo...");
-            const fd = new FormData(); fd.append('file', inp.files[0]); fd.append('upload_preset', cloudinaryPreset);
-            // Requer que o tenantId passe a chave real do cloudinary, aqui estamos usando fallback para dmuvm1o6m do Evolution
-            const res = await fetch(`https://api.cloudinary.com/v1_1/dmuvm1o6m/auto/upload`, {method:'POST', body:fd});
-            const data = await res.json();
-            await db.collection('mensagens').add({ tenantId: meuTenantId, clienteId: meuClienteId, sender: 'cliente', text: "📎 Anexo enviado:", fileUrl: data.secure_url, fileType: data.resource_type, lidaAdmin: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-            inp.value = ''; alert("Enviado com sucesso!");
+            const inp = document.getElementById('chatFile'); 
+            if(!inp.files[0]) return;
+            
+            alert("Fazendo upload e enviando para a oficina. Aguarde a confirmação...");
+            try {
+                const fd = new FormData(); 
+                fd.append('file', inp.files[0]); 
+                fd.append('upload_preset', cloudinaryPreset);
+                
+                const res = await fetch(`https://api.cloudinary.com/v1_1/dmuvm1o6m/auto/upload`, {method:'POST', body:fd});
+                const data = await res.json();
+                
+                if(data.secure_url) {
+                    await db.collection('mensagens').add({ 
+                        tenantId: meuTenantId, 
+                        clienteId: meuClienteId, 
+                        sender: 'cliente', 
+                        text: "📎 Arquivo do Cliente:", 
+                        fileUrl: data.secure_url, 
+                        fileType: data.resource_type, 
+                        lidaAdmin: false, 
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp() 
+                    });
+                    inp.value = ''; 
+                    alert("Enviado com sucesso!");
+                }
+            } catch(e) {
+                alert("Falha ao processar o anexo.");
+            }
         }
     </script>
 </body>
