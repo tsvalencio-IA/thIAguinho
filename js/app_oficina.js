@@ -1113,7 +1113,7 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO)
+// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO COM REQUISITO DE FONTES)
 // =====================================================================
 app.iniciarEscutaIA = function() {
     app.db.collection('conhecimento_ia').where('tenantId', '==', app.t_id).onSnapshot(snap => {
@@ -1157,17 +1157,32 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// --- CÓDIGO EXATO FORNECIDO POR VOCÊ ---
+// =====================================================================
+// CONECTOR DA API (BASEADO NO SEU CÓDIGO FUNCIONAL DO CHEVRON)
+// =====================================================================
 app.chamarGemini = async function(prompt) {
     if(!app.API_KEY_GEMINI) { app.showToast("Chave da API do Google Gemini não encontrada.", "error"); return "Erro: Google Gemini API Key ausente."; }
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        const key = app.API_KEY_GEMINI;
+        const parts = [{ text: prompt }];
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ contents: [{ parts }] }) 
         });
+        
         const data = await res.json(); 
+        
+        // Se a Google barrar o pedido (Erro de Faturamento ou Cota), exibe direto no painel sem crashar o JS
+        if(!res.ok) {
+            console.error("Erro devolvido pela Google:", data);
+            return `Acesso Recusado pela API da Google. Detalhe: ${data.error ? data.error.message : 'Desconhecido'}`;
+        }
+        
         return data.candidates[0].content.parts[0].text;
     } catch(e) { 
+        console.error("Erro fatal de conexão JS:", e);
         return "Erro na conexão com a Inteligência Artificial."; 
     }
 };
@@ -1175,14 +1190,15 @@ app.chamarGemini = async function(prompt) {
 app.perguntarJarvis = async function() {
     const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
     if(!inp || !inp.value) return; 
+    
     resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está processando...';
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está processando a resposta...';
     
     const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
     const dadosOS = app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => `[Placa: ${o.placa} | Veículo: ${o.veiculo} | Status: ${o.status} | Problema: ${o.relatoCliente || ''}]`).join('\n');
     const pergunta = inp.value;
     
-    const promptMaster = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DE TREINAMENTO (RAG): ${contexto}\nCARROS NO PÁTIO: ${dadosOS}\nPERGUNTA: ${pergunta}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual.`;
+    const promptMaster = `Você é o J.A.R.V.I.S, o consultor virtual de elite da oficina mecânica "${app.t_nome}".\nDADOS DE TREINAMENTO RAG DA OFICINA:\n${contexto}\n\nDADOS TÉCNICOS DOS CARROS NO PÁTIO:\n${dadosOS}\n\nPERGUNTA DO GESTOR:\n${pergunta}\n\nRegra absoluta e inquebrável: Você DEVE comprovar as fontes de suas respostas. Cite de qual documento ou manual você tirou a informação técnica (ex: "Baseado no manual X..."). Se não houver documento, avise que usou sua base de conhecimento global. Responda de forma direta e altamente técnica.`;
     
     const respostaIlimitada = await app.chamarGemini(promptMaster);
     if(resDiv) resDiv.innerHTML = respostaIlimitada.replace(/\n/g, '<br>');
@@ -1192,11 +1208,12 @@ app.perguntarJarvis = async function() {
 app.perguntarJarvisMecanico = async function() {
     const inp = document.getElementById('jarvisInputMecanico'); const resDiv = document.getElementById('jarvisRespostaMecanico');
     if(!inp || !inp.value) return; 
+    
     resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está processando...';
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando manuais e códigos OBD2...';
     
     const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
-    const promptMaster = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".\nMANUAIS (RAG): ${contexto}\nDÚVIDA DO BOX: ${inp.value}\nRegra: Responda direto e CITE a fonte se usar um manual.`;
+    const promptMaster = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".\nAJUDA TÉCNICA E MANUAIS (RAG):\n${contexto}\n\nDÚVIDA DIRETA DO MECÂNICO NO ELEVADOR:\n${inp.value}\n\nRegra absoluta: Você DEVE citar a fonte da sua resposta. Informe de qual manual ou regra a instrução foi retirada. Forneça o diagnóstico provável para a falha ou o torque/medida correta de forma técnica e objetiva.`;
     
     const res = await app.chamarGemini(promptMaster);
     if(resDiv) resDiv.innerHTML = res.replace(/\n/g, '<br>');
@@ -1205,13 +1222,14 @@ app.perguntarJarvisMecanico = async function() {
 
 app.jarvisAnalisarRevisoes = async function() {
     const div = document.getElementById('jarvisCRMInsights'); if(!div) return;
-    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando o Histórico Morto...';
+    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Varredura Profunda no Histórico Morto...';
     
     const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
-    if(historicoMorto.length === 0) { div.innerHTML = '<span class="text-white-50">Não há registros suficientes.</span>'; return; }
+    if(historicoMorto.length === 0) { div.innerHTML = '<span class="text-white-50">Não existe substrato de dados suficientes para prever manutenções.</span>'; return; }
     
     const dadosParaIA = historicoMorto.map(o => `Data Faturada: ${new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR')} | Cliente: ${o.cliente} | Veículo: ${o.veiculo} | Placa: ${o.placa}`).join('\n');
-    const promptRadar = `Gestor de Remarketing da oficina ${app.t_nome}.\nBASE:\n${dadosParaIA}\nTarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
+    
+    const promptRadar = `Gestor de Remarketing da oficina ${app.t_nome}.\nBASE:\n${dadosParaIA}\nTarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML (<li>) com o motivo técnico.`;
     
     const respostaRadar = await app.chamarGemini(promptRadar);
     div.innerHTML = respostaRadar;
