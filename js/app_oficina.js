@@ -1113,16 +1113,18 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO) - CORRIGIDO PELO PERITO
+// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO) - BUSCA INTELIGENTE
 // =====================================================================
 app.minhaGeminiKey = null;
 
 app.iniciarEscutaIA = function() {
-    // O SEGREDO DO SEU CÓDIGO: Buscar a chave em tempo real do Firebase (Igual ao admin.html)
+    // Busca a chave no Firebase tentando todos os nomes de campos possíveis
     if(app.t_id) {
         app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => { 
-            if(doc.exists && doc.data().geminiKey) {
-                app.minhaGeminiKey = doc.data().geminiKey; 
+            if(doc.exists) {
+                const d = doc.data();
+                // O "Pulo do Gato": procura a chave em qualquer variação que o SuperAdmin novo possa estar usando
+                app.minhaGeminiKey = d.geminiKey || d.gemini || d.apiGemini || d.api_gemini || d.apiKeyGemini || null;
             }
         });
     }
@@ -1168,10 +1170,11 @@ app.processarArquivoParaIA = function(event) {
 
 // CONECTOR EXATO DO CHEVRON USANDO systemInstruction
 app.chamarGemini = async function(prompt, sysInstruction) {
-    const key = app.minhaGeminiKey;
+    // Usa a chave do banco. Se não achar, usa a sua variável de sessão original como fallback de segurança.
+    const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
     
-    if(!key) { 
-        app.showToast("A chave da IA não foi configurada no SuperAdmin.", "error"); 
+    if(!key || key === 'null' || key === 'undefined') { 
+        app.showToast("A chave da IA não foi encontrada no banco nem na sessão.", "error"); 
         return "Erro: Google Gemini API Key ausente na oficina."; 
     }
     
