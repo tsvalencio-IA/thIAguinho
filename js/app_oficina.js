@@ -35,6 +35,7 @@ app.bancoFin = [];
 app.bancoCrm = [];
 app.bancoIA = [];
 app.bancoMensagens = [];
+app.bancoAuditoria = [];
 app.fotosOSAtual = [];
 app.historicoOSAtual = [];
 app.chatActiveClienteId = null;
@@ -45,7 +46,7 @@ app.filtroFinDataFim = null;
 app.bancoFinFiltrado = [];
 
 // =====================================================================
-// MOTOR DE AUDITORIA GLOBAL (PADRÃO CHEVRON)
+// MOTOR DE AUDITORIA GLOBAL (PADRÃO CHEVRON B2B)
 // =====================================================================
 app.registrarAuditoriaGlobal = async function(modulo, acaoRealizada) {
     try {
@@ -66,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lblEmpresa = document.getElementById('lblEmpresa'); if(lblEmpresa) lblEmpresa.innerText = app.t_nome;
     const lblUsuario = document.getElementById('lblUsuario'); if(lblUsuario) lblUsuario.innerText = app.user_nome;
     
+    // Controle de Acesso Dinâmico (RBAC)
     const style = document.createElement('style');
     if (app.t_role === 'equipe') {
         style.innerHTML = '.admin-only, .gestao-only { display: none !important; } .mecanico-only { display: flex !important; }';
@@ -206,19 +208,12 @@ app.salvarClienteCRM = async function(e) {
     const nomeCli = document.getElementById('c_nome') ? document.getElementById('c_nome').value : '';
     
     const payload = { 
-        tenantId: app.t_id, 
-        nome: nomeCli, 
-        telefone: document.getElementById('c_tel') ? document.getElementById('c_tel').value : '', 
-        documento: docValue, 
-        email: document.getElementById('c_email') ? document.getElementById('c_email').value : '',
-        cep: document.getElementById('c_cep') ? document.getElementById('c_cep').value : '', 
-        rua: document.getElementById('c_rua') ? document.getElementById('c_rua').value : '', 
-        num: document.getElementById('c_num') ? document.getElementById('c_num').value : '',
-        bairro: document.getElementById('c_bairro') ? document.getElementById('c_bairro').value : '', 
-        cidade: document.getElementById('c_cidade') ? document.getElementById('c_cidade').value : '',
-        usuario: document.getElementById('c_user') ? document.getElementById('c_user').value.trim() : '', 
-        senha: document.getElementById('c_pass') ? document.getElementById('c_pass').value.trim() : '', 
-        anotacoes: document.getElementById('c_notas') ? document.getElementById('c_notas').value : '' 
+        tenantId: app.t_id, nome: nomeCli, telefone: document.getElementById('c_tel') ? document.getElementById('c_tel').value : '', 
+        documento: docValue, email: document.getElementById('c_email') ? document.getElementById('c_email').value : '',
+        cep: document.getElementById('c_cep') ? document.getElementById('c_cep').value : '', rua: document.getElementById('c_rua') ? document.getElementById('c_rua').value : '', 
+        num: document.getElementById('c_num') ? document.getElementById('c_num').value : '', bairro: document.getElementById('c_bairro') ? document.getElementById('c_bairro').value : '', 
+        cidade: document.getElementById('c_cidade') ? document.getElementById('c_cidade').value : '', usuario: document.getElementById('c_user') ? document.getElementById('c_user').value.trim() : '', 
+        senha: document.getElementById('c_pass') ? document.getElementById('c_pass').value.trim() : '', anotacoes: document.getElementById('c_notas') ? document.getElementById('c_notas').value : '' 
     };
     
     if(id) { 
@@ -284,16 +279,14 @@ app.iniciarEscutaMensagens = function() {
         app.bancoMensagens = snap.docs.map(d => ({id: d.id, ...d.data()}));
         app.bancoMensagens.sort((a,b) => (a.timestamp?.toMillis()||0) - (b.timestamp?.toMillis()||0));
         
-        let nL = 0;
-        app.bancoMensagens.forEach(m => { if(m.sender === 'cliente' && !m.lidaAdmin) nL++; });
-        
+        let nL = 0; app.bancoMensagens.forEach(m => { if(m.sender === 'cliente' && !m.lidaAdmin) nL++; });
         const badge = document.getElementById('chatBadgeGlobal');
         if(badge) { if(nL > 0) { badge.innerText = nL; badge.classList.remove('d-none'); } else { badge.classList.add('d-none'); } }
         
         app.renderListaChatCRM();
         if(app.chatActiveClienteId) {
             const h = document.getElementById('chatNomeCliente');
-            app.abrirChatCRM(app.chatActiveClienteId, h ? h.innerText.replace('Ativo com: ', '') : 'Cliente');
+            app.abrirChatCRM(app.chatActiveClienteId, h ? h.innerText.replace('Atendimento Ativo: ', '') : 'Cliente');
         }
     });
 };
@@ -340,30 +333,22 @@ app.abrirChatCRM = function(clienteId, nomeCliente) {
 };
 
 app.enviarMensagemChatGlobal = async function() {
-    const input = document.getElementById('inputChatGlobal');
-    const val = input ? input.value.trim() : '';
+    const input = document.getElementById('inputChatGlobal'); const val = input ? input.value.trim() : '';
     if(!val || !app.chatActiveClienteId) return;
-    
-    await app.db.collection('mensagens').add({
-        tenantId: app.t_id, clienteId: app.chatActiveClienteId, sender: 'admin', text: val, lidaCliente: false, timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    await app.db.collection('mensagens').add({ tenantId: app.t_id, clienteId: app.chatActiveClienteId, sender: 'admin', text: val, lidaCliente: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
     input.value = '';
 };
 
 app.enviarAnexoChatGlobal = async function() {
     const inp = document.getElementById('chatFileInputGlobal');
     if(!inp || !inp.files || inp.files.length === 0 || !app.chatActiveClienteId) return;
-    
     app.showToast("Realizando Upload Seguro na Nuvem...", "warning");
     try {
         const fd = new FormData(); fd.append('file', inp.files[0]); fd.append('upload_preset', app.CLOUDINARY_UPLOAD_PRESET);
         const res = await fetch(`https://api.cloudinary.com/v1_1/${app.CLOUDINARY_CLOUD_NAME}/auto/upload`, {method:'POST', body:fd});
         const data = await res.json();
-        
         if(data.secure_url) {
-            await app.db.collection('mensagens').add({
-                tenantId: app.t_id, clienteId: app.chatActiveClienteId, sender: 'admin', text: "📎 Evidência da Oficina:", fileUrl: data.secure_url, fileType: data.resource_type, lidaCliente: false, timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            await app.db.collection('mensagens').add({ tenantId: app.t_id, clienteId: app.chatActiveClienteId, sender: 'admin', text: "📎 Evidência da Oficina:", fileUrl: data.secure_url, fileType: data.resource_type, lidaCliente: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
             inp.value = ''; app.showToast("Anexo enviado com sucesso para o cliente!", "success");
         }
     } catch(e) { console.error(e); app.showToast("Falha no envio da imagem.", "error"); }
@@ -390,8 +375,7 @@ app.iniciarEscutaMensagensInternas = function() {
 };
 
 app.enviarMensagemInterna = async function() {
-    const inp = document.getElementById('inputChatInterno');
-    if(!inp || !inp.value.trim()) return;
+    const inp = document.getElementById('inputChatInterno'); if(!inp || !inp.value.trim()) return;
     await app.db.collection('chat_interno').add({ tenantId: app.t_id, usuario: app.user_nome, text: inp.value.trim(), timestamp: firebase.firestore.FieldValue.serverTimestamp() });
     inp.value = '';
 };
@@ -428,9 +412,7 @@ app.abrirModalNF = function(mode='nova', id='') {
             if(document.getElementById('nf_data')) document.getElementById('nf_data').value = p.dataEntrada ? p.dataEntrada.split('T')[0] : new Date().toISOString().split('T')[0];
             app.adicionarLinhaNF(p.desc, p.ncm, p.cfop, p.qtd, p.custo, p.venda);
         }
-    } else {
-        app.adicionarLinhaNF('', '', '', 1, 0, 0); 
-    }
+    } else { app.adicionarLinhaNF('', '', '', 1, 0, 0); }
     
     const mod = document.getElementById('modalNF'); if(mod) new bootstrap.Modal(mod).show();
 };
@@ -440,24 +422,18 @@ app.processarXML = function(event) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const xmlText = e.target.result; const parser = new DOMParser(); const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-        
         const emit = xmlDoc.getElementsByTagName("emit")[0]; 
         if(emit && document.getElementById('nf_fornecedor')) { const xNome = emit.getElementsByTagName("xNome")[0]; if(xNome) document.getElementById('nf_fornecedor').value = xNome.textContent; }
-        
         const ide = xmlDoc.getElementsByTagName("ide")[0]; 
         if(ide && document.getElementById('nf_numero')) { const nNF = ide.getElementsByTagName("nNF")[0]; if(nNF) document.getElementById('nf_numero').value = nNF.textContent; }
         
         const det = xmlDoc.getElementsByTagName("det");
         if(document.getElementById('corpoItensNF')) document.getElementById('corpoItensNF').innerHTML = ''; 
-        
         for(let i=0; i<det.length; i++) {
             const prod = det[i].getElementsByTagName("prod")[0];
             if(prod) {
-                const desc = prod.getElementsByTagName("xProd")[0]?.textContent || '';
-                const ncm = prod.getElementsByTagName("NCM")[0]?.textContent || '';
-                const cfop = prod.getElementsByTagName("CFOP")[0]?.textContent || '';
-                const qtd = parseFloat(prod.getElementsByTagName("qCom")[0]?.textContent || 0);
-                const vUnCom = parseFloat(prod.getElementsByTagName("vUnCom")[0]?.textContent || 0);
+                const desc = prod.getElementsByTagName("xProd")[0]?.textContent || ''; const ncm = prod.getElementsByTagName("NCM")[0]?.textContent || ''; const cfop = prod.getElementsByTagName("CFOP")[0]?.textContent || '';
+                const qtd = parseFloat(prod.getElementsByTagName("qCom")[0]?.textContent || 0); const vUnCom = parseFloat(prod.getElementsByTagName("vUnCom")[0]?.textContent || 0);
                 app.adicionarLinhaNF(desc, ncm, cfop, qtd, vUnCom, (vUnCom * 1.8)); 
             }
         }
@@ -474,10 +450,8 @@ app.adicionarLinhaNF = function(desc='', ncm='', cfop='', qtd=1, custo=0, venda=
 
 app.verificarPgtoCompraNF = function() {
     const fElem = document.getElementById('nf_metodo_pagamento'); const d = document.getElementById('nf_div_parcelas');
-    if(!fElem || !d) return;
-    const f = fElem.value;
-    if(f.includes('Parcelado') || f.includes('Prazo')) { d.style.display = 'block'; } 
-    else { d.style.display = 'none'; if(document.getElementById('nf_parcelas')) document.getElementById('nf_parcelas').value = "1x"; }
+    if(!fElem || !d) return; const f = fElem.value;
+    if(f.includes('Parcelado') || f.includes('Prazo')) { d.style.display = 'block'; } else { d.style.display = 'none'; if(document.getElementById('nf_parcelas')) document.getElementById('nf_parcelas').value = "1x"; }
 };
 
 app.salvarEntradaEstoque = async function(e) {
@@ -490,8 +464,7 @@ app.salvarEntradaEstoque = async function(e) {
     const parc = document.getElementById('nf_parcelas') ? document.getElementById('nf_parcelas').value : '1x';
     const gerarFinanceiro = document.getElementById('nf_gerar_financeiro') ? document.getElementById('nf_gerar_financeiro').checked : false;
     
-    let totalCustoGlobalNF = 0;
-    const batch = app.db.batch();
+    let totalCustoGlobalNF = 0; const batch = app.db.batch();
     
     if(id) {
         const tr = document.querySelector('#corpoItensNF tr');
@@ -501,24 +474,17 @@ app.salvarEntradaEstoque = async function(e) {
         }
     } else {
         document.querySelectorAll('#corpoItensNF tr').forEach(tr => {
-            const desc = tr.querySelector('.it-desc').value.trim();
-            const q = parseFloat(tr.querySelector('.it-qtd').value)||0; const c = parseFloat(tr.querySelector('.it-custo').value)||0; const v = parseFloat(tr.querySelector('.it-venda').value)||0;
+            const desc = tr.querySelector('.it-desc').value.trim(); const q = parseFloat(tr.querySelector('.it-qtd').value)||0; const c = parseFloat(tr.querySelector('.it-custo').value)||0; const v = parseFloat(tr.querySelector('.it-venda').value)||0;
             if(desc !== '' && q > 0) {
                 totalCustoGlobalNF += (q * c);
                 batch.set(app.db.collection('estoque').doc(), { tenantId: app.t_id, fornecedor: fornecedor, nf: nf, desc: desc, qtd: q, custo: c, venda: v, ncm: tr.querySelector('.it-ncm').value, cfop: tr.querySelector('.it-cfop').value, usuarioEntrada: app.user_nome, dataEntrada: new Date().toISOString() });
             }
         });
-
         if(totalCustoGlobalNF === 0) { app.showToast("Nenhum item válido para dar entrada.", "error"); return; }
 
         if(gerarFinanceiro) {
-            let nP = 1; 
-            if(fp.includes('Parcelado') || fp.includes('Prazo')) { 
-                if(parc.includes('2x')) nP = 2; else if(parc.includes('3x')) nP = 3; else if(parc.includes('4x')) nP = 4; else if(parc.includes('6x')) nP = 6; 
-            }
-            const vP = totalCustoGlobalNF / nP; 
-            const stsPgto = (fp.includes('Boleto') || fp.includes('Pendente') || fp.includes('Parcelado') || fp.includes('Crédito') || fp.includes('Prazo')) ? 'pendente' : 'pago';
-            
+            let nP = 1; if(fp.includes('Parcelado') || fp.includes('Prazo')) { if(parc.includes('2x')) nP = 2; else if(parc.includes('3x')) nP = 3; else if(parc.includes('4x')) nP = 4; else if(parc.includes('6x')) nP = 6; }
+            const vP = totalCustoGlobalNF / nP; const stsPgto = (fp.includes('Boleto') || fp.includes('Pendente') || fp.includes('Parcelado') || fp.includes('Crédito') || fp.includes('Prazo')) ? 'pendente' : 'pago';
             for(let i=0; i<nP; i++) { 
                 let dV = new Date(dtBase); if(nP>1 || stsPgto==='pendente') dV.setDate(dV.getDate() + (i*30)); 
                 batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: 'despesa', desc: nP>1 ? `NF Compra: ${nf} (${fornecedor}) - Parc ${i+1}/${nP}` : `NF Compra: ${nf} (${fornecedor})`, valor: vP, parcelaAtual: i+1, totalParcelas: nP, metodo: fp, vencimento: dV.toISOString().split('T')[0], status: stsPgto }); 
@@ -541,21 +507,16 @@ app.apagarProduto = async function(id) {
 };
 
 // =====================================================================
-// 6. MOTOR KANBAN E GESTÃO DE O.S. (PRONTUÁRIO COMPLETO)
+// 6. MOTOR KANBAN E GESTÃO DE O.S.
 // =====================================================================
 app.iniciarEscutaOS = function() {
     app.db.collection('ordens_servico').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoOSCompleto = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
         if(app.t_role === 'equipe') {
-            let minhaCom = 0;
-            app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.mecanicoReal === app.user_nome).forEach(o => minhaCom += (o.comissaoProcessada||0));
-            const divKpi = document.getElementById('kpiMinhaComissao');
-            if(divKpi) divKpi.innerText = `R$ ${minhaCom.toFixed(2).replace('.',',')}`;
+            let minhaCom = 0; app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.mecanicoReal === app.user_nome).forEach(o => minhaCom += (o.comissaoProcessada||0));
+            const divKpi = document.getElementById('kpiMinhaComissao'); if(divKpi) divKpi.innerText = `R$ ${minhaCom.toFixed(2).replace('.',',')}`;
         }
-        
-        app.renderizarKanban();
-        app.renderizarTabelaArquivo();
+        app.renderizarKanban(); app.renderizarTabelaArquivo();
     });
 };
 
@@ -573,22 +534,18 @@ app.renderizarKanban = function() {
     ativos.forEach(os => {
         const s = os.status || 'patio'; counts[s]++;
         let cor = s === 'pronto' ? 'border-success' : s === 'aprovacao' ? 'border-warning' : s === 'box' ? 'border-info' : s === 'orcamento' ? 'border-primary' : 'border-secondary';
-        
-        const idx = ordem.indexOf(s);
-        const nextS = idx < ordem.length-1 ? ordem[idx+1] : null; const prevS = idx > 0 ? ordem[idx-1] : null;
+        const idx = ordem.indexOf(s); const nextS = idx < ordem.length-1 ? ordem[idx+1] : null; const prevS = idx > 0 ? ordem[idx-1] : null;
         
         let btnBack = prevS ? `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm me-1" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${prevS}')" title="Voltar Fase"><i class="bi bi-arrow-left-circle text-white-50"></i></button>` : '';
         let btnFwd = s === 'pronto' ? `<button class="btn btn-sm btn-success p-1 px-3 shadow fw-bold gestao-only" onclick="event.stopPropagation(); app.abrirFaturamentoDireto('${os.id}')"><i class="bi bi-cash-coin me-1"></i> FATURAR VEÍCULO</button>` : `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${nextS}')" title="Avançar Fase"><i class="bi bi-arrow-right-circle text-info"></i></button>`;
 
         cols[s] += `<div class="os-card border-start border-4 ${cor}" onclick="app.abrirModalOS('edit', '${os.id}')"><div class="fast-actions">${btnBack}${btnFwd}</div><div class="d-flex justify-content-between mb-2"><span class="badge bg-dark border border-secondary text-white py-2 px-3">${os.placa}</span></div><h6 class="text-white fw-bold mb-1 w-75 text-truncate">${os.veiculo}</h6><small class="text-white-50"><i class="bi bi-person-fill"></i> ${os.cliente}</small></div>`;
     });
-    
     ordem.forEach(id => { const col = document.getElementById('col_'+id); const cnt = document.getElementById('count_'+id); if(col) col.innerHTML = cols[id]; if(cnt) cnt.innerText = counts[id]; });
 };
 
 app.mudarStatusRapido = async function(id, novoStatus) {
-    const osRef = app.db.collection('ordens_servico').doc(id);
-    const doc = await osRef.get();
+    const osRef = app.db.collection('ordens_servico').doc(id); const doc = await osRef.get();
     let h = doc.data().historico || [];
     h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Arrastou o cartão da O.S. para a coluna: ${novoStatus.toUpperCase()}` });
     await osRef.update({ status: novoStatus, historico: h, ultimaAtualizacao: new Date().toISOString() });
@@ -596,7 +553,7 @@ app.mudarStatusRapido = async function(id, novoStatus) {
 };
 
 // =====================================================================
-// 7. ABERTURA E EDIÇÃO DO PRONTUÁRIO O.S. (LÓGICA DAS ABAS BLINDADA)
+// 7. ABERTURA E EDIÇÃO DO PRONTUÁRIO O.S. 
 // =====================================================================
 app.verificarStatusLink = function() {
     const a = document.getElementById('alertaLinkCliente'); if(!a) return;
@@ -613,7 +570,6 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
     const btnFat = document.getElementById('btnFaturar'); if(btnFat) btnFat.classList.add('d-none');
     const btnPdf = document.getElementById('btnGerarPDF'); if(btnPdf) btnPdf.classList.add('d-none');
     const btnDel = document.getElementById('btnDeletarOS'); if(btnDel) btnDel.classList.add('d-none');
-    
     ['chk_combustivel', 'chk_arranhado', 'chk_bateria', 'chk_pneus'].forEach(i => { const chk = document.getElementById(i); if(chk) chk.checked = false; });
 
     if (mode === 'edit') {
@@ -629,7 +585,6 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
             if(document.getElementById('os_status')) document.getElementById('os_status').value = os.status || 'patio';
             if(document.getElementById('os_relato_cliente')) document.getElementById('os_relato_cliente').value = os.relatoCliente || '';
             if(document.getElementById('os_diagnostico')) document.getElementById('os_diagnostico').value = os.diagnostico || '';
-            
             if(os.chk_combustivel && document.getElementById('chk_combustivel')) document.getElementById('chk_combustivel').checked = true;
             if(os.chk_arranhado && document.getElementById('chk_arranhado')) document.getElementById('chk_arranhado').checked = true;
             if(os.chk_bateria && document.getElementById('chk_bateria')) document.getElementById('chk_bateria').checked = true;
@@ -637,33 +592,25 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
             
             if (os.fotos) { app.fotosOSAtual = os.fotos; app.renderizarGaleria(); }
             if (os.historico) { app.historicoOSAtual = os.historico; app.renderizarHistorico(); }
-            
             if (os.pecas && Array.isArray(os.pecas)) { os.pecas.forEach(p => app.adicionarLinhaPeca(p.desc, p.ncm||'', p.qtd, p.custo, p.venda, p.idEstoque, p.isMaoObra)); }
             
             if(btnPdf) btnPdf.classList.remove('d-none');
             if (os.status === 'pronto' && (app.t_role === 'admin' || app.t_role === 'gerente') && btnFat) btnFat.classList.remove('d-none');
             if (app.t_role === 'admin' && btnDel) btnDel.classList.remove('d-none');
         }
-    } else {
-        app.adicionarMaoDeObra(); 
-    }
-    app.verificarStatusLink();
-    const mod = document.getElementById('modalOS'); if(mod) new bootstrap.Modal(mod).show();
+    } else { app.adicionarMaoDeObra(); }
+    app.verificarStatusLink(); const mod = document.getElementById('modalOS'); if(mod) new bootstrap.Modal(mod).show();
 };
 
 app.adicionarDoEstoque = function() {
-    const sel = document.getElementById('selectProdutoEstoque'); if(!sel || !sel.value) return;
-    const opt = sel.options[sel.selectedIndex];
-    app.adicionarLinhaPeca(opt.dataset.desc, opt.dataset.ncm, 1, parseFloat(opt.dataset.custo), parseFloat(opt.dataset.venda), sel.value, false);
-    sel.value = '';
+    const sel = document.getElementById('selectProdutoEstoque'); if(!sel || !sel.value) return; const opt = sel.options[sel.selectedIndex];
+    app.adicionarLinhaPeca(opt.dataset.desc, opt.dataset.ncm, 1, parseFloat(opt.dataset.custo), parseFloat(opt.dataset.venda), sel.value, false); sel.value = '';
 };
 
 app.adicionarMaoDeObra = function() { app.adicionarLinhaPeca("Mão de Obra / Serviço", "-", 1, 0, 0, null, true); };
 
 app.adicionarLinhaPeca = function(desc, ncm, qtd, custo, venda, idEstoque, isMaoObra) {
-    const tr = document.createElement('tr');
-    const mo = isMaoObra ? `data-maoobra="true"` : '';
-    const est = idEstoque ? `data-idestoque="${idEstoque}" readonly` : '';
+    const tr = document.createElement('tr'); const mo = isMaoObra ? `data-maoobra="true"` : ''; const est = idEstoque ? `data-idestoque="${idEstoque}" readonly` : '';
     tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary peca-desc p-2" value="${desc}" ${est} ${mo}></td>
         <td><span class="text-white-50 small d-block">NCM: ${ncm||'-'}</span></td>
         <td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary peca-qtd p-2" value="${qtd}" min="1" onchange="app.calcularTotalOS()"></td>
@@ -671,46 +618,32 @@ app.adicionarLinhaPeca = function(desc, ncm, qtd, custo, venda, idEstoque, isMao
         <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary peca-venda p-2 fw-bold" value="${venda}" onchange="app.calcularTotalOS()"></td>
         <td><input type="text" class="form-control form-control-sm bg-black text-white border-0 peca-total fw-bold p-2" readonly value="${(qtd*venda).toFixed(2)}"></td>
         <td class="text-center" data-html2canvas-ignore><button type="button" class="btn btn-sm btn-outline-danger border-0 mt-1" onclick="this.closest('tr').remove(); app.calcularTotalOS()"><i class="bi bi-trash"></i></button></td>`;
-    const tb = document.getElementById('listaPecasCorpo'); if(tb) tb.appendChild(tr);
-    app.calcularTotalOS();
+    const tb = document.getElementById('listaPecasCorpo'); if(tb) tb.appendChild(tr); app.calcularTotalOS();
 };
 
 app.calcularTotalOS = function() {
     let t = 0; let tc = 0; let tMO = 0; let tPecas = 0;
     document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => {
-        const descInput = tr.querySelector('.peca-desc');
-        const isMaoObra = descInput ? descInput.dataset.maoobra === "true" : false;
-        const q = parseFloat(tr.querySelector('.peca-qtd').value)||0;
-        const v = parseFloat(tr.querySelector('.peca-venda').value)||0;
-        const c = parseFloat(tr.querySelector('.peca-custo').value)||0;
-        
+        const descInput = tr.querySelector('.peca-desc'); const isMaoObra = descInput ? descInput.dataset.maoobra === "true" : false;
+        const q = parseFloat(tr.querySelector('.peca-qtd').value)||0; const v = parseFloat(tr.querySelector('.peca-venda').value)||0; const c = parseFloat(tr.querySelector('.peca-custo').value)||0;
         const totElem = tr.querySelector('.peca-total'); if(totElem) totElem.value = (q*v).toFixed(2);
-        
-        t += (q*v); tc += (q*c);
-        if(isMaoObra) tMO += (q*v); else tPecas += (q*v);
+        t += (q*v); tc += (q*c); if(isMaoObra) tMO += (q*v); else tPecas += (q*v);
     });
-    
     const divGeral = document.getElementById('os_total_geral'); if(divGeral) divGeral.innerText = `R$ ${t.toFixed(2).replace('.',',')}`;
     return { total: t, custo: tc, maoObra: tMO, pecas: tPecas };
 };
 
 app.salvarOS = async function() {
     const idElem = document.getElementById('os_id'); const id = idElem ? idElem.value : '';
-    let pecasArray = []; 
-    const metricasTotais = app.calcularTotalOS(); 
-    
+    let pecasArray = []; const metricasTotais = app.calcularTotalOS(); 
     const cpfField = document.getElementById('os_cliente_cpf'); const cpfOS = cpfField ? cpfField.value : '';
     const cliElem = document.getElementById('os_cliente'); const clienteOS = cliElem ? cliElem.value.trim() : '';
     const telElem = document.getElementById('os_celular'); const telOS = telElem ? telElem.value.trim() : '';
 
     let cId = '';
     if(clienteOS && !app.bancoCrm.find(c => c.nome.toLowerCase() === clienteOS.toLowerCase())) {
-        const d = await app.db.collection('clientes_base').add({ tenantId: app.t_id, nome: clienteOS, telefone: telOS, documento: cpfOS, anotacoes: "Criado automaticamente via O.S." });
-        cId = d.id;
-    } else {
-        const cExist = app.bancoCrm.find(c => c.nome.toLowerCase() === clienteOS.toLowerCase());
-        if(cExist) cId = cExist.id;
-    }
+        const d = await app.db.collection('clientes_base').add({ tenantId: app.t_id, nome: clienteOS, telefone: telOS, documento: cpfOS, anotacoes: "Criado via O.S." }); cId = d.id;
+    } else { const cExist = app.bancoCrm.find(c => c.nome.toLowerCase() === clienteOS.toLowerCase()); if(cExist) cId = cExist.id; }
 
     document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => {
         const descInput = tr.querySelector('.peca-desc'); const desc = descInput ? descInput.value.trim() : '';
@@ -720,34 +653,17 @@ app.salvarOS = async function() {
     });
     
     const novoStatus = document.getElementById('os_status') ? document.getElementById('os_status').value : 'patio';
-    app.historicoOSAtual.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: id ? `Editou o orçamento e/ou as evidências. Status Gravado: ${novoStatus.toUpperCase()}` : "Abriu a Ordem de Serviço na Fase 1 (Pátio)." });
+    app.historicoOSAtual.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: id ? `Editou o orçamento/evidências. Status: ${novoStatus.toUpperCase()}` : "Abriu a Ficha (Pátio)." });
     
     const payload = {
-        tenantId: app.t_id, 
-        placa: document.getElementById('os_placa') ? document.getElementById('os_placa').value.toUpperCase() : '',
-        veiculo: document.getElementById('os_veiculo') ? document.getElementById('os_veiculo').value : '', 
-        cliente: clienteOS, clienteId: cId, celular: telOS, clienteCpf: cpfOS,
-        status: novoStatus, 
-        relatoCliente: document.getElementById('os_relato_cliente') ? document.getElementById('os_relato_cliente').value : '',
-        diagnostico: document.getElementById('os_diagnostico') ? document.getElementById('os_diagnostico').value : '',
-        chk_combustivel: document.getElementById('chk_combustivel') ? document.getElementById('chk_combustivel').checked : false, 
-        chk_arranhado: document.getElementById('chk_arranhado') ? document.getElementById('chk_arranhado').checked : false,
-        chk_bateria: document.getElementById('chk_bateria') ? document.getElementById('chk_bateria').checked : false, 
-        chk_pneus: document.getElementById('chk_pneus') ? document.getElementById('chk_pneus').checked : false,
-        pecas: pecasArray, 
-        total: metricasTotais.total, custoTotal: metricasTotais.custo, maoObraTotal: metricasTotais.maoObra, pecasTotal: metricasTotais.pecas,
-        fotos: app.fotosOSAtual, historico: app.historicoOSAtual, ultimaAtualizacao: new Date().toISOString()
+        tenantId: app.t_id, placa: document.getElementById('os_placa') ? document.getElementById('os_placa').value.toUpperCase() : '', veiculo: document.getElementById('os_veiculo') ? document.getElementById('os_veiculo').value : '', cliente: clienteOS, clienteId: cId, celular: telOS, clienteCpf: cpfOS, status: novoStatus, relatoCliente: document.getElementById('os_relato_cliente') ? document.getElementById('os_relato_cliente').value : '', diagnostico: document.getElementById('os_diagnostico') ? document.getElementById('os_diagnostico').value : '', chk_combustivel: document.getElementById('chk_combustivel') ? document.getElementById('chk_combustivel').checked : false, chk_arranhado: document.getElementById('chk_arranhado') ? document.getElementById('chk_arranhado').checked : false, chk_bateria: document.getElementById('chk_bateria') ? document.getElementById('chk_bateria').checked : false, chk_pneus: document.getElementById('chk_pneus') ? document.getElementById('chk_pneus').checked : false, pecas: pecasArray, total: metricasTotais.total, custoTotal: metricasTotais.custo, maoObraTotal: metricasTotais.maoObra, pecasTotal: metricasTotais.pecas, fotos: app.fotosOSAtual, historico: app.historicoOSAtual, ultimaAtualizacao: new Date().toISOString()
     };
     
     if (!id) payload.mecanico = app.user_nome; 
+    if (novoStatus === 'entregue') { app.showToast("ATENÇÃO: Use o botão Verde de Faturar para Baixar Estoque.", "warning"); return; }
+    if (id) await app.db.collection('ordens_servico').doc(id).update(payload); else await app.db.collection('ordens_servico').add(payload);
     
-    if (novoStatus === 'entregue') { app.showToast("ATENÇÃO: O botão 'Salvar no Pátio' não finaliza a venda. Utilize o botão Verde de Faturar para Baixar o Estoque.", "warning"); return; }
-    
-    if (id) await app.db.collection('ordens_servico').doc(id).update(payload);
-    else await app.db.collection('ordens_servico').add(payload);
-    
-    app.showToast("Prontuário Salvo.", "success");
-    const mod = document.getElementById('modalOS'); if(mod) bootstrap.Modal.getInstance(mod).hide();
+    app.showToast("Prontuário Salvo.", "success"); const mod = document.getElementById('modalOS'); if(mod) bootstrap.Modal.getInstance(mod).hide();
 };
 
 // =====================================================================
@@ -767,18 +683,12 @@ app.abrirFaturamentoOS = function() {
 
 app.processarFaturamentoCompleto = async function() {
     if(!app.osParaFaturar) return;
-    
     const fpElem = document.getElementById('fat_metodo'); const fp = fpElem ? fpElem.value : 'Dinheiro';
     const parcElem = document.getElementById('fat_parcelas'); const parcelasText = parcElem ? parcElem.value : '1';
     
-    const totalVenda = app.osParaFaturar.total || 0;
-    const batch = app.db.batch();
-    
-    let nP = 1; 
-    if(fp.includes('Boleto') || fp.includes('Cartao') || fp.includes('Parcelado') || fp.includes('Crediario')) { nP = parseInt(parcelasText) || 1; }
-    
-    const vP = totalVenda / nP; 
-    const stsPgto = (fp.includes('Boleto') || fp.includes('Crediario')) ? 'pendente' : 'pago';
+    const totalVenda = app.osParaFaturar.total || 0; const batch = app.db.batch();
+    let nP = 1; if(fp.includes('Boleto') || fp.includes('Cartao') || fp.includes('Parcelado') || fp.includes('Crediario')) { nP = parseInt(parcelasText) || 1; }
+    const vP = totalVenda / nP; const stsPgto = (fp.includes('Boleto') || fp.includes('Crediario')) ? 'pendente' : 'pago';
     const dtBase = new Date().toISOString().split('T')[0];
 
     for(let i=0; i<nP; i++) { 
@@ -788,22 +698,16 @@ app.processarFaturamentoCompleto = async function() {
 
     if(app.osParaFaturar.pecas && !app.osParaFaturar.baixaEstoqueFeita) {
         for (const p of app.osParaFaturar.pecas) {
-            if (p.idEstoque) {
-                const estRef = app.db.collection('estoque').doc(p.idEstoque);
-                const estDoc = await estRef.get();
-                if(estDoc.exists) batch.update(estRef, { qtd: Math.max(0, estDoc.data().qtd - p.qtd) });
-            }
+            if (p.idEstoque) { const estRef = app.db.collection('estoque').doc(p.idEstoque); const estDoc = await estRef.get(); if(estDoc.exists) batch.update(estRef, { qtd: Math.max(0, estDoc.data().qtd - p.qtd) }); }
         }
     }
 
     let usrComissaoMO = app.user_comissao_mo; let usrComissaoPecas = app.user_comissao_pecas; 
     if(app.t_role === 'admin') { usrComissaoMO = 0; usrComissaoPecas = 0; }
-    const calcMO = ((app.osParaFaturar.maoObraTotal||0) * (usrComissaoMO / 100));
-    const calcPecas = ((app.osParaFaturar.pecasTotal||0) * (usrComissaoPecas / 100));
-    const comissaoReais = calcMO + calcPecas;
+    const calcMO = ((app.osParaFaturar.maoObraTotal||0) * (usrComissaoMO / 100)); const calcPecas = ((app.osParaFaturar.pecasTotal||0) * (usrComissaoPecas / 100)); const comissaoReais = calcMO + calcPecas;
     
     let h = app.osParaFaturar.historico || [];
-    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `FATURAMENTO E CHECKOUT REALIZADO: ${nP}x (${fp}). Itens baixados no estoque e comissão calculada.` });
+    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `FATURAMENTO CONCLUÍDO: ${nP}x (${fp}). Estoque Baixado e comissão calculada.` });
     
     batch.update(app.db.collection('ordens_servico').doc(app.osParaFaturar.id), { status: 'entregue', baixaEstoqueFeita: true, comissaoProcessada: comissaoReais, mecanicoReal: app.osParaFaturar.mecanico || app.user_nome, historico: h, ultimaAtualizacao: new Date().toISOString() });
     
@@ -838,7 +742,6 @@ app.abrirModalFinanceiro = function(mode='nova', tipo='', id='') {
             if(document.getElementById('fin_valor')) document.getElementById('fin_valor').value = f.valor || 0;
             if(document.getElementById('fin_data')) document.getElementById('fin_data').value = f.vencimento ? f.vencimento.split('T')[0] : '';
             if(document.getElementById('fin_metodo')) document.getElementById('fin_metodo').value = f.metodo || 'Dinheiro';
-            
             if(divStatus) { divStatus.style.display = 'block'; if(document.getElementById('fin_status')) document.getElementById('fin_status').value = f.status || 'pendente'; }
             if(divParcelas) divParcelas.style.display = 'none';
         }
@@ -856,13 +759,6 @@ app.verificarPgtoFinManual = function() {
     if(d) { if(f.includes('Parcelado') || f.includes('Boleto')) d.style.display = 'block'; else { d.style.display = 'none'; document.getElementById('fin_parcelas').value = '1'; } }
 };
 
-app.baixarTituloRapido = async function(id, isReceita) {
-    await app.db.collection('financeiro').doc(id).update({status:'pago'});
-    const f = app.bancoFin.find(x => x.id === id);
-    app.showToast("Título Quitado com Sucesso.", "success");
-    app.registrarAuditoriaGlobal("Financeiro (DRE)", `Realizou baixa (quitação) rápida do título: ${f ? f.desc : id}`);
-};
-
 app.salvarLancamentoFinanceiro = async function(e) {
     e.preventDefault();
     const idField = document.getElementById('fin_id'); const id = idField ? idField.value : '';
@@ -873,10 +769,14 @@ app.salvarLancamentoFinanceiro = async function(e) {
     const fp = document.getElementById('fin_metodo') ? document.getElementById('fin_metodo').value : ''; 
     
     if(id) {
+        // PROMPT OBRIGATÓRIO DE JUSTIFICATIVA PARA EDITAR/QUITAR (AUDITORIA CHEVRON)
+        const m = prompt("ATENÇÃO: Você está modificando um título financeiro existente no DRE.\n\nPor favor, digite a JUSTIFICATIVA (Obrigatório para Auditoria e Rastreio de Caixa):");
+        if(!m || m.trim() === '') { app.showToast("Operação Abortada. A justificativa de caixa é obrigatória.", "error"); return; }
+
         const sts = document.getElementById('fin_status') ? document.getElementById('fin_status').value : 'pendente';
         await app.db.collection('financeiro').doc(id).update({ desc: desc, valor: valorTotal, vencimento: dataInicial.toISOString().split('T')[0], metodo: fp, status: sts });
         app.showToast(`Obrigado. O Documento Financeiro foi atualizado. Status: ${sts.toUpperCase()}`, "success");
-        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Editou o título ${desc}. Novo Status: ${sts.toUpperCase()}`);
+        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Editou o título [${desc}]. Alterado para Status: ${sts.toUpperCase()}. Justificativa declarada: ${m}`);
     } else {
         const parcelasText = document.getElementById('fin_parcelas') ? document.getElementById('fin_parcelas').value : '1';
         const batch = app.db.batch();
@@ -891,7 +791,7 @@ app.salvarLancamentoFinanceiro = async function(e) {
         }
         await batch.commit(); 
         app.showToast(`Lançamento processado no DRE.`, "success");
-        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Inseriu novo lançamento contábil: ${desc} no valor de R$ ${valorTotal.toFixed(2)}`);
+        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Inseriu novo lançamento contábil: ${desc} no valor total de R$ ${valorTotal.toFixed(2)}`);
     }
     
     const mod = document.getElementById('modalFin'); if(mod) bootstrap.Modal.getInstance(mod).hide(); e.target.reset();
@@ -917,7 +817,7 @@ app.filtrarFinanceiro = function(silent = false) {
     }
     app.bancoFinFiltrado = base;
     app.renderizarFinanceiroGeral();
-    if(!silent) app.showToast("Filtros Temporais processados no Fluxo de Caixa.", "success");
+    if(!silent) app.showToast("Filtros Temporais aplicados no Fluxo de Caixa.", "success");
 };
 
 app.renderizarFinanceiroGeral = function() {
@@ -933,13 +833,11 @@ app.renderizarFinanceiroGeral = function() {
         if(!isR && f.status === 'pago') totPag += f.valor;
         
         const cor = isR ? 'text-success' : 'text-danger';
-        // A DÍVIDA PAGA NÃO SOME MAIS. ELA FICA VERDE E MOSTRA QUE FOI QUITADA.
         const st = f.status === 'pago' ? '<span class="badge bg-success px-2 py-1"><i class="bi bi-check2-all"></i> Quitado</span>' : '<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-hourglass-split"></i> A Vencer / Pendente</span>';
         
-        const btn = f.status === 'pendente' ? `<button class="btn btn-sm btn-outline-${isR?'success':'danger'} shadow-sm fw-bold px-3 me-1" onclick="app.baixarTituloRapido('${f.id}', ${isR})" title="Pagar Rápido"><i class="bi bi-currency-dollar"></i> Baixar</button>` : '';
-        const btnEdit = `<button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalFinanceiro('edit', '${f.tipo}', '${f.id}')" title="Inspecionar / Editar"><i class="bi bi-pencil"></i></button>`;
+        const btnEdit = `<button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalFinanceiro('edit', '${f.tipo}', '${f.id}')" title="Inspecionar / Mudar Status"><i class="bi bi-pencil"></i> Editar ou Quitar Dívida</button>`;
         
-        const html = `<tr><td class="text-white-50 fw-bold"><i class="bi bi-calendar-event me-2"></i> ${f.vencimento ? new Date(f.vencimento).toLocaleDateString('pt-BR') : ''}</td><td class="text-white fw-bold">${f.desc}</td><td><span class="badge bg-dark border border-secondary px-3 py-1 text-white-50">${f.parcelaAtual}/${f.totalParcelas}</span></td><td class="text-white-50 small">${f.metodo || 'Dinheiro'}</td><td class="${cor} fw-bold fs-6">R$ ${f.valor.toFixed(2).replace('.',',')}</td><td>${st}</td><td class="gestao-only text-end">${btn} ${btnEdit} <button class="btn btn-sm btn-link text-danger admin-only" onclick="app.db.collection('financeiro').doc('${f.id}').delete()"><i class="bi bi-trash"></i></button></td></tr>`;
+        const html = `<tr><td class="text-white-50 fw-bold"><i class="bi bi-calendar-event me-2"></i> ${f.vencimento ? new Date(f.vencimento).toLocaleDateString('pt-BR') : ''}</td><td class="text-white fw-bold">${f.desc}</td><td><span class="badge bg-dark border border-secondary px-3 py-1 text-white-50">${f.parcelaAtual}/${f.totalParcelas}</span></td><td class="text-white-50 small">${f.metodo || 'Dinheiro'}</td><td class="${cor} fw-bold fs-6">R$ ${f.valor.toFixed(2).replace('.',',')}</td><td>${st}</td><td class="gestao-only text-end">${btnEdit} <button class="btn btn-sm btn-link text-danger admin-only" onclick="app.db.collection('financeiro').doc('${f.id}').delete()"><i class="bi bi-trash"></i></button></td></tr>`;
         if(isR) hReceber += html; else hPagar += html;
     });
 
@@ -951,9 +849,7 @@ app.renderizarFinanceiroGeral = function() {
         if(app.filtroFinDataInicio && app.filtroFinDataFim) {
             const dV = new Date(o.ultimaAtualizacao); const d1 = new Date(app.filtroFinDataInicio); const d2 = new Date(app.filtroFinDataFim);
             if(dV >= d1 && dV <= d2) totCom += (o.comissaoProcessada||0);
-        } else {
-            totCom += (o.comissaoProcessada||0);
-        }
+        } else { totCom += (o.comissaoProcessada||0); }
     });
     
     if(document.getElementById('dreReceitas')) document.getElementById('dreReceitas').innerText = `R$ ${totRec.toFixed(2).replace('.',',')}`;
@@ -962,7 +858,6 @@ app.renderizarFinanceiroGeral = function() {
     if(document.getElementById('dreLucro')) document.getElementById('dreLucro').innerText = `R$ ${(totRec - totPag - totCom).toFixed(2).replace('.',',')}`;
 };
 
-// Exportar DRE para PDF Oficial (jsPDF)
 app.exportarRelatorioFinanceiro = function() {
     try {
         const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); let y = 15;
@@ -973,12 +868,10 @@ app.exportarRelatorioFinanceiro = function() {
         let pFim = app.filtroFinDataFim ? new Date(app.filtroFinDataFim).toLocaleDateString('pt-BR') : 'Atual';
         doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text(`Período Auditado: ${pIn} até ${pFim}`, 15, y); y += 15;
 
-        // Tabela Receitas
         doc.setFont("helvetica", "bold"); doc.text("1. RECEBIMENTOS (Contas a Receber Faturadas)", 15, y); y += 5;
         let bR = []; app.bancoFinFiltrado.filter(x=>x.tipo==='receita').forEach(x => { bR.push([x.vencimento.split('-').reverse().join('/'), x.desc, x.metodo, `R$ ${x.valor.toFixed(2)}`, x.status.toUpperCase()]); });
         if(bR.length > 0) { doc.autoTable({ startY: y, head: [['Data Base', 'Cliente/Referência', 'Modalidade', 'Vlr.', 'Status']], body: bR, theme: 'grid' }); y = doc.lastAutoTable.finalY + 15; } else { doc.text("- Nenhuma entrada no período.", 15, y+5); y += 15; }
 
-        // Tabela Despesas
         doc.setFont("helvetica", "bold"); doc.text("2. DESPESAS (Contas a Pagar / Fornecedores)", 15, y); y += 5;
         let bP = []; app.bancoFinFiltrado.filter(x=>x.tipo==='despesa').forEach(x => { bP.push([x.vencimento.split('-').reverse().join('/'), x.desc, x.metodo, `R$ ${x.valor.toFixed(2)}`, x.status.toUpperCase()]); });
         if(bP.length > 0) { doc.autoTable({ startY: y, head: [['Data Base', 'Fornecedor/Motivo', 'Modalidade', 'Vlr.', 'Status']], body: bP, theme: 'grid' }); y = doc.lastAutoTable.finalY + 15; } else { doc.text("- Nenhuma despesa no período.", 15, y+5); y += 15; }
@@ -990,7 +883,7 @@ app.exportarRelatorioFinanceiro = function() {
 };
 
 // =====================================================================
-// 10. RECURSOS HUMANOS E AUDITORIA (ARQUIVO MORTO COMPLETO)
+// 10. RECURSOS HUMANOS / EQUIPE E LIXEIRA DE AUDITORIA
 // =====================================================================
 app.iniciarEscutaEquipe = function() {
     app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(snap => {
@@ -1042,13 +935,36 @@ app.renderizarTabelaArquivo = function() {
 // Aqui o Arquivo Morto se torna a verdadeira Central de Auditoria
 app.iniciarEscutaLixeira = function() {
     app.db.collection('lixeira_auditoria').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        app.bancoAuditoria = snap.docs.map(d => d.data());
+        app.bancoAuditoria.sort((a,b) => new Date(b.apagadoEm) - new Date(a.apagadoEm));
         const tb = document.getElementById('tabelaLixeiraCorpo');
         if(tb) {
-            let dados = snap.docs.map(d => d.data());
-            dados.sort((a,b) => new Date(b.apagadoEm) - new Date(a.apagadoEm));
-            tb.innerHTML = dados.map(l => `<tr><td class="text-white-50 small">${new Date(l.apagadoEm).toLocaleString('pt-BR')}</td><td class="text-white fw-bold">${l.placaOriginal}</td><td><i class="bi bi-person-badge text-danger"></i> ${l.apagadoPor}</td><td class="text-warning">${l.motivo}</td></tr>`).join('');
+            tb.innerHTML = app.bancoAuditoria.map(l => `<tr><td class="text-white-50 small">${new Date(l.apagadoEm).toLocaleString('pt-BR')}</td><td class="text-white fw-bold">${l.placaOriginal}</td><td><i class="bi bi-person-badge text-danger"></i> ${l.apagadoPor}</td><td class="text-warning">${l.motivo}</td></tr>`).join('');
+        }
+        
+        // Injeta Botão de Exportar Auditoria se não existir
+        const lixeiraHeader = document.querySelector('#tela_arquivo .text-danger.fw-bold');
+        if(lixeiraHeader && !document.getElementById('btnExportarAuditoria')) {
+            lixeiraHeader.innerHTML += ` <button id="btnExportarAuditoria" class="btn btn-sm btn-outline-danger shadow-sm ms-3" onclick="app.exportarAuditoriaPDF()"><i class="bi bi-file-pdf"></i> Exportar Auditoria</button>`;
         }
     });
+};
+
+app.exportarAuditoriaPDF = function() {
+    try {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); let y = 15;
+        doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.text(app.t_nome.toUpperCase(), 105, y, { align: "center" }); y += 10;
+        doc.setFontSize(12); doc.text(`RELATÓRIO DE AUDITORIA E RASTREIO`, 105, y, { align: "center" }); y += 15;
+        
+        let bodyTable = [];
+        app.bancoAuditoria.forEach(l => { bodyTable.push([new Date(l.apagadoEm).toLocaleString('pt-BR'), l.placaOriginal, l.apagadoPor, l.motivo]); });
+        
+        if(bodyTable.length > 0) { doc.autoTable({ startY: y, head: [['Data/Hora', 'Módulo/Placa', 'Usuário', 'Ação / Justificativa']], body: bodyTable, theme: 'grid' }); } 
+        else { doc.text("- Lixeira de auditoria vazia.", 15, y); }
+
+        doc.save(`Auditoria_${app.t_nome.replace(' ', '_')}.pdf`);
+        app.showToast("Log de Auditoria exportado em PDF.", "success");
+    } catch(e) { console.error(e); app.showToast("Erro na geração do PDF de Auditoria.", "error"); }
 };
 
 app.apagarOS = async function() {
@@ -1066,7 +982,6 @@ app.apagarOS = async function() {
         await app.db.collection('ordens_servico').doc(id).delete();
         app.showToast("O.S. Removida e gravada na Trilha Oculta (Lixeira).", "success");
     }
-    
     const mod = document.getElementById('modalOS'); if(mod) bootstrap.Modal.getInstance(mod).hide();
 };
 
@@ -1146,7 +1061,6 @@ app.exportarPDFMenechelli = async function() {
         });
         doc.autoTable({ startY: y, head: [['Serviço ou Peça Genuína Acoplada', 'Qtd', 'Vlr. Unitário', 'Subtotal da Linha']], body: tableBody, theme: 'grid', headStyles: { fillColor: [30, 41, 59] }, margin: { left: 15, right: 15 }}); y = doc.lastAutoTable.finalY + 15;
 
-        // Bloco de Provas Visuais (Cloudinary via Base64)
         if (app.fotosOSAtual.length > 0) {
             if (y > 220) { doc.addPage(); y = 20; }
             doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`EVIDÊNCIAS FOTOGRÁFICAS DA MANUTENÇÃO`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10;
@@ -1164,7 +1078,6 @@ app.exportarPDFMenechelli = async function() {
             y = imgY + imgSize + 15;
         }
 
-        // Auditoria History Track Injection (Padrão Chevron)
         if (app.historicoOSAtual.length > 0) {
             if (y > 220) { doc.addPage(); y = 20; }
             doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`TRILHA DE AUDITORIA E RESPONSABILIDADE (TIMELINE)`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10;
@@ -1200,7 +1113,7 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO) E CONSULTORIA RAG
+// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO COM REQUISITO DE FONTES)
 // =====================================================================
 app.iniciarEscutaIA = function() {
     app.db.collection('conhecimento_ia').where('tenantId', '==', app.t_id).onSnapshot(snap => {
@@ -1217,14 +1130,14 @@ app.renderizarListaIA = function() {
 
 app.salvarConhecimentoIA = async function(textoAvulso = null) {
     const textarea = document.getElementById('iaConhecimentoTexto'); const valor = textoAvulso || (textarea ? textarea.value.trim() : '');
-    if(!valor) { app.showToast("O input de dados de aprendizagem não pode ser vazio.", "warning"); return; }
+    if(!valor) { app.showToast("O input de dados de aprendizagem não pode ser vácuo.", "warning"); return; }
     await app.db.collection('conhecimento_ia').add({ tenantId: app.t_id, texto: valor, dataImportacao: new Date().toISOString() });
     app.showToast("Deep Learning concluído. Regra injetada na I.A.", "success"); if(textarea && !textoAvulso) textarea.value = '';
     app.registrarAuditoriaGlobal("Gestão RAG", "Injetou novo conhecimento na base da IA.");
 };
 
 app.apagarConhecimentoIA = async function(id) {
-    if(confirm("Deseja apagar este fragmento de memória da I.A.?")) {
+    if(confirm("Deseja lobotomizar a I.A apagando este fragmento de memória permanentemente?")) {
         await app.db.collection('conhecimento_ia').doc(id).delete(); app.showToast("Célula de Memória expurgada.", "success");
         app.registrarAuditoriaGlobal("Gestão RAG", "Apagou conhecimento da base da IA.");
     }
@@ -1237,31 +1150,27 @@ app.processarArquivoParaIA = function(event) {
     
     const reader = new FileReader();
     reader.onload = async function(e) {
-        const text = e.target.result; const txtLimpo = text.substring(0, 10000); // 10k limit para RAG payload seguro
+        const text = e.target.result; const txtLimpo = text.substring(0, 10000);
         await app.salvarConhecimentoIA(`[ARQUIVO IMPORTADO: ${file.name}]\n\n${txtLimpo}`);
         if(statusLabel) { statusLabel.className = "text-success fw-bold d-block text-center"; statusLabel.innerText = "Aquisição e Sinapse concluídas com êxito!"; setTimeout(() => { statusLabel.innerText = ""; }, 5000); }
     };
     reader.readAsText(file); 
 };
 
-// Conector Oficial Gemini 2.5 Flash API
+// Conector Oficial API (Código Validado)
 app.chamarGemini = async function(prompt) {
-    if(!app.API_KEY_GEMINI) { app.showToast("Sem Credencial do Google Gemini 2.5 Flash no Sistema.", "error"); return "Erro Crítico: API KEY Ausente."; }
-    
+    if(!app.API_KEY_GEMINI) { app.showToast("Chave da API do Google Gemini não encontrada.", "error"); return "Erro: Google Gemini API Key ausente."; }
     try {
-        // ENDPOINT CORRIGIDO PARA O 2.5 FLASH
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-        
-        const data = await response.json();
+        const data = await res.json(); 
         if(data.error) throw new Error(data.error.message);
         return data.candidates[0].content.parts[0].text;
-    } catch(e) {
-        console.error("Gemini 2.5 Flash Engine Error:", e);
-        return "Conexão Instável com a Central de Redes Neurais da Google.";
+    } catch(e) { 
+        console.error(e);
+        return "Erro na conexão com a Inteligência Artificial. Verifique as credenciais ou a cota do Google Cloud."; 
     }
 };
 
@@ -1282,17 +1191,16 @@ app.perguntarJarvis = async function() {
     DADOS TÉCNICOS DOS CARROS NO PÁTIO (HOJE):
     ${dadosOS}
     
-    PERGUNTA DO GESTOR DA OFICINA:
+    PERGUNTA DO GESTOR:
     ${pergunta}
     
-    Responda em português, seja altamente técnico, direto e focado no problema automotivo ou de gestão.`;
+    Regra absoluta e inquebrável: Você DEVE comprovar as fontes de suas respostas. Cite de qual documento ou manual você tirou a informação técnica (ex: "Baseado no manual X..."). Se não houver documento, avise que usou sua base de conhecimento global. Responda de forma direta e altamente técnica.`;
     
     const respostaIlimitada = await app.chamarGemini(promptMaster);
     if(respDiv) respDiv.innerHTML = respostaIlimitada.replace(/\n/g, '<br>');
     input.value = '';
 };
 
-// IA Consultoria de Box (Mecânicos)
 app.perguntarJarvisMecanico = async function() {
     const input = document.getElementById('jarvisInputMecanico'); const respDiv = document.getElementById('jarvisRespostaMecanico');
     if(!input || !input.value) return;
@@ -1301,8 +1209,10 @@ app.perguntarJarvisMecanico = async function() {
     const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
     const promptMaster = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".
     AJUDA TÉCNICA E MANUAIS (RAG): ${contexto}
+    
     DÚVIDA DIRETA DO MECÂNICO NO ELEVADOR: ${input.value}
-    Forneça o diagnóstico mais provável para a falha ou o torque/medida correta. Seja rápido e técnico.`;
+    
+    Regra absoluta: Você DEVE citar a fonte da sua resposta. Informe de qual manual ou regra a instrução foi retirada. Forneça o diagnóstico provável para a falha ou o torque/medida correta de forma técnica e objetiva.`;
     
     const res = await app.chamarGemini(promptMaster);
     if(respDiv) respDiv.innerHTML = res.replace(/\n/g, '<br>');
@@ -1319,11 +1229,12 @@ app.jarvisAnalisarRevisoes = async function() {
     const dadosParaIA = historicoMorto.map(o => `Data da Última O.S.: ${new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR')} | Cliente do CRM: ${o.cliente} | Veículo da Passagem: ${o.veiculo} | Telefone: ${o.celular || 'S/N'} | Operação Realizada: ${o.pecas ? o.pecas.map(p=>p.desc).join(', ') : 'Checkup Simples'}`).join('\n');
     
     const promptRadar = `Você é o Diretor Comercial de Pós-Venda da oficina ${app.t_nome}.
-    Aqui está a lista de todos os carros faturados que saíram da nossa oficina nos últimos meses:
+    Aqui está a lista de todos os carros faturados que saíram da nossa oficina:
     
     ${dadosParaIA}
     
-    Tarefa: Encontre os 3 melhores clientes para telefonarmos HOJE oferecendo uma revisão preventiva, troca de óleo ou manutenção baseada no tempo decorrido desde a última ida à oficina.
+    Tarefa: Encontre os clientes para telefonarmos HOJE oferecendo uma revisão preventiva baseada no tempo decorrido ou operação.
+    Regra absoluta: Justifique e cite a fonte da sua decisão técnica (ex: "Baseado no desgaste comum de 6 meses...").
     Devolva em formatação HTML simples (<li>) com o Nome, o Carro e o argumento técnico para ligarmos para ele.`;
     
     const respostaRadar = await app.chamarGemini(promptRadar);
