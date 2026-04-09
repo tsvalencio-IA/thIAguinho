@@ -1396,90 +1396,105 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// =========================================================
-// O VERDADEIRO MOTOR GEMINI 2.5 FLASH COM SINTAXE CAD (COMPRESSÃO)
-// =========================================================
+// 🔥 FUNÇÃO PARA GARANTIR A CHAVE
+app.obterGeminiKey = function() {
+    let key = app.minhaGeminiKey;
+
+    if (!key || key === 'null' || key === 'undefined') {
+        key = sessionStorage.getItem('t_gemini');
+    }
+
+    if (!key || key === 'null' || key === 'undefined') {
+        return null;
+    }
+
+    return key.trim();
+};
+
+// 🔥 MOTOR GEMINI CORRIGIDO
 app.chamarGemini = async function(promptCompleto) {
-    const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
-    
-    if(!key || key === 'null' || key === 'undefined') { 
-        app.showToast("A chave da IA não foi encontrada no banco.", "error"); 
-        return "Erro: Google Gemini API Key ausente na oficina."; 
+    const key = app.obterGeminiKey();
+
+    if (!key) {
+        console.error("❌ Gemini Key NÃO encontrada");
+        app.showToast("A chave da IA não foi encontrada no banco.", "error");
+        return "Erro: API Key do Gemini não configurada.";
     }
 
     try {
-        const parts = [{ text: promptCompleto }];
-        
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ contents: [{ parts }] }) 
+        console.log("🧠 Enviando para Gemini...");
+
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: promptCompleto }]
+                }]
+            })
         });
-        
-        const data = await res.json(); 
-        if (data.error) throw new Error(data.error.message);
-        
-        return data.candidates[0].content.parts[0].text;
-        
-    } catch(e) { 
-        console.error(e);
-        return "A I.A. encontrou uma instabilidade. Verifique sua chave de API ou se houve estouro de cota. Erro: " + e.message; 
+
+        const data = await res.json();
+
+        console.log("📡 Resposta Gemini:", data);
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status} - ${data.error?.message || 'Erro desconhecido'}`);
+        }
+
+        if (!data.candidates || !data.candidates[0]) {
+            throw new Error("Resposta da IA inválida.");
+        }
+
+        const resposta = data.candidates[0]?.content?.parts?.[0]?.text;
+
+        if (!resposta) {
+            throw new Error("IA não retornou texto.");
+        }
+
+        return resposta;
+
+    } catch (e) {
+        console.error("🔥 ERRO GEMINI:", e);
+        return `Erro na IA: ${e.message}`;
     }
 };
 
+// 🔥 PERGUNTA JARVIS CORRIGIDA
 app.perguntarJarvis = async function() {
-    if(app.iaTrabalhando) return;
-    
-    const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
-    if(!inp || !inp.value) return; 
-    
-    app.iaTrabalhando = true;
-    resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Processando Cognição (Gemini 2.5 Flash)...';
+    if (app.iaTrabalhando) return;
 
-    // LIMITE DE TOKENS: Pegamos apenas os manuais cruciais (limitados a 5000 caracteres)
-    const manuaisPuros = app.bancoIA.map(ia => ia.texto).join('\n').substring(0, 5000);
-    
-    const promptUnificado = `Você é o Consultor Técnico thIAguinho da oficina "${app.t_nome}".\n\n` +
-                            `MANUAIS DE REFERÊNCIA:\n${manuaisPuros}\n\n` +
-                            `Regra absoluta: Responda de forma direta. Se não houver informação no manual, diga que não sabe.\n\n` +
-                            `PERGUNTA DO MECÂNICO: "${inp.value}"`;
-    
-    const resposta = await app.chamarGemini(promptUnificado);
-    resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
-    
+    const inp = document.getElementById('jarvisInput');
+    const resDiv = document.getElementById('jarvisResposta');
+
+    if (!inp || !inp.value) return;
+
+    app.iaTrabalhando = true;
+
+    resDiv.classList.remove('d-none');
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Processando...';
+
+    try {
+        const manuaisPuros = app.bancoIA
+            .map(ia => ia.texto)
+            .join('\n')
+            .substring(0, 5000);
+
+        const promptUnificado =
+            `Você é o Consultor Técnico thIAguinho da oficina "${app.t_nome}".\n\n` +
+            `MANUAIS:\n${manuaisPuros}\n\n` +
+            `Se não souber, diga que não sabe.\n\n` +
+            `PERGUNTA: "${inp.value}"`;
+
+        const resposta = await app.chamarGemini(promptUnificado);
+
+        resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
+
+    } catch (e) {
+        console.error(e);
+        resDiv.innerHTML = "Erro ao processar pergunta.";
+    }
+
     inp.value = '';
-    app.iaTrabalhando = false;
-};
-
-app.jarvisAnalisarRevisoes = async function() {
-    if(app.iaTrabalhando) {
-        app.showToast("Aguarde a IA terminar a tarefa atual.", "warning");
-        return;
-    }
-    
-    const div = document.getElementById('jarvisCRMInsights'); if(!div) return;
-    
-    app.iaTrabalhando = true;
-    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando Histórico de Faturamento...';
-    
-    const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
-    if(historicoMorto.length === 0) { 
-        div.innerHTML = '<span class="text-white-50">Não há registros suficientes.</span>'; 
-        app.iaTrabalhando = false;
-        return; 
-    }
-    
-    // COMPRESSÃO DE TOKENS: Pegamos apenas as últimas 30 ordens para não estourar o payload REST
-    const ctx = { 
-        h: historicoMorto.slice(-30).map(o => ({ d: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), c: o.cliente, p: o.placa })) 
-    };
-
-    const promptUnificado = `Atue como Gestor de Remarketing da oficina ${app.t_nome}.\n` +
-                            `DADOS:\n${JSON.stringify(ctx)}\n\n` +
-                            `Tarefa: Filtre e indique 3 a 5 clientes para oferecermos uma revisão preventiva. Formato HTML limpo (<ul><li>).`;
-    
-    const resposta = await app.chamarGemini(promptUnificado);
-    div.innerHTML = resposta;
     app.iaTrabalhando = false;
 };
