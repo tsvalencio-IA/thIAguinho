@@ -15,8 +15,8 @@ app.firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(app.firebaseConfig);
 app.db = firebase.firestore();
 
-app.CLOUDINARY_CLOUD_NAME = sessionStorage.getItem('t_cloudName'); 
-app.CLOUDINARY_UPLOAD_PRESET = sessionStorage.getItem('t_cloudPreset'); 
+app.CLOUDINARY_CLOUD_NAME = sessionStorage.getItem('t_cloudName') || 'dmuvm1o6m'; 
+app.CLOUDINARY_UPLOAD_PRESET = sessionStorage.getItem('t_cloudPreset') || 'evolution'; 
 app.API_KEY_GEMINI = sessionStorage.getItem('t_gemini');
 app.t_id = sessionStorage.getItem('t_id');
 app.t_nome = sessionStorage.getItem('t_nome');
@@ -184,6 +184,11 @@ app.salvarClienteCRM = async function(e) {
     e.target.reset(); bootstrap.Modal.getInstance(document.getElementById('modalCrm')).hide();
 };
 
+app.apagarCliente = async function(id) {
+    if(app.t_role !== 'admin') { app.showToast("Apenas proprietário pode apagar cliente.", "error"); return; }
+    if(confirm("Apagar cliente? A base de dados será impactada.")) { await app.db.collection('clientes_base').doc(id).delete(); app.showToast("Removido.", "success"); }
+};
+
 app.aoSelecionarClienteOS = function() {
     const nomeDigitado = document.getElementById('os_cliente').value.trim();
     const cliente = app.bancoCrm.find(c => c.nome.toLowerCase() === nomeDigitado.toLowerCase());
@@ -196,7 +201,7 @@ app.enviarWhatsAppAprovacao = function() {
     const cZ = app.bancoCrm.find(x => x.nome === nome);
     if(!cel) return app.showToast("Celular não informado.", "error");
     const u = window.location.origin + window.location.pathname.replace('painel_oficina.html', 'clientes/projeto_oficina.html');
-    let txt = `Olá ${nome}! A O.S. do seu veículo foi atualizada na *${app.t_nome}*.\nAcesse o seu portal oficial para ver fotos, histórico, orçamento e aprovar:\n👉 ${u}`;
+    let txt = `Olá ${nome}! A O.S. do seu veículo foi atualizada na *${app.t_nome}*.\nAcesse o portal para ver fotos, orçamento e aprovar:\n👉 ${u}`;
     if(cZ && cZ.usuario) { txt += `\n\nLogin: ${cZ.usuario}\nPIN: ${cZ.senha}`; }
     window.open(`https://wa.me/55${cel.replace(/\D/g, '')}?text=${encodeURIComponent(txt)}`, '_blank');
 };
@@ -242,7 +247,7 @@ app.abrirChatCRM = function(clienteId, nomeCliente) {
             else if(x.fileType==='audio'||x.fileUrl.includes('.mp3')) content += `<br><audio src="${x.fileUrl}" controls class="mw-100 mt-2"></audio>`;
             else content += `<br><img src="${x.fileUrl}" class="mw-100 rounded mt-2 shadow-sm" onclick="window.open('${x.fileUrl}')">`;
         }
-        area.innerHTML += `<div class="message ${x.sender === 'admin' ? 'admin shadow-sm' : 'cliente shadow-sm'}">${content}<small class="d-block text-end opacity-50 mt-1">${t}</small></div>`;
+        area.innerHTML += `<div class="message ${x.sender === 'admin' ? 'admin' : 'cliente'}">${content}<small class="d-block text-end opacity-50">${t}</small></div>`;
     });
     area.scrollTop = area.scrollHeight;
 };
@@ -265,7 +270,7 @@ app.enviarAnexoChatGlobal = async function() {
 };
 
 // =====================================================================
-// 5. ESTOQUE E ENTRADA XML REAL E MANUAL (EDIÇÃO)
+// 5. ESTOQUE E ENTRADA XML REAL (INFINITA)
 // =====================================================================
 app.abrirModalNF = function(mode='nova', id='') {
     document.getElementById('formNF').reset();
@@ -285,7 +290,6 @@ app.abrirModalNF = function(mode='nova', id='') {
     } else {
         app.adicionarLinhaNF('', '', '', 1, 0, 0); // Sempre inicia com 1 linha vazia
     }
-    
     new bootstrap.Modal(document.getElementById('modalNF')).show();
 };
 
@@ -310,7 +314,7 @@ app.processarXML = function(event) {
 
 app.adicionarLinhaNF = function(desc='', ncm='', cfop='', qtd=1, custo=0, venda=0) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-1 it-desc" value="${desc}" required></td><td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-1 it-ncm" value="${ncm}"></td><td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-1 it-cfop" value="${cfop}"></td><td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary p-1 it-qtd" value="${qtd}" min="1"></td><td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary p-1 it-custo" value="${custo}"></td><td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary p-1 it-venda fw-bold" value="${venda}"></td><td><button type="button" class="btn btn-sm btn-outline-danger p-0 px-2" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>`;
+    tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-white it-desc" value="${desc}" required></td><td><input type="text" class="form-control form-control-sm bg-dark text-white it-ncm" value="${ncm}"></td><td><input type="text" class="form-control form-control-sm bg-dark text-white it-cfop" value="${cfop}"></td><td><input type="number" class="form-control form-control-sm bg-dark text-white it-qtd" value="${qtd}" min="1"></td><td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger it-custo" value="${custo}"></td><td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success it-venda fw-bold" value="${venda}"></td><td><button type="button" class="btn btn-sm btn-outline-danger p-0 px-2" onclick="this.closest('tr').remove()">X</button></td>`;
     document.getElementById('corpoItensNF').appendChild(tr);
 };
 
@@ -332,7 +336,6 @@ app.salvarEntradaEstoque = async function(e) {
     
     const batch = app.db.batch(); let totalNF = 0;
     
-    // Se for edição, atualiza a única linha (a interface permite editar 1 item por vez que já estava no banco)
     if(id) {
         const tr = document.querySelector('#corpoItensNF tr');
         if(tr) {
@@ -341,7 +344,6 @@ app.salvarEntradaEstoque = async function(e) {
             });
         }
     } else {
-        // Múltiplas inserções (XML ou Várias Manuais)
         document.querySelectorAll('#corpoItensNF tr').forEach(tr => {
             const d = tr.querySelector('.it-desc').value; const q = parseFloat(tr.querySelector('.it-qtd').value); const c = parseFloat(tr.querySelector('.it-custo').value); const v = parseFloat(tr.querySelector('.it-venda').value);
             if(d && q > 0) {
@@ -350,7 +352,6 @@ app.salvarEntradaEstoque = async function(e) {
             }
         });
 
-        // Só gera financeiro automático na criação
         if(gerarFinanceiro && totalNF > 0) {
             let nP = 1; if(fp.includes('Parcelado')) { if(parc.includes('2x')) nP=2; else if(parc.includes('3x')) nP=3; else if(parc.includes('4x')) nP=4; else if(parc.includes('6x')) nP=6; }
             const vP = totalNF / nP; 
@@ -400,8 +401,141 @@ app.mudarStatusRapido = async function(id, novoStatus) {
     const osRef = app.db.collection('ordens_servico').doc(id);
     const doc = await osRef.get();
     let h = doc.data().historico || [];
-    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Status alterado manualmente para: ${novoStatus.toUpperCase()}` });
+    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Status alterado para: ${novoStatus.toUpperCase()}` });
     await osRef.update({ status: novoStatus, historico: h, ultimaAtualizacao: new Date().toISOString() });
+};
+
+app.abrirModalOS = function(mode = 'nova', id = '') {
+    document.getElementById('formOS').reset();
+    document.getElementById('listaPecasCorpo').innerHTML = ''; // Zera Tabela de Peças
+    app.fotosOSAtual = []; app.historicoOSAtual = [];
+    document.getElementById('header_placa').innerText = '';
+    document.getElementById('listaHistorico').innerHTML = '';
+    
+    const btnFat = document.getElementById('btnFaturar'); if(btnFat) btnFat.classList.add('d-none');
+    const btnPdf = document.getElementById('btnGerarPDF'); if(btnPdf) btnPdf.classList.add('d-none');
+    const btnDel = document.getElementById('btnDeletarOS'); if(btnDel) btnDel.classList.add('d-none');
+    
+    ['chk_combustivel', 'chk_arranhado', 'chk_bateria', 'chk_pneus'].forEach(i => { const chk = document.getElementById(i); if(chk) chk.checked = false; });
+
+    if (mode === 'edit') {
+        const os = app.bancoOSCompleto.find(x => x.id === id);
+        if (os) {
+            document.getElementById('os_id').value = os.id;
+            document.getElementById('os_placa').value = os.placa || '';
+            document.getElementById('header_placa').innerText = `[${os.placa}]`;
+            document.getElementById('os_veiculo').value = os.veiculo || '';
+            document.getElementById('os_cliente').value = os.cliente || '';
+            document.getElementById('os_cliente_id').value = os.clienteId || ''; 
+            
+            const cZ = app.bancoCrm.find(c => c.nome === os.cliente);
+            document.getElementById('os_celular').value = cZ ? cZ.telefone : (os.celular || '');
+            
+            document.getElementById('os_status').value = os.status || 'patio';
+            document.getElementById('os_relato_cliente').value = os.relatoCliente || '';
+            document.getElementById('os_diagnostico').value = os.diagnostico || '';
+            
+            if(os.chk_combustivel) document.getElementById('chk_combustivel').checked = true;
+            if(os.chk_arranhado) document.getElementById('chk_arranhado').checked = true;
+            if(os.chk_bateria) document.getElementById('chk_bateria').checked = true;
+            if(os.chk_pneus) document.getElementById('chk_pneus').checked = true;
+            
+            if (os.fotos) { app.fotosOSAtual = os.fotos; app.renderizarGaleria(); }
+            if (os.historico) { app.historicoOSAtual = os.historico; app.renderizarHistorico(); }
+            
+            if (os.pecas) os.pecas.forEach(p => app.adicionarLinhaPeca(p.desc, p.qtd, p.custo, p.venda, p.idEstoque, p.isMaoObra));
+            
+            if(btnPdf) btnPdf.classList.remove('d-none');
+            if (os.status === 'pronto' && (app.t_role === 'admin' || app.t_role === 'gerente') && btnFat) btnFat.classList.remove('d-none');
+            if (app.t_role === 'admin' && btnDel) btnDel.classList.remove('d-none');
+        }
+    } else {
+        app.adicionarMaoDeObra();
+    }
+    app.verificarStatusLink();
+    new bootstrap.Modal(document.getElementById('modalOS')).show();
+};
+
+app.adicionarDoEstoque = function() {
+    const sel = document.getElementById('selectProdutoEstoque'); if(!sel || !sel.value) return;
+    const opt = sel.options[sel.selectedIndex];
+    app.adicionarLinhaPeca(opt.dataset.desc, 1, parseFloat(opt.dataset.custo), parseFloat(opt.dataset.venda), sel.value, false);
+    sel.value = '';
+};
+
+app.adicionarMaoDeObra = function() { app.adicionarLinhaPeca("Serviço / Mão de Obra", 1, 0, 0, null, true); };
+
+app.adicionarLinhaPeca = function(desc, qtd, custo, venda, idEstoque, isMaoObra) {
+    const tr = document.createElement('tr');
+    const mo = isMaoObra ? `data-maoobra="true"` : '';
+    const est = idEstoque ? `data-idestoque="${idEstoque}" readonly` : '';
+    tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary peca-desc p-2" value="${desc}" ${est} ${mo}></td>
+        <td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary peca-qtd p-2" value="${qtd}" min="1" onchange="app.calcularTotalOS()"></td>
+        <td class="gestao-only"><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary peca-custo p-2" value="${custo}" onchange="app.calcularTotalOS()"></td>
+        <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary peca-venda p-2 fw-bold" value="${venda}" onchange="app.calcularTotalOS()"></td>
+        <td><input type="text" class="form-control form-control-sm bg-black text-white border-0 peca-total fw-bold p-2" readonly value="${(qtd*venda).toFixed(2)}"></td>
+        <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger border-0 mt-1" onclick="this.closest('tr').remove(); app.calcularTotalOS()"><i class="bi bi-trash"></i></button></td>`;
+    document.getElementById('listaPecasCorpo').appendChild(tr);
+    app.calcularTotalOS();
+};
+
+app.calcularTotalOS = function() {
+    let t = 0; let tc = 0;
+    document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => {
+        const q = parseFloat(tr.querySelector('.peca-qtd').value)||0;
+        const v = parseFloat(tr.querySelector('.peca-venda').value)||0;
+        const c = parseFloat(tr.querySelector('.peca-custo').value)||0;
+        tr.querySelector('.peca-total').value = (q*v).toFixed(2);
+        t += (q*v); tc += (q*c);
+    });
+    const divGeral = document.getElementById('os_total_geral'); if(divGeral) divGeral.innerText = `R$ ${t.toFixed(2).replace('.',',')}`;
+    return t;
+};
+
+app.salvarOS = async function() {
+    const id = document.getElementById('os_id').value;
+    let pecasArray = []; let tVenda = 0; let tCusto = 0; let tMO = 0;
+    const clienteOS = document.getElementById('os_cliente').value.trim();
+    const telOS = document.getElementById('os_celular').value.trim();
+
+    let cId = document.getElementById('os_cliente_id').value;
+    if(clienteOS && !app.bancoCrm.find(c => c.nome.toLowerCase() === clienteOS.toLowerCase())) {
+        const p = { tenantId: app.t_id, nome: clienteOS, telefone: telOS, usuario: '', senha: '' };
+        const d = await app.db.collection('clientes_base').add(p);
+        cId = d.id;
+    }
+
+    document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => {
+        const descInput = tr.querySelector('.peca-desc'); const desc = descInput.value.trim();
+        const idEstoque = descInput.dataset.idestoque || null; const isMaoObra = descInput.dataset.maoobra === "true";
+        const q = parseFloat(tr.querySelector('.peca-qtd').value)||1; const c = parseFloat(tr.querySelector('.peca-custo').value)||0; const v = parseFloat(tr.querySelector('.peca-venda').value)||0;
+        if (desc !== '') { pecasArray.push({ desc, qtd:q, custo:c, venda:v, idEstoque, isMaoObra }); tVenda += (q*v); tCusto += (q*c); if(isMaoObra) tMO += (q*v); }
+    });
+    
+    app.historicoOSAtual.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: id ? "O.S e Orçamento atualizados." : "O.S. Técnica Aberta." });
+    
+    const payload = {
+        tenantId: app.t_id, placa: document.getElementById('os_placa').value.toUpperCase(),
+        veiculo: document.getElementById('os_veiculo').value, cliente: clienteOS, clienteId: cId, celular: telOS,
+        status: document.getElementById('os_status').value, relatoCliente: document.getElementById('os_relato_cliente').value,
+        diagnostico: document.getElementById('os_diagnostico').value,
+        chk_combustivel: document.getElementById('chk_combustivel') ? document.getElementById('chk_combustivel').checked : false, 
+        chk_arranhado: document.getElementById('chk_arranhado') ? document.getElementById('chk_arranhado').checked : false,
+        chk_bateria: document.getElementById('chk_bateria') ? document.getElementById('chk_bateria').checked : false, 
+        chk_pneus: document.getElementById('chk_pneus') ? document.getElementById('chk_pneus').checked : false,
+        pecas: pecasArray, total: tVenda, custoTotal: tCusto, maoObraTotal: tMO, fotos: app.fotosOSAtual,
+        historico: app.historicoOSAtual, ultimaAtualizacao: new Date().toISOString()
+    };
+    
+    if (!id) payload.mecanico = app.user_nome;
+    
+    if (document.getElementById('os_status').value === 'entregue') { app.showToast("Para fechar e entregar, use o botão Verde de FATURAR.", "warning"); return; }
+    
+    if (id) await app.db.collection('ordens_servico').doc(id).update(payload);
+    else await app.db.collection('ordens_servico').add(payload);
+    
+    app.showToast("Ficha salva no Pátio.", "success");
+    bootstrap.Modal.getInstance(document.getElementById('modalOS')).hide();
 };
 
 // =====================================================================
@@ -485,11 +619,9 @@ app.salvarLancamentoFinanceiro = async function(e) {
     const fp = document.getElementById('fin_metodo').value; 
     
     if(id) {
-        // Edição de Título Existente
         await app.db.collection('financeiro').doc(id).update({ desc, valor, vencimento: dataVenc, metodo: fp, status: document.getElementById('fin_status').value });
         app.showToast("Título financeiro atualizado.", "success");
     } else {
-        // Novo Lançamento (pode ser parcelado)
         const parcelasText = document.getElementById('fin_parcelas').value;
         const batch = app.db.batch();
         let nP = 1; if(fp.includes('Parcelado')) nP = parseInt(parcelasText);
@@ -545,23 +677,30 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 10. J.A.R.V.I.S E IA (MÁXIMA PERFORMANCE)
+// 10. J.A.R.V.I.S E IA (GEMINI 2.5 FLASH)
 // =====================================================================
 app.chamarGemini = async function(prompt) {
-    if(!app.API_KEY_GEMINI) return "IA Desativada.";
+    if(!app.API_KEY_GEMINI) return "IA Desativada. Chave não configurada no Master Hub.";
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         const data = await res.json(); return data.candidates[0].content.parts[0].text;
-    } catch(e) { return "Erro na I.A."; }
+    } catch(e) { return "Erro na conexão com a Inteligência Artificial."; }
 };
 
 app.perguntarJarvis = async function() {
     const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
-    if(!inp.value) return; resDiv.classList.remove('d-none'); resDiv.innerText = "Pensando...";
+    if(!inp.value) return; resDiv.classList.remove('d-none'); resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está processando...';
+    
     const ctx = app.bancoIA.map(i => i.texto).join('\n');
-    const prompt = `Você é o J.A.R.V.I.S, assistente da oficina ${app.t_nome}. Use este contexto:\n${ctx}\n\nPergunta: ${inp.value}`;
+    const dadosOS = app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => `[Placa: ${o.placa} | Cliente: ${o.cliente} | Veículo: ${o.veiculo} | Status: ${o.status} | Problema: ${o.relatoCliente || ''}]`).join('\n');
+    
+    const prompt = `Você é o J.A.R.V.I.S, assistente virtual automotivo da oficina "${app.t_nome}". Responda de forma direta e técnica.
+    MANUAIS DA OFICINA: ${ctx}
+    VEÍCULOS NO PÁTIO: ${dadosOS}
+    PERGUNTA: ${inp.value}`;
+    
     resDiv.innerHTML = await app.chamarGemini(prompt);
 };
