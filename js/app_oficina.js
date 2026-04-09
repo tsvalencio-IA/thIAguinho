@@ -866,21 +866,37 @@ app.processarFaturamentoCompleto = async function() {
     // CALCULO DO RH (RATEIO CHEVRON): Divide as comissões proporcionalmente entre os mecânicos do Box
     let comissoesDetalhadas = [];
     let somaComissaoGlobal = 0;
-    
+
     if (app.osParaFaturar.mecanicoAtribuido) {
+        // Recalcula maoObraTotal e pecasTotal a partir do array de peças
+        // (garante que OS antigas sem esses campos também calculem corretamente)
+        let maoObraCalc = app.osParaFaturar.maoObraTotal || 0;
+        let pecasCalc = app.osParaFaturar.pecasTotal || 0;
+
+        if((maoObraCalc === 0 && pecasCalc === 0) && app.osParaFaturar.pecas && app.osParaFaturar.pecas.length > 0) {
+            app.osParaFaturar.pecas.forEach(p => {
+                const subtotal = (p.qtd || 1) * (p.venda || 0);
+                if(p.isMaoObra) maoObraCalc += subtotal;
+                else pecasCalc += subtotal;
+            });
+            // Se tudo for mão de obra (sem distinção salva), distribui o total
+            if(maoObraCalc === 0 && pecasCalc === 0) {
+                maoObraCalc = app.osParaFaturar.total || 0;
+            }
+        }
+
         let mecanicosArray = app.osParaFaturar.mecanicoAtribuido.split(' + ');
         mecanicosArray.forEach(nomeMec => {
-            let func = app.bancoEquipe.find(f => f.nome === nomeMec);
-            if (func) {
-                // Cada um ganha a sua base de % calculada sobre o montante dividido pela quantidade de envolvidos
-                let baseMO = (app.osParaFaturar.maoObraTotal || 0) / mecanicosArray.length;
-                let basePc = (app.osParaFaturar.pecasTotal || 0) / mecanicosArray.length;
-                
+            let func = app.bancoEquipe.find(f => f.nome === nomeMec.trim());
+            if(func) {
+                let baseMO = maoObraCalc / mecanicosArray.length;
+                let basePc = pecasCalc / mecanicosArray.length;
+
                 let valMO = baseMO * (parseFloat(func.comissao || 0) / 100);
                 let valPc = basePc * (parseFloat(func.comissao_pecas || 0) / 100);
                 let totalMec = valMO + valPc;
-                
-                comissoesDetalhadas.push({ nome: func.nome, valor: totalMec });
+
+                comissoesDetalhadas.push({ nome: func.nome, valor: parseFloat(totalMec.toFixed(2)) });
                 somaComissaoGlobal += totalMec;
             }
         });
@@ -1427,57 +1443,56 @@ app.chamarGemini = async function(promptCompleto) {
         return 'Erro: API Key do Gemini não configurada.';
     }
 
-    // Modelos em ordem: tenta o mais novo, cai no estável se der erro
-    const modelos = [
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-latest'
+    // Tenta modelos em ordem usando endpoint v1 (estável) e v1beta como fallback
+    const tentativas = [
+        { url: 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' + key },
+        { url: 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=' + key },
+        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key }
     ];
 
-    for(const modelo of modelos) {
+    for(const tentativa of tentativas) {
         try {
-            console.log('🧠 Tentando modelo:', modelo);
-            const res = await fetch(
-                'https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent?key=' + key,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: promptCompleto }] }],
-                        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
-                    })
-                }
-            );
+            console.log('🧠 Tentando:', tentativa.url.split('/models/')[1].split(':')[0]);
+            const res = await fetch(tentativa.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptCompleto }] }],
+                    generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
+                })
+            });
 
             const data = await res.json();
-            console.log('📡 Resposta [' + modelo + ']:', data);
 
             if(!res.ok) {
-                console.warn('⚠️ Modelo ' + modelo + ' retornou HTTP ' + res.status + ':', data.error?.message);
-                continue; // tenta o próximo modelo
-            }
-
-            if(data.candidates && data.candidates[0] && data.candidates[0].content) {
-                const texto = data.candidates[0].content.parts?.[0]?.text;
-                if(texto) {
-                    console.log('✅ Sucesso com modelo:', modelo);
-                    return texto;
+                const errMsg = data.error?.message || '';
+                // Quota excedida — informa o usuário e para
+                if(res.status === 429) {
+                    app.showToast('Cota da API Gemini excedida. Aguarde alguns minutos.', 'error');
+                    return 'Erro: Cota da API Gemini excedida. Aguarde alguns minutos e tente novamente.';
                 }
+                console.warn('⚠️ HTTP ' + res.status + ':', errMsg);
+                continue;
             }
 
-            // Caso especial: conteúdo bloqueado por safety
-            if(data.candidates && data.candidates[0] && data.candidates[0].finishReason === 'SAFETY') {
+            // Safety block
+            if(data.candidates?.[0]?.finishReason === 'SAFETY') {
                 return 'A IA bloqueou esta resposta por políticas de segurança. Reformule a pergunta.';
             }
 
-            console.warn('⚠️ Resposta inesperada do modelo ' + modelo, data);
+            const texto = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if(texto) {
+                console.log('✅ Sucesso!');
+                return texto;
+            }
+
+            console.warn('⚠️ Resposta sem texto:', data);
 
         } catch(e) {
-            console.warn('⚠️ Erro no modelo ' + modelo + ':', e.message);
+            console.warn('⚠️ Erro de rede:', e.message);
         }
     }
 
-    // Se todos falharam
     app.showToast('Falha ao conectar com o Gemini. Verifique a chave no Superadmin.', 'error');
     return 'Erro: Não foi possível conectar ao Gemini. Verifique a API Key.';
 };
