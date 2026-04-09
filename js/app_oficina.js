@@ -1158,32 +1158,46 @@ app.processarArquivoParaIA = function(event) {
 };
 
 // =====================================================================
-// CONECTOR GEMINI (CÓDIGO COM PAYLOAD CORRIGIDO BASEADO NO SEU EXEMPLO)
+// CONECTOR GEMINI - ESTRUTURA JSON BLINDADA (EVITA ERRO 400 E 403)
 // =====================================================================
 app.chamarGemini = async function(prompt) {
     if(!app.API_KEY_GEMINI) { app.showToast("Chave da API do Google Gemini não encontrada.", "error"); return "Erro: Google Gemini API Key ausente."; }
     
     try {
-        // Array isolado conforme seu código funcional para evitar o Erro 400 de JSON malformado
-        const parts = [{ text: prompt }];
-        
+        // Formato JSON Absoluto e Explícito (Impede que o parts seja enviado errado)
+        const bodyData = {
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        { text: prompt }
+                    ]
+                }
+            ]
+        };
+
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts }] })
+            body: JSON.stringify(bodyData)
         });
         
         const data = await res.json(); 
         
+        // Se a Google recusar (Erro 400) nós pegamos o erro e exibimos de forma clara
         if(data.error) {
-            console.error("Erro na resposta da API:", data.error);
-            return `Erro da API: ${data.error.message}`;
+            console.error("Erro reportado pela API da Google:", data.error);
+            return `A I.A. recusou o comando. Motivo: ${data.error.message}`;
         }
         
-        return data.candidates[0].content.parts[0].text;
+        if(data.candidates && data.candidates[0] && data.candidates[0].content) {
+            return data.candidates[0].content.parts[0].text;
+        }
+        return "A Inteligência Artificial não retornou uma resposta interpretável.";
+        
     } catch(e) { 
-        console.error("Erro no Fetch Gemini:", e);
-        return "Erro na conexão com a Inteligência Artificial. Verifique o console."; 
+        console.error("Falha de rede no Fetch Gemini:", e);
+        return "Erro na conexão direta com a Inteligência Artificial. Verifique o console para detalhes."; 
     }
 };
 
