@@ -18,7 +18,8 @@ app.db = firebase.firestore();
 // Credenciais dinâmicas instaladas pelo SuperAdmin
 app.CLOUDINARY_CLOUD_NAME = sessionStorage.getItem('t_cloudName') || 'dmuvm1o6m'; 
 app.CLOUDINARY_UPLOAD_PRESET = sessionStorage.getItem('t_cloudPreset') || 'evolution'; 
-app.API_KEY_GEMINI = sessionStorage.getItem('t_gemini');
+// Reutilizamos a variável t_gemini para armazenar a chave da GROQ sem quebrar o banco
+app.API_KEY_IA = sessionStorage.getItem('t_gemini');
 app.t_id = sessionStorage.getItem('t_id');
 app.t_nome = sessionStorage.getItem('t_nome');
 app.t_role = sessionStorage.getItem('t_role'); 
@@ -36,7 +37,7 @@ app.bancoCrm = [];
 app.bancoIA = [];
 app.bancoMensagens = [];
 app.bancoAuditoria = [];
-app.bancoEquipe = []; // Adicionado para carregar a equipe no modal de Box
+app.bancoEquipe = []; 
 app.fotosOSAtual = [];
 app.historicoOSAtual = [];
 app.chatActiveClienteId = null;
@@ -93,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     app.iniciarEscutaCrm();
     app.iniciarEscutaMensagens();
     app.iniciarEscutaMensagensInternas();
-    app.iniciarEscutaEquipeInternaParaBox(); // Carrega equipe para atribuição
+    app.iniciarEscutaEquipeInternaParaBox(); 
     
     if(app.t_role === 'admin' || app.t_role === 'gerente') {
         app.iniciarEscutaEstoque();
@@ -1220,17 +1221,19 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. CORRIGIDO E ATUALIZADO (1.5-FLASH NATIVO E ESTÁVEL)
+// 12. CÉREBRO DA I.A. (API GROQ - Llama-3 Ultrarrápido e Gratuito)
 // =====================================================================
-app.minhaGeminiKey = null;
-app.iaTrabalhando = false; // Trava Global Anti-Spam de Simultaneidade
+app.minhaApiKey = null;
+app.iaTrabalhando = false; 
 
 app.iniciarEscutaIA = function() {
     if(app.t_id) {
         app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => { 
             if(doc.exists) {
                 const d = doc.data();
-                app.minhaGeminiKey = d.geminiKey || d.gemini || d.apiGemini || d.api_gemini || d.apiKeyGemini || null;
+                // Utilizando a mesma propriedade de API Key para não quebrar seu sistema antigo, 
+                // basta colar a Key da Groq no lugar da Key do Gemini no painel SuperAdmin
+                app.minhaApiKey = d.geminiKey || d.gemini || d.apiGemini || d.api_gemini || d.apiKeyGemini || null;
             }
         });
     }
@@ -1274,68 +1277,69 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// =========================================================
-// O VERDADEIRO MOTOR GEMINI (FIXADO E CORRIGIDO PARA REST)
-// =========================================================
-app.chamarGemini = async function(prompt, sysInstruction) {
-    const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
+// CONECTOR BLINDADO COM API DA GROQ (COMPATÍVEL COM OPENAI)
+app.chamarIA = async function(prompt, sysInstruction) {
+    const key = app.minhaApiKey || sessionStorage.getItem('t_gemini');
     
     if(!key || key === 'null' || key === 'undefined') { 
-        app.showToast("A chave da IA não foi encontrada no banco.", "error"); 
-        return "Erro: Google Gemini API Key ausente na oficina."; 
+        app.showToast("A chave da IA (Groq) não foi encontrada no banco.", "error"); 
+        return "Erro: API Key ausente na oficina. Registre a chave no SuperAdmin."; 
     }
 
-    // CORREÇÃO CRÍTICA: system_instruction com underscore e formato JSON exigido pela API Rest oficial.
     const payloadOptions = {
         method: 'POST', 
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}` // Autenticação padrão Bearer Token exigida pela Groq
+        },
         body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            system_instruction: { parts: [{ text: sysInstruction }] },
-            generationConfig: { temperature: 0.1 }
+            model: "llama3-8b-8192", // Modelo gratuito, ultrarrápido da Groq
+            messages: [
+                { role: "system", content: sysInstruction },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.1 // Temperatura baixa para garantir a verdade absoluta e dados técnicos rigorosos
         })
     };
 
     try {
-        // CORREÇÃO DE ROTA: gemini-1.5-flash (Estável e Rápido) ao invés do inexistente 2.5
-        let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, payloadOptions);
-        
+        const res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, payloadOptions);
         const data = await res.json(); 
         
         if (!res.ok || data.error) {
-             console.error("Erro I.A:", data.error);
-             throw new Error(data.error ? data.error.message : "Erro desconhecido da Google");
+             console.error("Erro I.A Groq:", data.error);
+             throw new Error(data.error ? data.error.message : "Erro desconhecido da Groq");
         }
         
-        return data.candidates[0].content.parts[0].text;
+        return data.choices[0].message.content;
     } catch(e) { 
         console.error(e);
-        return "A I.A. da Google encontrou uma instabilidade. Aguarde 1 minuto e tente novamente. Erro técnico: " + e.message; 
+        return "A I.A. encontrou uma instabilidade de comunicação com a Groq. Verifique sua chave de API ou aguarde. Erro: " + e.message; 
     }
 };
 
 app.perguntarJarvis = async function() {
-    if(app.iaTrabalhando) return;
+    if(app.iaTrabalhando) return; 
     
     const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
     if(!inp || !inp.value) return; 
     
-    app.iaTrabalhando = true;
+    app.iaTrabalhando = true; 
     resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Processando Cognição...';
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está analisando...';
 
     const ctx = { 
         manuais: app.bancoIA.map(ia => ia.texto), 
         patio: app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => ({placa: o.placa, def: o.relatoCliente, st: o.status})) 
     };
     
-    const sys = `Você é a Inteligência thIAguinho, o consultor sênior da oficina "${app.t_nome}".\nDADOS DA OFICINA: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados. Seja técnico e preciso.`;
+    const sys = `Você é a Inteligência thIAguinho, o consultor virtual sênior da oficina "${app.t_nome}".\nDADOS DA OFICINA: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados técnicos (fale a verdade absoluta).`;
     
-    const resposta = await app.chamarGemini(inp.value, sys);
+    const resposta = await app.chamarIA(inp.value, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
     
     inp.value = '';
-    app.iaTrabalhando = false;
+    app.iaTrabalhando = false; 
 };
 
 app.jarvisAnalisarRevisoes = async function() {
@@ -1360,9 +1364,9 @@ app.jarvisAnalisarRevisoes = async function() {
         historico: historicoMorto.slice(-50).map(o => ({ dt: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), cli: o.cliente, pl: o.placa })) 
     };
 
-    const sys = `Você é o Gestor de Remarketing Sênior da oficina ${app.t_nome}.\nBASE RECENTE:\n${JSON.stringify(ctx)}\nTarefa: Identifique clientes com potencial de retorno preventivo (troca de óleo, revisão 10k) para contato HOJE. Devolva em formato HTML limpo (apenas <ul><li>) justificando o motivo técnico. Seja agressivo comercialmente.`;
+    const sys = `Você é o Gestor de Remarketing Sênior da oficina ${app.t_nome}.\nBASE RECENTE:\n${JSON.stringify(ctx)}\nTarefa: Identifique clientes com potencial de retorno preventivo (troca de óleo, revisão) para contato HOJE. Devolva em formato HTML limpo (apenas <ul><li>) justificando o motivo técnico. Seja agressivo comercialmente. Trabalhe apenas com os dados reais informados.`;
     
-    const resposta = await app.chamarGemini("Exija a lista de clientes para remarketing de hoje.", sys);
+    const resposta = await app.chamarIA("Exija a lista de clientes para remarketing de hoje.", sys);
     div.innerHTML = resposta;
     app.iaTrabalhando = false;
 };
