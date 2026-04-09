@@ -15,21 +15,20 @@ app.firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(app.firebaseConfig);
 app.db = firebase.firestore();
 
-// Variáveis e Credenciais Globais do Utilizador/Empresa
+// Credenciais dinâmicas instaladas pelo SuperAdmin
 app.CLOUDINARY_CLOUD_NAME = sessionStorage.getItem('t_cloudName') || 'dmuvm1o6m'; 
 app.CLOUDINARY_UPLOAD_PRESET = sessionStorage.getItem('t_cloudPreset') || 'evolution'; 
 app.API_KEY_GEMINI = sessionStorage.getItem('t_gemini');
 app.t_id = sessionStorage.getItem('t_id');
 app.t_nome = sessionStorage.getItem('t_nome');
-app.t_role = sessionStorage.getItem('t_role'); // admin, gerente, equipe
+app.t_role = sessionStorage.getItem('t_role'); 
 app.user_nome = sessionStorage.getItem('f_nome');
-// Comissões Distintas (Peças vs Serviços)
 app.user_comissao_mo = parseFloat(sessionStorage.getItem('f_comissao') || 0); 
 app.user_comissao_pecas = parseFloat(sessionStorage.getItem('f_comissao_pecas') || 0);
 
 if (!app.t_id) window.location.replace('index.html');
 
-// Bancos de Dados Locais Temporários
+// Bancos de Dados Locais na Memória
 app.bancoOSCompleto = [];
 app.bancoEstoque = [];
 app.bancoFin = [];
@@ -41,20 +40,32 @@ app.historicoOSAtual = [];
 app.chatActiveClienteId = null;
 app.osParaFaturar = null;
 
-// Filtros Financeiros
 app.filtroFinDataInicio = null;
 app.filtroFinDataFim = null;
+app.bancoFinFiltrado = [];
+
+// =====================================================================
+// MOTOR DE AUDITORIA GLOBAL (PADRÃO CHEVRON)
+// =====================================================================
+app.registrarAuditoriaGlobal = async function(modulo, acaoRealizada) {
+    try {
+        await app.db.collection('lixeira_auditoria').add({
+            tenantId: app.t_id,
+            apagadoEm: new Date().toISOString(),
+            apagadoPor: app.user_nome,
+            placaOriginal: modulo,
+            motivo: acaoRealizada
+        });
+    } catch(e) { console.error("Erro ao registrar auditoria: ", e); }
+};
 
 // =====================================================================
 // 2. INICIALIZAÇÃO DA INTERFACE (RBAC) E NAVEGAÇÃO
 // =====================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    const lblEmpresa = document.getElementById('lblEmpresa');
-    if(lblEmpresa) lblEmpresa.innerText = app.t_nome;
-    const lblUsuario = document.getElementById('lblUsuario');
-    if(lblUsuario) lblUsuario.innerText = app.user_nome;
+    const lblEmpresa = document.getElementById('lblEmpresa'); if(lblEmpresa) lblEmpresa.innerText = app.t_nome;
+    const lblUsuario = document.getElementById('lblUsuario'); if(lblUsuario) lblUsuario.innerText = app.user_nome;
     
-    // Controle de Acesso Dinâmico (RBAC) através da injeção de CSS
     const style = document.createElement('style');
     if (app.t_role === 'equipe') {
         style.innerHTML = '.admin-only, .gestao-only { display: none !important; } .mecanico-only { display: flex !important; }';
@@ -75,7 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const linkInicio = document.querySelector('.nav-sidebar .nav-link');
     if(linkInicio) app.mostrarTela('tela_jarvis', 'Inteligência Automotiva', linkInicio);
     
-    // Dispara a leitura Real-Time de todos os módulos
     app.iniciarEscutaOS();
     app.iniciarEscutaCrm();
     app.iniciarEscutaMensagens();
@@ -105,9 +115,7 @@ app.showToast = function(msg, type='success') {
 app.sair = function() { sessionStorage.clear(); window.location.href = 'index.html'; };
 
 app.construirMenuLateral = function() {
-    const menu = document.getElementById('menuLateral');
-    if (!menu) return;
-
+    const menu = document.getElementById('menuLateral'); if (!menu) return;
     let html = `<a class="nav-link active" onclick="app.mostrarTela('tela_jarvis', 'Central J.A.R.V.I.S', this)"><i class="bi bi-robot"></i> Central J.A.R.V.I.S</a>`;
     html += `<a class="nav-link" onclick="app.mostrarTela('tela_os', 'Pátio Kanban', this)"><i class="bi bi-kanban text-info"></i> Pátio Kanban (O.S)</a>`;
     html += `<a class="nav-link" onclick="app.mostrarTela('tela_arquivo', 'Arquivo Morto', this); app.renderizarTabelaArquivo();"><i class="bi bi-archive text-warning"></i> Arquivo Morto / Entregues</a>`;
@@ -128,10 +136,8 @@ app.construirMenuLateral = function() {
 
 app.mostrarTela = function(id, titulo, btn) {
     document.querySelectorAll('.modulo-tela').forEach(t => t.style.display = 'none');
-    const tela = document.getElementById(id);
-    if(tela) tela.style.display = 'block';
-    const hTitulo = document.getElementById('tituloPagina');
-    if(hTitulo) hTitulo.innerText = titulo;
+    const tela = document.getElementById(id); if(tela) tela.style.display = 'block';
+    const hTitulo = document.getElementById('tituloPagina'); if(hTitulo) hTitulo.innerText = titulo;
     if(btn) { document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
 };
 
@@ -168,8 +174,7 @@ app.iniciarEscutaCrm = function() {
 };
 
 app.abrirModalCRM = function(mode = 'nova', id = '') {
-    const frm = document.getElementById('formCrm');
-    if(frm) frm.reset();
+    const frm = document.getElementById('formCrm'); if(frm) frm.reset();
     if(document.getElementById('crm_id')) document.getElementById('crm_id').value = '';
     if(document.getElementById('c_pass')) document.getElementById('c_pass').value = Math.random().toString(36).slice(-6);
     
@@ -191,20 +196,18 @@ app.abrirModalCRM = function(mode = 'nova', id = '') {
             if(document.getElementById('c_notas')) document.getElementById('c_notas').value = c.anotacoes || '';
         }
     }
-    const modal = document.getElementById('modalCrm');
-    if(modal) new bootstrap.Modal(modal).show();
+    const modal = document.getElementById('modalCrm'); if(modal) new bootstrap.Modal(modal).show();
 };
 
 app.salvarClienteCRM = async function(e) {
     e.preventDefault();
-    const idField = document.getElementById('crm_id');
-    const id = idField ? idField.value : '';
-    const docElem = document.getElementById('c_doc');
-    const docValue = docElem ? docElem.value.replace(/\D/g, '') : '';
+    const idField = document.getElementById('crm_id'); const id = idField ? idField.value : '';
+    const docElem = document.getElementById('c_doc'); const docValue = docElem ? docElem.value.replace(/\D/g, '') : '';
+    const nomeCli = document.getElementById('c_nome') ? document.getElementById('c_nome').value : '';
     
     const payload = { 
         tenantId: app.t_id, 
-        nome: document.getElementById('c_nome') ? document.getElementById('c_nome').value : '', 
+        nome: nomeCli, 
         telefone: document.getElementById('c_tel') ? document.getElementById('c_tel').value : '', 
         documento: docValue, 
         email: document.getElementById('c_email') ? document.getElementById('c_email').value : '',
@@ -220,21 +223,24 @@ app.salvarClienteCRM = async function(e) {
     
     if(id) { 
         await app.db.collection('clientes_base').doc(id).update(payload); 
-        app.showToast("Ficha do cliente atualizada com sucesso."); 
+        app.showToast("Ficha do cliente atualizada com sucesso.");
+        app.registrarAuditoriaGlobal("CRM Cliente", `Editou os dados do cliente: ${nomeCli}`);
     } else { 
         await app.db.collection('clientes_base').add(payload); 
         app.showToast("Novo cliente registrado no CRM."); 
+        app.registrarAuditoriaGlobal("CRM Cliente", `Cadastrou o novo cliente: ${nomeCli}`);
     }
     
-    e.target.reset(); 
-    const modal = document.getElementById('modalCrm');
-    if(modal) bootstrap.Modal.getInstance(modal).hide();
+    e.target.reset(); const modal = document.getElementById('modalCrm'); if(modal) bootstrap.Modal.getInstance(modal).hide();
 };
 
 app.apagarCliente = async function(id) {
     if(app.t_role !== 'admin') { app.showToast("Apenas o proprietário pode apagar clientes.", "error"); return; }
     if(confirm("Apagar cliente? O histórico associado não será apagado, mas o perfil deixará de existir.")) { 
-        await app.db.collection('clientes_base').doc(id).delete(); app.showToast("Cliente Removido.", "success"); 
+        const c = app.bancoCrm.find(x => x.id === id);
+        await app.db.collection('clientes_base').doc(id).delete(); 
+        app.showToast("Cliente Removido.", "success"); 
+        app.registrarAuditoriaGlobal("CRM Cliente", `Deletou permanentemente o cliente: ${c ? c.nome : id}`);
     }
 };
 
@@ -293,8 +299,7 @@ app.iniciarEscutaMensagens = function() {
 };
 
 app.renderListaChatCRM = function() {
-    const lista = document.getElementById('chatListaClientesCRM');
-    if(!lista) return;
+    const lista = document.getElementById('chatListaClientesCRM'); if(!lista) return;
     lista.innerHTML = app.bancoCrm.map(c => {
         const naoLidas = app.bancoMensagens.filter(m => m.clienteId === c.id && m.sender === 'cliente' && !m.lidaAdmin).length;
         const bHtml = naoLidas > 0 ? `<span class="badge bg-danger ms-2">${naoLidas}</span>` : '';
@@ -309,11 +314,8 @@ app.abrirChatCRM = function(clienteId, nomeCliente) {
     const header = document.getElementById('chatNomeCliente');
     if(header) header.innerHTML = `<span class="text-white-50">Atendimento Ativo:</span> <b class="text-accent fs-5">${nomeCliente}</b>`;
     
-    const inputArea = document.getElementById('chatAreaInputGlobal');
-    if(inputArea) inputArea.style.display = 'flex';
-    
-    const area = document.getElementById('chatAreaMsgGlobal');
-    if(!area) return;
+    const inputArea = document.getElementById('chatAreaInputGlobal'); if(inputArea) inputArea.style.display = 'flex';
+    const area = document.getElementById('chatAreaMsgGlobal'); if(!area) return;
     area.innerHTML = '';
     
     const mD = app.bancoMensagens.filter(x => x.clienteId === clienteId);
@@ -354,8 +356,7 @@ app.enviarAnexoChatGlobal = async function() {
     
     app.showToast("Realizando Upload Seguro na Nuvem...", "warning");
     try {
-        const fd = new FormData();
-        fd.append('file', inp.files[0]); fd.append('upload_preset', app.CLOUDINARY_UPLOAD_PRESET);
+        const fd = new FormData(); fd.append('file', inp.files[0]); fd.append('upload_preset', app.CLOUDINARY_UPLOAD_PRESET);
         const res = await fetch(`https://api.cloudinary.com/v1_1/${app.CLOUDINARY_CLOUD_NAME}/auto/upload`, {method:'POST', body:fd});
         const data = await res.json();
         
@@ -368,7 +369,7 @@ app.enviarAnexoChatGlobal = async function() {
     } catch(e) { console.error(e); app.showToast("Falha no envio da imagem.", "error"); }
 };
 
-// Chat Interno Equipa <-> Gestor
+// Chat Interno Equipe <-> Gestor
 app.iniciarEscutaMensagensInternas = function() {
     app.db.collection('chat_interno').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         let msgs = snap.docs.map(d => d.data());
@@ -379,7 +380,7 @@ app.iniciarEscutaMensagensInternas = function() {
             else {
                 area.innerHTML = msgs.map(m => {
                     const t = m.timestamp ? new Date(m.timestamp.toDate()).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : 'agora';
-                    const cssClass = m.usuario === app.user_nome ? 'admin' : 'cliente'; // reaproveitamos o estilo visual
+                    const cssClass = m.usuario === app.user_nome ? 'admin' : 'cliente'; 
                     return `<div class="message ${cssClass} shadow-sm"><strong>${m.usuario}:</strong><br>${m.text}<small class="d-block text-end mt-1" style="font-size:0.7rem;opacity:0.7;">${t}</small></div>`;
                 }).join('');
                 area.scrollTop = area.scrollHeight;
@@ -413,10 +414,8 @@ app.iniciarEscutaEstoque = function() {
 };
 
 app.abrirModalNF = function(mode='nova', id='') {
-    const frm = document.getElementById('formNF');
-    if(frm) frm.reset();
+    const frm = document.getElementById('formNF'); if(frm) frm.reset();
     if(document.getElementById('corpoItensNF')) document.getElementById('corpoItensNF').innerHTML = '';
-    
     if(document.getElementById('p_id')) document.getElementById('p_id').value = '';
     if(document.getElementById('nf_data')) document.getElementById('nf_data').value = new Date().toISOString().split('T')[0];
     
@@ -433,8 +432,7 @@ app.abrirModalNF = function(mode='nova', id='') {
         app.adicionarLinhaNF('', '', '', 1, 0, 0); 
     }
     
-    const mod = document.getElementById('modalNF');
-    if(mod) new bootstrap.Modal(mod).show();
+    const mod = document.getElementById('modalNF'); if(mod) new bootstrap.Modal(mod).show();
 };
 
 app.processarXML = function(event) {
@@ -460,7 +458,7 @@ app.processarXML = function(event) {
                 const cfop = prod.getElementsByTagName("CFOP")[0]?.textContent || '';
                 const qtd = parseFloat(prod.getElementsByTagName("qCom")[0]?.textContent || 0);
                 const vUnCom = parseFloat(prod.getElementsByTagName("vUnCom")[0]?.textContent || 0);
-                app.adicionarLinhaNF(desc, ncm, cfop, qtd, vUnCom, (vUnCom * 1.8)); // Cálculo base sugerido de margem 80%
+                app.adicionarLinhaNF(desc, ncm, cfop, qtd, vUnCom, (vUnCom * 1.8)); 
             }
         }
         app.showToast("XML lido com sucesso. Modifique a sua margem de venda final na tabela.", "success");
@@ -471,13 +469,11 @@ app.processarXML = function(event) {
 app.adicionarLinhaNF = function(desc='', ncm='', cfop='', qtd=1, custo=0, venda=0) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-desc" value="${desc}" required></td><td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-ncm" value="${ncm}"></td><td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-cfop" value="${cfop}"></td><td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-qtd" value="${qtd}" min="1"></td><td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary p-2 it-custo" value="${custo}"></td><td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary p-2 it-venda fw-bold" value="${venda}"></td><td><button type="button" class="btn btn-sm btn-outline-danger p-0 px-2 mt-1" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>`;
-    const tb = document.getElementById('corpoItensNF');
-    if(tb) tb.appendChild(tr);
+    const tb = document.getElementById('corpoItensNF'); if(tb) tb.appendChild(tr);
 };
 
 app.verificarPgtoCompraNF = function() {
-    const fElem = document.getElementById('nf_metodo_pagamento');
-    const d = document.getElementById('nf_div_parcelas');
+    const fElem = document.getElementById('nf_metodo_pagamento'); const d = document.getElementById('nf_div_parcelas');
     if(!fElem || !d) return;
     const f = fElem.value;
     if(f.includes('Parcelado') || f.includes('Prazo')) { d.style.display = 'block'; } 
@@ -498,13 +494,12 @@ app.salvarEntradaEstoque = async function(e) {
     const batch = app.db.batch();
     
     if(id) {
-        // Edição rápida de item unitário
         const tr = document.querySelector('#corpoItensNF tr');
         if(tr) {
             batch.update(app.db.collection('estoque').doc(id), { fornecedor, nf, desc: tr.querySelector('.it-desc').value, qtd: parseFloat(tr.querySelector('.it-qtd').value), custo: parseFloat(tr.querySelector('.it-custo').value), venda: parseFloat(tr.querySelector('.it-venda').value), ncm: tr.querySelector('.it-ncm').value, cfop: tr.querySelector('.it-cfop').value });
+            app.registrarAuditoriaGlobal("Estoque", `Editou o item do fornecedor ${fornecedor}`);
         }
     } else {
-        // Inserção em Massa no Almoxarifado
         document.querySelectorAll('#corpoItensNF tr').forEach(tr => {
             const desc = tr.querySelector('.it-desc').value.trim();
             const q = parseFloat(tr.querySelector('.it-qtd').value)||0; const c = parseFloat(tr.querySelector('.it-custo').value)||0; const v = parseFloat(tr.querySelector('.it-venda').value)||0;
@@ -514,7 +509,7 @@ app.salvarEntradaEstoque = async function(e) {
             }
         });
 
-        if(totalCustoGlobalNF === 0) { app.showToast("Nenhum item válido para processar no estoque.", "error"); return; }
+        if(totalCustoGlobalNF === 0) { app.showToast("Nenhum item válido para dar entrada.", "error"); return; }
 
         if(gerarFinanceiro) {
             let nP = 1; 
@@ -529,6 +524,7 @@ app.salvarEntradaEstoque = async function(e) {
                 batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: 'despesa', desc: nP>1 ? `NF Compra: ${nf} (${fornecedor}) - Parc ${i+1}/${nP}` : `NF Compra: ${nf} (${fornecedor})`, valor: vP, parcelaAtual: i+1, totalParcelas: nP, metodo: fp, vencimento: dV.toISOString().split('T')[0], status: stsPgto }); 
             }
         }
+        app.registrarAuditoriaGlobal("Estoque e DRE", `Deu entrada em nova nota fiscal de ${fornecedor}, total R$ ${totalCustoGlobalNF.toFixed(2)}`);
     }
 
     await batch.commit(); app.showToast("Estoque Atualizado e Compra Lançada!", "success"); e.target.reset(); 
@@ -537,7 +533,11 @@ app.salvarEntradaEstoque = async function(e) {
 
 app.apagarProduto = async function(id) {
     if(app.t_role !== 'admin') { app.showToast("Apenas a Administração Master pode excluir produtos.", "error"); return; }
-    if(confirm("Excluir produto permanentemente da base?")) { await app.db.collection('estoque').doc(id).delete(); app.showToast("Produto Excluído.", "success"); }
+    if(confirm("Excluir produto permanentemente da base?")) { 
+        await app.db.collection('estoque').doc(id).delete(); 
+        app.registrarAuditoriaGlobal("Estoque", `Deletou um produto do estoque (ID: ${id}).`);
+        app.showToast("Produto Excluído.", "success"); 
+    }
 };
 
 // =====================================================================
@@ -590,9 +590,9 @@ app.mudarStatusRapido = async function(id, novoStatus) {
     const osRef = app.db.collection('ordens_servico').doc(id);
     const doc = await osRef.get();
     let h = doc.data().historico || [];
-    // Adiciona o Tracker exato na linha do tempo (Padrão Chevron de Auditoria)
     h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Arrastou o cartão da O.S. para a coluna: ${novoStatus.toUpperCase()}` });
     await osRef.update({ status: novoStatus, historico: h, ultimaAtualizacao: new Date().toISOString() });
+    app.registrarAuditoriaGlobal("Pátio Kanban", `Moveu O.S. ${doc.data().placa} para ${novoStatus}`);
 };
 
 // =====================================================================
@@ -638,7 +638,6 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
             if (os.fotos) { app.fotosOSAtual = os.fotos; app.renderizarGaleria(); }
             if (os.historico) { app.historicoOSAtual = os.historico; app.renderizarHistorico(); }
             
-            // TRAVA DE SEGURANÇA: Garante que "os.pecas" existe antes do forEach
             if (os.pecas && Array.isArray(os.pecas)) { os.pecas.forEach(p => app.adicionarLinhaPeca(p.desc, p.ncm||'', p.qtd, p.custo, p.venda, p.idEstoque, p.isMaoObra)); }
             
             if(btnPdf) btnPdf.classList.remove('d-none');
@@ -646,11 +645,10 @@ app.abrirModalOS = function(mode = 'nova', id = '') {
             if (app.t_role === 'admin' && btnDel) btnDel.classList.remove('d-none');
         }
     } else {
-        app.adicionarMaoDeObra(); // Garante que há pelo menos uma linha de serviço visível
+        app.adicionarMaoDeObra(); 
     }
     app.verificarStatusLink();
-    const mod = document.getElementById('modalOS');
-    if(mod) new bootstrap.Modal(mod).show();
+    const mod = document.getElementById('modalOS'); if(mod) new bootstrap.Modal(mod).show();
 };
 
 app.adicionarDoEstoque = function() {
@@ -686,25 +684,20 @@ app.calcularTotalOS = function() {
         const v = parseFloat(tr.querySelector('.peca-venda').value)||0;
         const c = parseFloat(tr.querySelector('.peca-custo').value)||0;
         
-        const totElem = tr.querySelector('.peca-total');
-        if(totElem) totElem.value = (q*v).toFixed(2);
+        const totElem = tr.querySelector('.peca-total'); if(totElem) totElem.value = (q*v).toFixed(2);
         
         t += (q*v); tc += (q*c);
         if(isMaoObra) tMO += (q*v); else tPecas += (q*v);
     });
     
-    const divGeral = document.getElementById('os_total_geral');
-    if(divGeral) divGeral.innerText = `R$ ${t.toFixed(2).replace('.',',')}`;
-    
-    // Devolve as matrizes separadas para o faturamento gravar as comissões certas
+    const divGeral = document.getElementById('os_total_geral'); if(divGeral) divGeral.innerText = `R$ ${t.toFixed(2).replace('.',',')}`;
     return { total: t, custo: tc, maoObra: tMO, pecas: tPecas };
 };
 
 app.salvarOS = async function() {
     const idElem = document.getElementById('os_id'); const id = idElem ? idElem.value : '';
     let pecasArray = []; 
-    
-    const metricasTotais = app.calcularTotalOS(); // Invoca a função acima para separar MO e Peças
+    const metricasTotais = app.calcularTotalOS(); 
     
     const cpfField = document.getElementById('os_cliente_cpf'); const cpfOS = cpfField ? cpfField.value : '';
     const cliElem = document.getElementById('os_cliente'); const clienteOS = cliElem ? cliElem.value.trim() : '';
@@ -726,7 +719,6 @@ app.salvarOS = async function() {
         if (desc !== '') { pecasArray.push({ desc, qtd:q, custo:c, venda:v, idEstoque, isMaoObra }); }
     });
     
-    // Adiciona o Tracker de Auditoria (Chevron)
     const novoStatus = document.getElementById('os_status') ? document.getElementById('os_status').value : 'patio';
     app.historicoOSAtual.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: id ? `Editou o orçamento e/ou as evidências. Status Gravado: ${novoStatus.toUpperCase()}` : "Abriu a Ordem de Serviço na Fase 1 (Pátio)." });
     
@@ -754,7 +746,7 @@ app.salvarOS = async function() {
     if (id) await app.db.collection('ordens_servico').doc(id).update(payload);
     else await app.db.collection('ordens_servico').add(payload);
     
-    app.showToast("Ordem de Serviço (Prontuário) Gravada com Sucesso.", "success");
+    app.showToast("Prontuário Salvo.", "success");
     const mod = document.getElementById('modalOS'); if(mod) bootstrap.Modal.getInstance(mod).hide();
 };
 
@@ -789,13 +781,11 @@ app.processarFaturamentoCompleto = async function() {
     const stsPgto = (fp.includes('Boleto') || fp.includes('Crediario')) ? 'pendente' : 'pago';
     const dtBase = new Date().toISOString().split('T')[0];
 
-    // Lança a Receita no Caixa/DRE
     for(let i=0; i<nP; i++) { 
         let dV = new Date(dtBase); if(nP>1 || stsPgto==='pendente') dV.setDate(dV.getDate() + (i*30)); 
         batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: 'receita', desc: nP>1 ? `O.S: [${app.osParaFaturar.placa}] - Parc ${i+1}/${nP}` : `O.S: [${app.osParaFaturar.placa}] - Cliente: ${app.osParaFaturar.cliente}`, valor: vP, parcelaAtual: i+1, totalParcelas: nP, metodo: fp, vencimento: dV.toISOString().split('T')[0], status: stsPgto }); 
     }
 
-    // Baixa o Estoque Físico Real
     if(app.osParaFaturar.pecas && !app.osParaFaturar.baixaEstoqueFeita) {
         for (const p of app.osParaFaturar.pecas) {
             if (p.idEstoque) {
@@ -806,31 +796,28 @@ app.processarFaturamentoCompleto = async function() {
         }
     }
 
-    // Calcula a Comissão Mista Inteligente
     let usrComissaoMO = app.user_comissao_mo; let usrComissaoPecas = app.user_comissao_pecas; 
     if(app.t_role === 'admin') { usrComissaoMO = 0; usrComissaoPecas = 0; }
-    
     const calcMO = ((app.osParaFaturar.maoObraTotal||0) * (usrComissaoMO / 100));
     const calcPecas = ((app.osParaFaturar.pecasTotal||0) * (usrComissaoPecas / 100));
     const comissaoReais = calcMO + calcPecas;
     
-    // Grava e Fatura (Muda para Entregue)
     let h = app.osParaFaturar.historico || [];
     h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `FATURAMENTO E CHECKOUT REALIZADO: ${nP}x (${fp}). Itens baixados no estoque e comissão calculada.` });
     
     batch.update(app.db.collection('ordens_servico').doc(app.osParaFaturar.id), { status: 'entregue', baixaEstoqueFeita: true, comissaoProcessada: comissaoReais, mecanicoReal: app.osParaFaturar.mecanico || app.user_nome, historico: h, ultimaAtualizacao: new Date().toISOString() });
     
-    await batch.commit(); app.showToast("CHECKOUT CONCLUÍDO! Veículo arquivado e Contas a Receber geradas.", "success");
+    await batch.commit(); 
+    app.registrarAuditoriaGlobal("Faturamento O.S.", `Faturou a O.S placa ${app.osParaFaturar.placa} no valor de R$ ${totalVenda.toFixed(2)}`);
+    app.showToast("CHECKOUT CONCLUÍDO! Veículo arquivado e Contas a Receber geradas.", "success");
     
     const modFat = document.getElementById('modalFaturamento'); if(modFat) bootstrap.Modal.getInstance(modFat).hide();
     const modOS = document.getElementById('modalOS'); if(modOS) bootstrap.Modal.getInstance(modOS).hide();
 };
 
 // =====================================================================
-// 9. DRE, FLUXO DE CAIXA (COM FILTROS, EXPORTAÇÃO E QUITAÇÃO)
+// 9. DRE, FLUXO DE CAIXA E HISTÓRICO PERMANENTE
 // =====================================================================
-app.bancoFinFiltrado = [];
-
 app.abrirModalFinanceiro = function(mode='nova', tipo='', id='') {
     const frm = document.getElementById('formFinanceiro'); if(frm) frm.reset();
     if(document.getElementById('fin_id')) document.getElementById('fin_id').value = '';
@@ -852,7 +839,6 @@ app.abrirModalFinanceiro = function(mode='nova', tipo='', id='') {
             if(document.getElementById('fin_data')) document.getElementById('fin_data').value = f.vencimento ? f.vencimento.split('T')[0] : '';
             if(document.getElementById('fin_metodo')) document.getElementById('fin_metodo').value = f.metodo || 'Dinheiro';
             
-            // Revela a opção de Quitar a Dívida (Mudar Status para Pago)
             if(divStatus) { divStatus.style.display = 'block'; if(document.getElementById('fin_status')) document.getElementById('fin_status').value = f.status || 'pendente'; }
             if(divParcelas) divParcelas.style.display = 'none';
         }
@@ -870,6 +856,13 @@ app.verificarPgtoFinManual = function() {
     if(d) { if(f.includes('Parcelado') || f.includes('Boleto')) d.style.display = 'block'; else { d.style.display = 'none'; document.getElementById('fin_parcelas').value = '1'; } }
 };
 
+app.baixarTituloRapido = async function(id, isReceita) {
+    await app.db.collection('financeiro').doc(id).update({status:'pago'});
+    const f = app.bancoFin.find(x => x.id === id);
+    app.showToast("Título Quitado com Sucesso.", "success");
+    app.registrarAuditoriaGlobal("Financeiro (DRE)", `Realizou baixa (quitação) rápida do título: ${f ? f.desc : id}`);
+};
+
 app.salvarLancamentoFinanceiro = async function(e) {
     e.preventDefault();
     const idField = document.getElementById('fin_id'); const id = idField ? idField.value : '';
@@ -880,12 +873,11 @@ app.salvarLancamentoFinanceiro = async function(e) {
     const fp = document.getElementById('fin_metodo') ? document.getElementById('fin_metodo').value : ''; 
     
     if(id) {
-        // Edição e Baixa de Títulos Específicos
         const sts = document.getElementById('fin_status') ? document.getElementById('fin_status').value : 'pendente';
         await app.db.collection('financeiro').doc(id).update({ desc: desc, valor: valorTotal, vencimento: dataInicial.toISOString().split('T')[0], metodo: fp, status: sts });
         app.showToast(`Obrigado. O Documento Financeiro foi atualizado. Status: ${sts.toUpperCase()}`, "success");
+        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Editou o título ${desc}. Novo Status: ${sts.toUpperCase()}`);
     } else {
-        // Lançamento com Desmembramento de Títulos a Prazo
         const parcelasText = document.getElementById('fin_parcelas') ? document.getElementById('fin_parcelas').value : '1';
         const batch = app.db.batch();
         let nP = 1; if(fp.includes('Boleto') || fp.includes('Cartão') || fp.includes('Parcelado')) nP = parseInt(parcelasText) || 1;
@@ -897,7 +889,9 @@ app.salvarLancamentoFinanceiro = async function(e) {
             let v = new Date(dataInicial); if(nP>1 || stsPgto==='pendente') v.setMonth(v.getMonth() + i);
             batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: tipo, desc: nP>1 ? `${desc} - Parc ${i+1}/${nP}`: desc, valor: vP, parcelaAtual: i+1, totalParcelas: nP, metodo: fp, vencimento: v.toISOString().split('T')[0], status: stsPgto });
         }
-        await batch.commit(); app.showToast(`O Lançamento contábil foi inserido no DRE.`, "success");
+        await batch.commit(); 
+        app.showToast(`Lançamento processado no DRE.`, "success");
+        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Inseriu novo lançamento contábil: ${desc} no valor de R$ ${valorTotal.toFixed(2)}`);
     }
     
     const mod = document.getElementById('modalFin'); if(mod) bootstrap.Modal.getInstance(mod).hide(); e.target.reset();
@@ -906,11 +900,11 @@ app.salvarLancamentoFinanceiro = async function(e) {
 app.iniciarEscutaFinanceiro = function() {
     app.db.collection('financeiro').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoFin = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        app.filtrarFinanceiro(); // Aplica o filtro padrão (Mostra tudo se datas estiverem vazias)
+        app.filtrarFinanceiro(true);
     });
 };
 
-app.filtrarFinanceiro = function() {
+app.filtrarFinanceiro = function(silent = false) {
     const dtIn = document.getElementById('filtroFinInicio') ? document.getElementById('filtroFinInicio').value : '';
     const dtFim = document.getElementById('filtroFinFim') ? document.getElementById('filtroFinFim').value : '';
     
@@ -922,10 +916,11 @@ app.filtrarFinanceiro = function() {
         base = base.filter(f => { const dV = new Date(f.vencimento); return dV >= d1 && dV <= d2; });
     }
     app.bancoFinFiltrado = base;
-    app.renderizarFinanceiroGeral(true); // Oculta o Toast no auto-refresh
+    app.renderizarFinanceiroGeral();
+    if(!silent) app.showToast("Filtros Temporais processados no Fluxo de Caixa.", "success");
 };
 
-app.renderizarFinanceiroGeral = function(silent = false) {
+app.renderizarFinanceiroGeral = function() {
     if(!document.getElementById('tela_financeiro')) return;
     
     let totRec = 0, totPag = 0;
@@ -938,19 +933,19 @@ app.renderizarFinanceiroGeral = function(silent = false) {
         if(!isR && f.status === 'pago') totPag += f.valor;
         
         const cor = isR ? 'text-success' : 'text-danger';
-        const st = f.status === 'pago' ? '<span class="badge bg-success px-2 py-1"><i class="bi bi-check2-all"></i> Quitado</span>' : '<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-hourglass-split"></i> A Vencer</span>';
+        // A DÍVIDA PAGA NÃO SOME MAIS. ELA FICA VERDE E MOSTRA QUE FOI QUITADA.
+        const st = f.status === 'pago' ? '<span class="badge bg-success px-2 py-1"><i class="bi bi-check2-all"></i> Quitado</span>' : '<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-hourglass-split"></i> A Vencer / Pendente</span>';
         
-        const btn = f.status === 'pendente' ? `<button class="btn btn-sm btn-outline-${isR?'success':'danger'} shadow-sm fw-bold px-3 me-1" onclick="app.db.collection('financeiro').doc('${f.id}').update({status:'pago'})" title="Pagar Rápido"><i class="bi bi-currency-dollar"></i> Baixar</button>` : '';
-        const btnEdit = `<button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalFinanceiro('edit', '${f.tipo}', '${f.id}')" title="Inspecionar Dívida"><i class="bi bi-pencil"></i></button>`;
+        const btn = f.status === 'pendente' ? `<button class="btn btn-sm btn-outline-${isR?'success':'danger'} shadow-sm fw-bold px-3 me-1" onclick="app.baixarTituloRapido('${f.id}', ${isR})" title="Pagar Rápido"><i class="bi bi-currency-dollar"></i> Baixar</button>` : '';
+        const btnEdit = `<button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalFinanceiro('edit', '${f.tipo}', '${f.id}')" title="Inspecionar / Editar"><i class="bi bi-pencil"></i></button>`;
         
         const html = `<tr><td class="text-white-50 fw-bold"><i class="bi bi-calendar-event me-2"></i> ${f.vencimento ? new Date(f.vencimento).toLocaleDateString('pt-BR') : ''}</td><td class="text-white fw-bold">${f.desc}</td><td><span class="badge bg-dark border border-secondary px-3 py-1 text-white-50">${f.parcelaAtual}/${f.totalParcelas}</span></td><td class="text-white-50 small">${f.metodo || 'Dinheiro'}</td><td class="${cor} fw-bold fs-6">R$ ${f.valor.toFixed(2).replace('.',',')}</td><td>${st}</td><td class="gestao-only text-end">${btn} ${btnEdit} <button class="btn btn-sm btn-link text-danger admin-only" onclick="app.db.collection('financeiro').doc('${f.id}').delete()"><i class="bi bi-trash"></i></button></td></tr>`;
         if(isR) hReceber += html; else hPagar += html;
     });
 
-    if(tPagar) tPagar.innerHTML = hPagar || '<tr><td colspan="7" class="text-center text-white-50 py-5"><i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i> Caixa Respirando. Nenhuma dívida ou obrigação fiscal pendente neste período.</td></tr>';
-    if(tReceber) tReceber.innerHTML = hReceber || '<tr><td colspan="7" class="text-center text-white-50 py-5">Não há previsões de faturamento neste filtro.</td></tr>';
+    if(tPagar) tPagar.innerHTML = hPagar || '<tr><td colspan="7" class="text-center text-white-50 py-5"><i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i> Caixa Respirando. Nenhuma dívida pendente neste período.</td></tr>';
+    if(tReceber) tReceber.innerHTML = hReceber || '<tr><td colspan="7" class="text-center text-white-50 py-5">Não há previsões de faturamento ou histórico neste filtro.</td></tr>';
 
-    // Comissões só entram no DRE se já foram apuradas (entregues) no mesmo intervalo de tempo.
     let totCom = 0;
     app.bancoOSCompleto.filter(o=>o.status==='entregue').forEach(o => {
         if(app.filtroFinDataInicio && app.filtroFinDataFim) {
@@ -965,8 +960,6 @@ app.renderizarFinanceiroGeral = function(silent = false) {
     if(document.getElementById('dreDespesas')) document.getElementById('dreDespesas').innerText = `R$ ${totPag.toFixed(2).replace('.',',')}`;
     if(document.getElementById('dreComissoes')) document.getElementById('dreComissoes').innerText = `R$ ${totCom.toFixed(2).replace('.',',')}`;
     if(document.getElementById('dreLucro')) document.getElementById('dreLucro').innerText = `R$ ${(totRec - totPag - totCom).toFixed(2).replace('.',',')}`;
-    
-    if(!silent) app.showToast("Filtros Temporais processados no Fluxo de Caixa.", "success");
 };
 
 // Exportar DRE para PDF Oficial (jsPDF)
@@ -992,11 +985,12 @@ app.exportarRelatorioFinanceiro = function() {
 
         doc.save(`Extrato_${app.t_nome.replace(' ', '_')}.pdf`);
         app.showToast("Relatório PDF emitido e exportado.", "success");
+        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Emitiu Relatório Contábil em PDF do período: ${pIn} até ${pFim}`);
     } catch(e) { console.error(e); app.showToast("Erro na geração do PDF DRE.", "error"); }
 };
 
 // =====================================================================
-// 10. RECURSOS HUMANOS / EQUIPE E LIXEIRA DE AUDITORIA
+// 10. RECURSOS HUMANOS E AUDITORIA (ARQUIVO MORTO COMPLETO)
 // =====================================================================
 app.iniciarEscutaEquipe = function() {
     app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(snap => {
@@ -1024,11 +1018,16 @@ app.salvarFuncionario = async function(e) {
         usuario: document.getElementById('f_user').value, senha: document.getElementById('f_pass').value 
     });
     app.showToast("Acesso corporativo Seguro criado.", "success"); 
+    app.registrarAuditoriaGlobal("Gestão RH", `Criou credencial corporativa para: ${document.getElementById('f_nome').value}`);
     e.target.reset(); const mod = document.getElementById('modalEquipe'); if(mod) bootstrap.Modal.getInstance(mod).hide();
 };
 
 app.apagarFuncionario = async function(id) { 
-    if(confirm("Deseja bloquear permanentemente o acesso à nuvem deste usuário?")) { await app.db.collection('funcionarios').doc(id).delete(); app.showToast("Acesso destruído e invalidado.", "success"); } 
+    if(confirm("Deseja bloquear permanentemente o acesso à nuvem deste usuário?")) { 
+        await app.db.collection('funcionarios').doc(id).delete(); 
+        app.showToast("Acesso destruído e invalidado.", "success"); 
+        app.registrarAuditoriaGlobal("Gestão RH", `Deletou o acesso de um funcionário (ID: ${id})`);
+    } 
 };
 
 app.renderizarTabelaArquivo = function() {
@@ -1040,13 +1039,15 @@ app.renderizarTabelaArquivo = function() {
     if(tbody) tbody.innerHTML = entregues.map(os => `<tr><td class="text-white-50 small"><i class="bi bi-calendar-check text-success me-2"></i> ${new Date(os.ultimaAtualizacao).toLocaleDateString('pt-BR')}</td><td><span class="badge bg-dark border px-3 py-2 fs-6 shadow-sm">${os.placa}</span></td><td class="text-white fw-bold">${os.veiculo}</td><td class="text-white-50">${os.cliente}</td><td class="gestao-only text-success fw-bold">R$ ${(os.total||0).toFixed(2).replace('.',',')}</td><td class="text-center"><button class="btn btn-outline-info shadow-sm fw-bold px-4" onclick="app.abrirModalOS('edit', '${os.id}')"><i class="bi bi-folder-symlink-fill me-2"></i> Prontuário</button></td></tr>`).join('');
 };
 
+// Aqui o Arquivo Morto se torna a verdadeira Central de Auditoria
 app.iniciarEscutaLixeira = function() {
     app.db.collection('lixeira_auditoria').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         const tb = document.getElementById('tabelaLixeiraCorpo');
-        if(tb) tb.innerHTML = snap.docs.map(d => {
-            const l = d.data();
-            return `<tr><td class="text-white-50 small">${new Date(l.apagadoEm).toLocaleDateString('pt-BR')}</td><td class="text-white fw-bold">${l.placaOriginal}</td><td><i class="bi bi-person-badge text-danger"></i> ${l.apagadoPor}</td><td class="text-warning">${l.motivo}</td></tr>`;
-        }).join('');
+        if(tb) {
+            let dados = snap.docs.map(d => d.data());
+            dados.sort((a,b) => new Date(b.apagadoEm) - new Date(a.apagadoEm));
+            tb.innerHTML = dados.map(l => `<tr><td class="text-white-50 small">${new Date(l.apagadoEm).toLocaleString('pt-BR')}</td><td class="text-white fw-bold">${l.placaOriginal}</td><td><i class="bi bi-person-badge text-danger"></i> ${l.apagadoPor}</td><td class="text-warning">${l.motivo}</td></tr>`).join('');
+        }
     });
 };
 
@@ -1061,7 +1062,7 @@ app.apagarOS = async function() {
 
     const osCancelada = app.bancoOSCompleto.find(x => x.id === id);
     if(osCancelada) {
-        await app.db.collection('lixeira_auditoria').add({ tenantId: app.t_id, placaOriginal: osCancelada.placa, apagadoPor: app.user_nome, apagadoEm: new Date().toISOString(), motivo: m, dadosAntigos: osCancelada });
+        await app.registrarAuditoriaGlobal(`O.S Cancelada: ${osCancelada.placa}`, `Motivo: ${m}`);
         await app.db.collection('ordens_servico').doc(id).delete();
         app.showToast("O.S. Removida e gravada na Trilha Oculta (Lixeira).", "success");
     }
@@ -1187,6 +1188,7 @@ app.exportarPDFMenechelli = async function() {
         }
 
         doc.save(`OS_Auditada_${placa}_${new Date().getTime()}.pdf`);
+        app.registrarAuditoriaGlobal(`Exportação de Laudo (PDF)`, `Exportou o PDF da placa ${placa}`);
         app.showToast("Laudo Oficial Auditado (PDF) Gerado e Exportado.", "success");
 
     } catch (erro) {
@@ -1198,7 +1200,7 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO E CONSULTORIA RAG)
+// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO) E CONSULTORIA RAG
 // =====================================================================
 app.iniciarEscutaIA = function() {
     app.db.collection('conhecimento_ia').where('tenantId', '==', app.t_id).onSnapshot(snap => {
@@ -1215,14 +1217,16 @@ app.renderizarListaIA = function() {
 
 app.salvarConhecimentoIA = async function(textoAvulso = null) {
     const textarea = document.getElementById('iaConhecimentoTexto'); const valor = textoAvulso || (textarea ? textarea.value.trim() : '');
-    if(!valor) { app.showToast("O input de dados de aprendizagem não pode ser vácuo.", "warning"); return; }
+    if(!valor) { app.showToast("O input de dados de aprendizagem não pode ser vazio.", "warning"); return; }
     await app.db.collection('conhecimento_ia').add({ tenantId: app.t_id, texto: valor, dataImportacao: new Date().toISOString() });
     app.showToast("Deep Learning concluído. Regra injetada na I.A.", "success"); if(textarea && !textoAvulso) textarea.value = '';
+    app.registrarAuditoriaGlobal("Gestão RAG", "Injetou novo conhecimento na base da IA.");
 };
 
 app.apagarConhecimentoIA = async function(id) {
-    if(confirm("Deseja lobotomizar a I.A apagando este fragmento de memória permanentemente?")) {
+    if(confirm("Deseja apagar este fragmento de memória da I.A.?")) {
         await app.db.collection('conhecimento_ia').doc(id).delete(); app.showToast("Célula de Memória expurgada.", "success");
+        app.registrarAuditoriaGlobal("Gestão RAG", "Apagou conhecimento da base da IA.");
     }
 };
 
@@ -1233,18 +1237,19 @@ app.processarArquivoParaIA = function(event) {
     
     const reader = new FileReader();
     reader.onload = async function(e) {
-        const text = e.target.result; const txtLimpo = text.substring(0, 10000); // 10k lim para payload RAG robusto
+        const text = e.target.result; const txtLimpo = text.substring(0, 10000); // 10k limit para RAG payload seguro
         await app.salvarConhecimentoIA(`[ARQUIVO IMPORTADO: ${file.name}]\n\n${txtLimpo}`);
         if(statusLabel) { statusLabel.className = "text-success fw-bold d-block text-center"; statusLabel.innerText = "Aquisição e Sinapse concluídas com êxito!"; setTimeout(() => { statusLabel.innerText = ""; }, 5000); }
     };
     reader.readAsText(file); 
 };
 
-// Conector Oficial Gemini 2.5 Flash
+// Conector Oficial Gemini 2.5 Flash API
 app.chamarGemini = async function(prompt) {
-    if(!app.API_KEY_GEMINI) { app.showToast("Sem Credencial do Google Gemini 2.5 Flash no Sistema Central.", "error"); return "Erro Crítico: API KEY Ausente."; }
+    if(!app.API_KEY_GEMINI) { app.showToast("Sem Credencial do Google Gemini 2.5 Flash no Sistema.", "error"); return "Erro Crítico: API KEY Ausente."; }
     
     try {
+        // ENDPOINT CORRIGIDO PARA O 2.5 FLASH
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1280,7 +1285,7 @@ app.perguntarJarvis = async function() {
     PERGUNTA DO GESTOR DA OFICINA:
     ${pergunta}
     
-    Responda em português de Portugal ou Brasil, seja altamente técnico, direto e focado no problema automotivo ou de gestão.`;
+    Responda em português, seja altamente técnico, direto e focado no problema automotivo ou de gestão.`;
     
     const respostaIlimitada = await app.chamarGemini(promptMaster);
     if(respDiv) respDiv.innerHTML = respostaIlimitada.replace(/\n/g, '<br>');
@@ -1291,13 +1296,13 @@ app.perguntarJarvis = async function() {
 app.perguntarJarvisMecanico = async function() {
     const input = document.getElementById('jarvisInputMecanico'); const respDiv = document.getElementById('jarvisRespostaMecanico');
     if(!input || !input.value) return;
-    if(respDiv) { respDiv.classList.remove('d-none'); respDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando códigos OBD2...'; }
+    if(respDiv) { respDiv.classList.remove('d-none'); respDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando manuais e códigos OBD2...'; }
     
     const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
     const promptMaster = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".
     AJUDA TÉCNICA E MANUAIS (RAG): ${contexto}
     DÚVIDA DIRETA DO MECÂNICO NO ELEVADOR: ${input.value}
-    Forneça o diagnóstico mais provável para a falha ou o torque/medida correta. Seja rápido.`;
+    Forneça o diagnóstico mais provável para a falha ou o torque/medida correta. Seja rápido e técnico.`;
     
     const res = await app.chamarGemini(promptMaster);
     if(respDiv) respDiv.innerHTML = res.replace(/\n/g, '<br>');
@@ -1318,7 +1323,7 @@ app.jarvisAnalisarRevisoes = async function() {
     
     ${dadosParaIA}
     
-    Tarefa: Encontre os 3 melhores clientes para telefonarmos HOJE oferecendo uma revisão preventiva, troca de óleo ou manutenção baseada no tempo desde a última ida à oficina.
+    Tarefa: Encontre os 3 melhores clientes para telefonarmos HOJE oferecendo uma revisão preventiva, troca de óleo ou manutenção baseada no tempo decorrido desde a última ida à oficina.
     Devolva em formatação HTML simples (<li>) com o Nome, o Carro e o argumento técnico para ligarmos para ele.`;
     
     const respostaRadar = await app.chamarGemini(promptRadar);
