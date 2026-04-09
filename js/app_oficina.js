@@ -1157,18 +1157,33 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// Conector Exato e Validado com o seu Código
+// =====================================================================
+// CONECTOR GEMINI (CÓDIGO COM PAYLOAD CORRIGIDO BASEADO NO SEU EXEMPLO)
+// =====================================================================
 app.chamarGemini = async function(prompt) {
     if(!app.API_KEY_GEMINI) { app.showToast("Chave da API do Google Gemini não encontrada.", "error"); return "Erro: Google Gemini API Key ausente."; }
+    
     try {
+        // Array isolado conforme seu código funcional para evitar o Erro 400 de JSON malformado
+        const parts = [{ text: prompt }];
+        
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts }] })
         });
+        
         const data = await res.json(); 
+        
+        if(data.error) {
+            console.error("Erro na resposta da API:", data.error);
+            return `Erro da API: ${data.error.message}`;
+        }
+        
         return data.candidates[0].content.parts[0].text;
     } catch(e) { 
-        return "Erro na conexão com a Inteligência Artificial."; 
+        console.error("Erro no Fetch Gemini:", e);
+        return "Erro na conexão com a Inteligência Artificial. Verifique o console."; 
     }
 };
 
