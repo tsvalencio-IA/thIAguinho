@@ -15,11 +15,9 @@ app.firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(app.firebaseConfig);
 app.db = firebase.firestore();
 
-// Credenciais dinâmicas instaladas pelo SuperAdmin
+// Credenciais dinâmicas
 app.CLOUDINARY_CLOUD_NAME = sessionStorage.getItem('t_cloudName') || 'dmuvm1o6m'; 
 app.CLOUDINARY_UPLOAD_PRESET = sessionStorage.getItem('t_cloudPreset') || 'evolution'; 
-// Reutilizamos a variável t_gemini para armazenar a chave da GROQ sem quebrar o banco
-app.API_KEY_IA = sessionStorage.getItem('t_gemini');
 app.t_id = sessionStorage.getItem('t_id');
 app.t_nome = sessionStorage.getItem('t_nome');
 app.t_role = sessionStorage.getItem('t_role'); 
@@ -38,6 +36,7 @@ app.bancoIA = [];
 app.bancoMensagens = [];
 app.bancoAuditoria = [];
 app.bancoEquipe = []; 
+app.bancoVales = [];
 app.fotosOSAtual = [];
 app.historicoOSAtual = [];
 app.chatActiveClienteId = null;
@@ -72,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Controle de Acesso Dinâmico (RBAC)
     const style = document.createElement('style');
     if (app.t_role === 'equipe') {
-        style.innerHTML = '.admin-only, .gestao-only { display: none !important; } .mecanico-only { display: flex !important; }';
+        style.innerHTML = '.admin-only, .gestao-only { display: none !important; } .mecanico-only { display: flex !important; display: block !important; }';
         const lblCom = document.getElementById('lblComissaoUser');
         if(lblCom) lblCom.innerText = `Mecânico (MO: ${app.user_comissao_mo}% | Pç: ${app.user_comissao_pecas}%)`;
     } else if (app.t_role === 'gerente') {
@@ -95,32 +94,58 @@ document.addEventListener('DOMContentLoaded', () => {
     app.iniciarEscutaMensagens();
     app.iniciarEscutaMensagensInternas();
     app.iniciarEscutaEquipeInternaParaBox(); 
+    app.iniciarEscutaIA();
     
     if(app.t_role === 'admin' || app.t_role === 'gerente') {
         app.iniciarEscutaEstoque();
         app.iniciarEscutaFinanceiro();
+        app.iniciarEscutaValesRH();
     }
     if(app.t_role === 'admin') {
-        app.iniciarEscutaEquipe();
         app.iniciarEscutaLixeira();
-        app.iniciarEscutaIA();
     }
     app.configurarCloudinary();
 });
 
 app.iniciarEscutaEquipeInternaParaBox = function() {
     app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoEquipe = snap.docs.map(doc => doc.data());
+        app.bancoEquipe = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        app.renderizarEquipeRH();
     });
 };
 
+app.iniciarEscutaValesRH = function() {
+    app.db.collection('vales_rh').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        app.bancoVales = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        app.renderizarEquipeRH();
+    });
+};
+
+// =====================================================================
+// TOASTS DESTRUTIVOS (Resolve o bug da tela travada)
+// =====================================================================
 app.showToast = function(msg, type='success') {
     const bg = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-warning text-dark';
     const icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill';
-    const t = document.createElement('div');
-    t.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-3"><div class="d-flex"><div class="toast-body fw-bold"><i class="bi ${icon} me-2"></i> ${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
-    document.getElementById('toastContainer').appendChild(t.firstChild);
-    setTimeout(() => { if(t.firstChild) t.firstChild.remove() }, 5000);
+    
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-3" role="alert" aria-live="assertive" aria-atomic="true" style="transition: opacity 0.5s ease;">
+                        <div class="d-flex">
+                            <div class="toast-body fw-bold"><i class="bi ${icon} me-2"></i> ${msg}</div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.parentElement.parentElement.remove()"></button>
+                        </div>
+                      </div>`;
+                      
+    const toastEl = wrap.firstElementChild;
+    const container = document.getElementById('toastContainer');
+    if (container) {
+        container.appendChild(toastEl);
+        // Auto-destruição após 4 segundos
+        setTimeout(() => {
+            toastEl.style.opacity = '0';
+            setTimeout(() => toastEl.remove(), 500);
+        }, 4000);
+    }
 };
 
 app.sair = function() { sessionStorage.clear(); window.location.href = 'index.html'; };
@@ -137,10 +162,10 @@ app.construirMenuLateral = function() {
         html += `<a class="nav-link" onclick="app.mostrarTela('tela_chat', 'Chat CRM Global', this)"><i class="bi bi-chat-dots-fill text-primary"></i> Chat Global c/ Cliente <span id="chatBadgeGlobal" class="badge bg-danger badge-nav d-none">0</span></a>`;
         html += `<a class="nav-link" onclick="app.mostrarTela('tela_estoque', 'Armazém / Estoque', this)"><i class="bi bi-box-seam text-primary"></i> Estoque Físico e NFs</a>`;
         html += `<a class="nav-link" onclick="app.mostrarTela('tela_financeiro', 'DRE e Caixas', this)"><i class="bi bi-bank text-success"></i> Financeiro / DRE</a>`;
+        html += `<a class="nav-link" onclick="app.mostrarTela('tela_equipe', 'Gestão de RH e Equipe', this); app.renderizarEquipeRH();"><i class="bi bi-people-fill text-success"></i> Equipe e RH</a>`;
     }
     if (app.t_role === 'admin') {
         html += `<a class="nav-link" onclick="app.mostrarTela('tela_ia', 'Treinamento I.A.', this)"><i class="bi bi-database-fill-up text-warning"></i> Base RAG / Manuais I.A.</a>`;
-        html += `<a class="nav-link" onclick="app.mostrarTela('tela_equipe', 'Gestão da Equipe', this)"><i class="bi bi-people-fill text-success"></i> Equipe e Acessos</a>`;
     }
     menu.innerHTML = html;
 };
@@ -390,18 +415,18 @@ app.enviarMensagemInterna = async function() {
 };
 
 // =====================================================================
-// 5. ESTOQUE FÍSICO E ENTRADA DE N.F. (XML MÁGICO)
+// 5. ESTOQUE FÍSICO COM SKU E ENTRADA DE N.F. (XML MÁGICO)
 // =====================================================================
 app.iniciarEscutaEstoque = function() {
     app.db.collection('estoque').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoEstoque = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const tbody = document.getElementById('tabelaEstoqueCorpo');
         if(tbody) {
-            tbody.innerHTML = app.bancoEstoque.map(p => `<tr><td><small class="text-white-50">${p.fornecedor||'N/A'}</small><br><span class="badge bg-primary">NF: ${p.nf||'S/N'}</span></td><td><span class="text-info small">[NCM: ${p.ncm||'-'}]</span></td><td><strong class="text-white">${p.desc}</strong></td><td><span class="badge bg-secondary px-3 py-2 fs-6 shadow-sm">${p.qtd} un</span></td><td class="gestao-only text-danger fw-bold">R$ ${p.custo.toFixed(2)}</td><td class="text-success fw-bold fs-6">R$ ${p.venda.toFixed(2)}</td><td class="gestao-only text-end"><button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalNF('edit', '${p.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-outline-danger shadow-sm admin-only" onclick="app.apagarProduto('${p.id}')"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('');
+            tbody.innerHTML = app.bancoEstoque.map(p => `<tr><td><small class="text-white-50">${p.fornecedor||'N/A'}</small><br><span class="badge bg-primary">NF: ${p.nf||'S/N'}</span></td><td><span class="text-warning fw-bold font-monospace">${p.sku||'-'}</span></td><td><span class="text-info small">[NCM: ${p.ncm||'-'}]</span></td><td><strong class="text-white">${p.desc}</strong></td><td><span class="badge bg-secondary px-3 py-2 fs-6 shadow-sm">${p.qtd} un</span></td><td class="gestao-only text-danger fw-bold">R$ ${p.custo.toFixed(2)}</td><td class="text-success fw-bold fs-6">R$ ${p.venda.toFixed(2)}</td><td class="gestao-only text-end"><button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalNF('edit', '${p.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-outline-danger shadow-sm admin-only" onclick="app.apagarProduto('${p.id}')"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('');
         }
         const sel = document.getElementById('selectProdutoEstoque');
         if(sel) {
-            sel.innerHTML = '<option value="">Puxar Peça do Almoxarifado / Estoque Físico...</option>' + app.bancoEstoque.filter(p=>p.qtd>0).map(p => `<option value="${p.id}" data-venda="${p.venda}" data-custo="${p.custo}" data-desc="${p.desc}" data-ncm="${p.ncm||'-'}">[Est: ${p.qtd}] - ${p.desc} (R$ ${p.venda.toFixed(2)})</option>`).join('');
+            sel.innerHTML = '<option value="">Puxar Peça do Almoxarifado / Estoque Físico...</option>' + app.bancoEstoque.filter(p=>p.qtd>0).map(p => `<option value="${p.id}" data-venda="${p.venda}" data-custo="${p.custo}" data-desc="${p.desc}" data-ncm="${p.ncm||'-'}">[Est: ${p.qtd}] - ${p.sku ? '('+p.sku+') ' : ''}${p.desc} (R$ ${p.venda.toFixed(2)})</option>`).join('');
         }
     });
 };
@@ -419,9 +444,9 @@ app.abrirModalNF = function(mode='nova', id='') {
             if(document.getElementById('nf_fornecedor')) document.getElementById('nf_fornecedor').value = p.fornecedor || '';
             if(document.getElementById('nf_numero')) document.getElementById('nf_numero').value = p.nf || '';
             if(document.getElementById('nf_data')) document.getElementById('nf_data').value = p.dataEntrada ? p.dataEntrada.split('T')[0] : new Date().toISOString().split('T')[0];
-            app.adicionarLinhaNF(p.desc, p.ncm, p.cfop, p.qtd, p.custo, p.venda);
+            app.adicionarLinhaNF(p.desc, p.ncm, p.cfop, p.qtd, p.custo, p.venda, p.sku);
         }
-    } else { app.adicionarLinhaNF('', '', '', 1, 0, 0); }
+    } else { app.adicionarLinhaNF('', '', '', 1, 0, 0, ''); }
     
     const mod = document.getElementById('modalNF'); if(mod) new bootstrap.Modal(mod).show();
 };
@@ -441,9 +466,10 @@ app.processarXML = function(event) {
         for(let i=0; i<det.length; i++) {
             const prod = det[i].getElementsByTagName("prod")[0];
             if(prod) {
+                const sku = prod.getElementsByTagName("cProd")[0]?.textContent || '';
                 const desc = prod.getElementsByTagName("xProd")[0]?.textContent || ''; const ncm = prod.getElementsByTagName("NCM")[0]?.textContent || ''; const cfop = prod.getElementsByTagName("CFOP")[0]?.textContent || '';
                 const qtd = parseFloat(prod.getElementsByTagName("qCom")[0]?.textContent || 0); const vUnCom = parseFloat(prod.getElementsByTagName("vUnCom")[0]?.textContent || 0);
-                app.adicionarLinhaNF(desc, ncm, cfop, qtd, vUnCom, (vUnCom * 1.8)); 
+                app.adicionarLinhaNF(desc, ncm, cfop, qtd, vUnCom, (vUnCom * 1.8), sku); 
             }
         }
         app.showToast("XML lido com sucesso. Modifique a sua margem de venda final na tabela.", "success");
@@ -451,9 +477,16 @@ app.processarXML = function(event) {
     reader.readAsText(file);
 };
 
-app.adicionarLinhaNF = function(desc='', ncm='', cfop='', qtd=1, custo=0, venda=0) {
+app.adicionarLinhaNF = function(desc='', ncm='', cfop='', qtd=1, custo=0, venda=0, sku='') {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-desc" value="${desc}" required></td><td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-ncm" value="${ncm}"></td><td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-cfop" value="${cfop}"></td><td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-qtd" value="${qtd}" min="1"></td><td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary p-2 it-custo" value="${custo}"></td><td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary p-2 it-venda fw-bold" value="${venda}"></td><td><button type="button" class="btn btn-sm btn-outline-danger p-0 px-2 mt-1" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>`;
+    tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-warning border-secondary p-2 font-monospace it-sku" value="${sku}" placeholder="Cód..."></td>
+                    <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-desc" value="${desc}" required></td>
+                    <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-ncm" value="${ncm}"></td>
+                    <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-cfop" value="${cfop}"></td>
+                    <td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-qtd" value="${qtd}" min="1"></td>
+                    <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary p-2 it-custo" value="${custo}"></td>
+                    <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary p-2 it-venda fw-bold" value="${venda}"></td>
+                    <td><button type="button" class="btn btn-sm btn-outline-danger p-0 px-2 mt-1" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>`;
     const tb = document.getElementById('corpoItensNF'); if(tb) tb.appendChild(tr);
 };
 
@@ -478,15 +511,15 @@ app.salvarEntradaEstoque = async function(e) {
     if(id) {
         const tr = document.querySelector('#corpoItensNF tr');
         if(tr) {
-            batch.update(app.db.collection('estoque').doc(id), { fornecedor, nf, desc: tr.querySelector('.it-desc').value, qtd: parseFloat(tr.querySelector('.it-qtd').value), custo: parseFloat(tr.querySelector('.it-custo').value), venda: parseFloat(tr.querySelector('.it-venda').value), ncm: tr.querySelector('.it-ncm').value, cfop: tr.querySelector('.it-cfop').value });
+            batch.update(app.db.collection('estoque').doc(id), { fornecedor, nf, desc: tr.querySelector('.it-desc').value, sku: tr.querySelector('.it-sku').value.trim(), qtd: parseFloat(tr.querySelector('.it-qtd').value), custo: parseFloat(tr.querySelector('.it-custo').value), venda: parseFloat(tr.querySelector('.it-venda').value), ncm: tr.querySelector('.it-ncm').value, cfop: tr.querySelector('.it-cfop').value });
             app.registrarAuditoriaGlobal("Estoque", `Editou o item do fornecedor ${fornecedor}`);
         }
     } else {
         document.querySelectorAll('#corpoItensNF tr').forEach(tr => {
-            const desc = tr.querySelector('.it-desc').value.trim(); const q = parseFloat(tr.querySelector('.it-qtd').value)||0; const c = parseFloat(tr.querySelector('.it-custo').value)||0; const v = parseFloat(tr.querySelector('.it-venda').value)||0;
+            const desc = tr.querySelector('.it-desc').value.trim(); const sku = tr.querySelector('.it-sku').value.trim(); const q = parseFloat(tr.querySelector('.it-qtd').value)||0; const c = parseFloat(tr.querySelector('.it-custo').value)||0; const v = parseFloat(tr.querySelector('.it-venda').value)||0;
             if(desc !== '' && q > 0) {
                 totalCustoGlobalNF += (q * c);
-                batch.set(app.db.collection('estoque').doc(), { tenantId: app.t_id, fornecedor: fornecedor, nf: nf, desc: desc, qtd: q, custo: c, venda: v, ncm: tr.querySelector('.it-ncm').value, cfop: tr.querySelector('.it-cfop').value, usuarioEntrada: app.user_nome, dataEntrada: new Date().toISOString() });
+                batch.set(app.db.collection('estoque').doc(), { tenantId: app.t_id, fornecedor: fornecedor, nf: nf, sku: sku, desc: desc, qtd: q, custo: c, venda: v, ncm: tr.querySelector('.it-ncm').value, cfop: tr.querySelector('.it-cfop').value, usuarioEntrada: app.user_nome, dataEntrada: new Date().toISOString() });
             }
         });
         if(totalCustoGlobalNF === 0) { app.showToast("Nenhum item válido para dar entrada.", "error"); return; }
@@ -516,16 +549,26 @@ app.apagarProduto = async function(id) {
 };
 
 // =====================================================================
-// 6. MOTOR KANBAN E GESTÃO DE O.S. (ATUALIZADO COM ATRIBUIÇÃO DE BOX E WHATSAPP)
+// 6. MOTOR KANBAN E GESTÃO DE O.S. (ATUALIZADO COM ATRIBUIÇÃO DE BOX E MÚLTIPLOS MECÂNICOS)
 // =====================================================================
 app.iniciarEscutaOS = function() {
     app.db.collection('ordens_servico').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoOSCompleto = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if(app.t_role === 'equipe') {
-            let minhaCom = 0; app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.mecanicoAtribuido === app.user_nome).forEach(o => minhaCom += (o.comissaoProcessada||0));
-            const divKpi = document.getElementById('kpiMinhaComissao'); if(divKpi) divKpi.innerText = `R$ ${minhaCom.toFixed(2).replace('.',',')}`;
+            let minhaCom = 0; 
+            app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.comissoesDetalhadas && Array.isArray(o.comissoesDetalhadas)).forEach(o => {
+                const minhaParte = o.comissoesDetalhadas.find(c => c.nome === app.user_nome);
+                if(minhaParte) minhaCom += minhaParte.valor;
+            });
+            // Subtrai os vales do mecânico logado
+            let meusVales = 0;
+            if(app.bancoVales) { app.bancoVales.filter(v => v.nomeFuncionario === app.user_nome).forEach(v => meusVales += v.valor); }
+            
+            const divKpi = document.getElementById('kpiMinhaComissao'); 
+            if(divKpi) divKpi.innerText = `R$ ${(minhaCom - meusVales).toFixed(2).replace('.',',')}`;
         }
         app.renderizarKanban(); app.renderizarTabelaArquivo();
+        if(app.t_role === 'admin' || app.t_role === 'gerente') app.renderizarEquipeRH();
     });
 };
 
@@ -550,9 +593,9 @@ app.renderizarKanban = function() {
 
         let tagsBox = '';
         if (s === 'box' || s === 'pronto') {
-            const m = os.mecanicoAtribuido ? os.mecanicoAtribuido : 'Mecânico Não Definido';
+            const m = os.mecanicoAtribuido ? os.mecanicoAtribuido : 'Equipe Não Definida';
             const b = os.boxAtribuido ? os.boxAtribuido : 'Box ?';
-            tagsBox = `<div class="mt-2 d-flex gap-1 flex-wrap"><span class="badge bg-dark border border-info text-info"><i class="bi bi-person-workspace"></i> ${m}</span><span class="badge bg-dark border border-warning text-warning"><i class="bi bi-geo-alt"></i> ${b}</span></div>`;
+            tagsBox = `<div class="mt-2 d-flex gap-1 flex-wrap"><span class="badge bg-dark border border-info text-info"><i class="bi bi-people"></i> ${m}</span><span class="badge bg-dark border border-warning text-warning"><i class="bi bi-geo-alt"></i> ${b}</span></div>`;
         }
 
         cols[s] += `<div class="os-card border-start border-4 ${cor}" onclick="app.abrirModalOS('edit', '${os.id}')"><div class="fast-actions">${btnBack}${btnFwd}</div><div class="d-flex justify-content-between mb-2"><span class="badge bg-dark border border-secondary text-white py-2 px-3 fw-bold tracking-wide">${os.placa}</span></div><h6 class="text-white fw-bold mb-1 w-75 text-truncate">${os.veiculo}</h6><small class="text-white-50"><i class="bi bi-person-fill"></i> ${os.cliente}</small>${tagsBox}</div>`;
@@ -563,7 +606,7 @@ app.renderizarKanban = function() {
 app.mudarStatusRapido = async function(id, novoStatus) {
     if (novoStatus === 'box') {
         app.iniciarAtribuicaoBox(id);
-        return; // Interrompe para obrigar o Gestor a definir quem vai fazer o serviço
+        return; 
     }
     
     const osRef = app.db.collection('ordens_servico').doc(id); const doc = await osRef.get();
@@ -577,15 +620,21 @@ app.mudarStatusRapido = async function(id, novoStatus) {
 };
 
 // =====================================================================
-// FLUXOS DE ATRIBUIÇÃO E NOTIFICAÇÃO (WHATSAPP E BOX)
+// FLUXOS DE ATRIBUIÇÃO DE MÚLTIPLOS MECÂNICOS
 // =====================================================================
 app.iniciarAtribuicaoBox = function(id) {
     document.getElementById('atrib_os_id').value = id;
     
-    const selectMecanico = document.getElementById('atrib_mecanico');
-    if (selectMecanico) {
-        selectMecanico.innerHTML = '<option value="">Selecione a equipe disponível...</option>' + 
-        app.bancoEquipe.filter(f => f.role === 'equipe').map(f => `<option value="${f.nome}">${f.nome}</option>`).join('');
+    const listContainer = document.getElementById('atrib_mecanicos_list');
+    if (listContainer) {
+        let html = '';
+        app.bancoEquipe.filter(f => f.role === 'equipe').forEach((f, idx) => {
+            html += `<div class="form-check mb-2">
+                        <input class="form-check-input border-secondary" type="checkbox" value="${f.nome}" id="mec_chk_${idx}" name="mec_check">
+                        <label class="form-check-label text-white" for="mec_chk_${idx}">${f.nome}</label>
+                     </div>`;
+        });
+        listContainer.innerHTML = html || '<div class="text-white-50 small">Nenhum mecânico de produção encontrado. Cadastre no RH.</div>';
     }
     
     new bootstrap.Modal(document.getElementById('modalAtribuicaoBox')).show();
@@ -593,26 +642,30 @@ app.iniciarAtribuicaoBox = function(id) {
 
 app.confirmarAtribuicaoBox = async function() {
     const id = document.getElementById('atrib_os_id').value;
-    const mecanico = document.getElementById('atrib_mecanico').value;
     const box = document.getElementById('atrib_box').value;
     
-    if (!mecanico) { app.showToast("É obrigatório definir um mecânico responsável.", "warning"); return; }
+    const checkboxes = document.querySelectorAll('input[name="mec_check"]:checked');
+    if (checkboxes.length === 0) { app.showToast("É obrigatório definir ao menos 1 mecânico para o Box.", "warning"); return; }
+    
+    let mecanicosArray = [];
+    checkboxes.forEach(c => mecanicosArray.push(c.value));
+    const mecanicosStr = mecanicosArray.join(' + ');
     
     const osRef = app.db.collection('ordens_servico').doc(id);
     const doc = await osRef.get();
     let h = doc.data().historico || [];
     
-    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Serviço Aprovado. Direcionado para o [${box}] sob responsabilidade de [${mecanico}]. Status: BOX` });
+    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Serviço Aprovado. Direcionado para o [${box}] sob responsabilidade da equipe: [${mecanicosStr}]. Status: BOX` });
     
     await osRef.update({ 
         status: 'box', 
-        mecanicoAtribuido: mecanico, 
+        mecanicoAtribuido: mecanicosStr, 
         boxAtribuido: box, 
         historico: h, 
         ultimaAtualizacao: new Date().toISOString() 
     });
     
-    app.showToast("Veículo encaminhado para execução!", "success");
+    app.showToast("Veículo encaminhado para execução com equipe atribuída!", "success");
     bootstrap.Modal.getInstance(document.getElementById('modalAtribuicaoBox')).hide();
 };
 
@@ -642,7 +695,6 @@ app.dispararWhatsAppAtivo = function() {
         }
         window.open(`https://wa.me/55${os.celular.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`, '_blank');
         
-        // Registrar na auditoria
         const h = os.historico || [];
         h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Disparou aviso de CONCLUSÃO via WhatsApp para o cliente.` });
         app.db.collection('ordens_servico').doc(id).update({ historico: h });
@@ -755,7 +807,6 @@ app.salvarOS = async function() {
     
     const novoStatus = document.getElementById('os_status') ? document.getElementById('os_status').value : 'patio';
     
-    // Se o Gestor estiver apenas editando e tentar jogar para 'box' direto pelo Select, abrimos o Modal de Atribuição.
     if(novoStatus === 'box' && id) {
          const oldData = app.bancoOSCompleto.find(o => o.id === id);
          if(oldData && oldData.status !== 'box' && (!oldData.mecanicoAtribuido || !oldData.boxAtribuido)) {
@@ -777,7 +828,7 @@ app.salvarOS = async function() {
 };
 
 // =====================================================================
-// 8. FATURAMENTO (BAIXA DE ESTOQUE E GERAÇÃO DE CONTAS A RECEBER NO DRE)
+// 8. FATURAMENTO (BAIXA DE ESTOQUE E RATEIO DE COMISSÕES PARA RH)
 // =====================================================================
 app.abrirFaturamentoDireto = function(id) {
     app.osParaFaturar = app.bancoOSCompleto.find(o => o.id === id);
@@ -812,18 +863,44 @@ app.processarFaturamentoCompleto = async function() {
         }
     }
 
-    let usrComissaoMO = app.user_comissao_mo; let usrComissaoPecas = app.user_comissao_pecas; 
-    if(app.t_role === 'admin') { usrComissaoMO = 0; usrComissaoPecas = 0; }
-    const calcMO = ((app.osParaFaturar.maoObraTotal||0) * (usrComissaoMO / 100)); const calcPecas = ((app.osParaFaturar.pecasTotal||0) * (usrComissaoPecas / 100)); const comissaoReais = calcMO + calcPecas;
+    // CALCULO DO RH (RATEIO CHEVRON): Divide as comissões proporcionalmente entre os mecânicos do Box
+    let comissoesDetalhadas = [];
+    let somaComissaoGlobal = 0;
+    
+    if (app.osParaFaturar.mecanicoAtribuido) {
+        let mecanicosArray = app.osParaFaturar.mecanicoAtribuido.split(' + ');
+        mecanicosArray.forEach(nomeMec => {
+            let func = app.bancoEquipe.find(f => f.nome === nomeMec);
+            if (func) {
+                // Cada um ganha a sua base de % calculada sobre o montante dividido pela quantidade de envolvidos
+                let baseMO = (app.osParaFaturar.maoObraTotal || 0) / mecanicosArray.length;
+                let basePc = (app.osParaFaturar.pecasTotal || 0) / mecanicosArray.length;
+                
+                let valMO = baseMO * (parseFloat(func.comissao || 0) / 100);
+                let valPc = basePc * (parseFloat(func.comissao_pecas || 0) / 100);
+                let totalMec = valMO + valPc;
+                
+                comissoesDetalhadas.push({ nome: func.nome, valor: totalMec });
+                somaComissaoGlobal += totalMec;
+            }
+        });
+    }
     
     let h = app.osParaFaturar.historico || [];
-    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `FATURAMENTO CONCLUÍDO: ${nP}x (${fp}). Estoque Baixado e comissão calculada.` });
+    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `FATURAMENTO CONCLUÍDO: ${nP}x (${fp}). Rateio de comissões ativado.` });
     
-    batch.update(app.db.collection('ordens_servico').doc(app.osParaFaturar.id), { status: 'entregue', baixaEstoqueFeita: true, comissaoProcessada: comissaoReais, mecanicoReal: app.osParaFaturar.mecanicoAtribuido || app.user_nome, historico: h, ultimaAtualizacao: new Date().toISOString() });
+    batch.update(app.db.collection('ordens_servico').doc(app.osParaFaturar.id), { 
+        status: 'entregue', 
+        baixaEstoqueFeita: true, 
+        comissaoProcessada: somaComissaoGlobal, 
+        comissoesDetalhadas: comissoesDetalhadas, 
+        historico: h, 
+        ultimaAtualizacao: new Date().toISOString() 
+    });
     
     await batch.commit(); 
-    app.registrarAuditoriaGlobal("Faturamento O.S.", `Faturou a O.S placa ${app.osParaFaturar.placa} no valor de R$ ${totalVenda.toFixed(2)}`);
-    app.showToast("CHECKOUT CONCLUÍDO! Veículo arquivado e Contas a Receber geradas.", "success");
+    app.registrarAuditoriaGlobal("Faturamento O.S.", `Faturou a placa ${app.osParaFaturar.placa}. R$ ${totalVenda.toFixed(2)}`);
+    app.showToast("CHECKOUT CONCLUÍDO! Receitas geradas e Comissões do RH registradas.", "success");
     
     const modFat = document.getElementById('modalFaturamento'); if(modFat) bootstrap.Modal.getInstance(modFat).hide();
     const modOS = document.getElementById('modalOS'); if(modOS) bootstrap.Modal.getInstance(modOS).hide();
@@ -879,14 +956,13 @@ app.salvarLancamentoFinanceiro = async function(e) {
     const fp = document.getElementById('fin_metodo') ? document.getElementById('fin_metodo').value : ''; 
     
     if(id) {
-        // PROMPT OBRIGATÓRIO DE JUSTIFICATIVA PARA EDITAR/QUITAR (AUDITORIA CHEVRON)
-        const m = prompt("ATENÇÃO: Você está modificando um título financeiro existente no DRE.\n\nPor favor, digite a JUSTIFICATIVA (Obrigatório para Auditoria e Rastreio de Caixa):");
+        const m = prompt("ATENÇÃO: Modificando DRE. Digite a JUSTIFICATIVA (Auditoria Obrigatória):");
         if(!m || m.trim() === '') { app.showToast("Operação Abortada. A justificativa de caixa é obrigatória.", "error"); return; }
 
         const sts = document.getElementById('fin_status') ? document.getElementById('fin_status').value : 'pendente';
         await app.db.collection('financeiro').doc(id).update({ desc: desc, valor: valorTotal, vencimento: dataInicial.toISOString().split('T')[0], metodo: fp, status: sts });
-        app.showToast(`Obrigado. O Documento Financeiro foi atualizado. Status: ${sts.toUpperCase()}`, "success");
-        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Editou o título [${desc}]. Alterado para Status: ${sts.toUpperCase()}. Justificativa declarada: ${m}`);
+        app.showToast(`Documento Atualizado. Status: ${sts.toUpperCase()}`, "success");
+        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Editou o título [${desc}]. Status: ${sts.toUpperCase()}. Justificativa: ${m}`);
     } else {
         const parcelasText = document.getElementById('fin_parcelas') ? document.getElementById('fin_parcelas').value : '1';
         const batch = app.db.batch();
@@ -901,7 +977,7 @@ app.salvarLancamentoFinanceiro = async function(e) {
         }
         await batch.commit(); 
         app.showToast(`Lançamento processado no DRE.`, "success");
-        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Inseriu novo lançamento contábil: ${desc} no valor total de R$ ${valorTotal.toFixed(2)}`);
+        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Inseriu novo lançamento: ${desc} no valor de R$ ${valorTotal.toFixed(2)}`);
     }
     
     const mod = document.getElementById('modalFin'); if(mod) bootstrap.Modal.getInstance(mod).hide(); e.target.reset();
@@ -939,20 +1015,19 @@ app.renderizarFinanceiroGeral = function() {
     
     app.bancoFinFiltrado.sort((a,b) => new Date(a.vencimento) - new Date(b.vencimento)).forEach(f => {
         const isR = f.tipo === 'receita';
-        if(isR && f.status === 'pago') totRec += f.valor; // O DRE baseia-se em regime de Caixa (Pago Real)
+        if(isR && f.status === 'pago') totRec += f.valor; 
         if(!isR && f.status === 'pago') totPag += f.valor;
         
         const cor = isR ? 'text-success' : 'text-danger';
         const st = f.status === 'pago' ? '<span class="badge bg-success px-2 py-1"><i class="bi bi-check2-all"></i> Quitado</span>' : '<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-hourglass-split"></i> A Vencer / Pendente</span>';
-        
-        const btnEdit = `<button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalFinanceiro('edit', '${f.tipo}', '${f.id}')" title="Inspecionar / Mudar Status"><i class="bi bi-pencil"></i> Editar ou Quitar Dívida</button>`;
+        const btnEdit = `<button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalFinanceiro('edit', '${f.tipo}', '${f.id}')"><i class="bi bi-pencil"></i> Editar</button>`;
         
         const html = `<tr><td class="text-white-50 fw-bold"><i class="bi bi-calendar-event me-2"></i> ${f.vencimento ? new Date(f.vencimento).toLocaleDateString('pt-BR') : ''}</td><td class="text-white fw-bold">${f.desc}</td><td><span class="badge bg-dark border border-secondary px-3 py-1 text-white-50">${f.parcelaAtual}/${f.totalParcelas}</span></td><td class="text-white-50 small">${f.metodo || 'Dinheiro'}</td><td class="${cor} fw-bold fs-6">R$ ${f.valor.toFixed(2).replace('.',',')}</td><td>${st}</td><td class="gestao-only text-end">${btnEdit} <button class="btn btn-sm btn-link text-danger admin-only" onclick="app.db.collection('financeiro').doc('${f.id}').delete()"><i class="bi bi-trash"></i></button></td></tr>`;
         if(isR) hReceber += html; else hPagar += html;
     });
 
-    if(tPagar) tPagar.innerHTML = hPagar || '<tr><td colspan="7" class="text-center text-white-50 py-5"><i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i> Caixa Respirando. Nenhuma dívida pendente neste período.</td></tr>';
-    if(tReceber) tReceber.innerHTML = hReceber || '<tr><td colspan="7" class="text-center text-white-50 py-5">Não há previsões de faturamento ou histórico neste filtro.</td></tr>';
+    if(tPagar) tPagar.innerHTML = hPagar || '<tr><td colspan="7" class="text-center text-white-50 py-5"><i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i> Caixa Respirando. Nenhuma dívida pendente.</td></tr>';
+    if(tReceber) tReceber.innerHTML = hReceber || '<tr><td colspan="7" class="text-center text-white-50 py-5">Não há previsões neste filtro.</td></tr>';
 
     let totCom = 0;
     app.bancoOSCompleto.filter(o=>o.status==='entregue').forEach(o => {
@@ -987,25 +1062,40 @@ app.exportarRelatorioFinanceiro = function() {
         if(bP.length > 0) { doc.autoTable({ startY: y, head: [['Data Base', 'Fornecedor/Motivo', 'Modalidade', 'Vlr.', 'Status']], body: bP, theme: 'grid' }); y = doc.lastAutoTable.finalY + 15; } else { doc.text("- Nenhuma despesa no período.", 15, y+5); y += 15; }
 
         doc.save(`Extrato_${app.t_nome.replace(' ', '_')}.pdf`);
-        app.showToast("Relatório PDF emitido e exportado.", "success");
-        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Emitiu Relatório Contábil em PDF do período: ${pIn} até ${pFim}`);
-    } catch(e) { console.error(e); app.showToast("Erro na geração do PDF DRE.", "error"); }
+        app.showToast("Relatório PDF emitido.", "success");
+    } catch(e) { console.error(e); app.showToast("Erro na geração do PDF.", "error"); }
 };
 
 // =====================================================================
-// 10. RECURSOS HUMANOS / EQUIPE E LIXEIRA DE AUDITORIA
+// 10. GESTÃO DE RH / VALES E EQUIPE (PAINEL GESTOR)
 // =====================================================================
 app.iniciarEscutaEquipe = function() {
     app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        const tbody = document.getElementById('tabelaEquipe'); if(!tbody) return;
-        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-white-50 py-5 fs-5">Sem equipe cadastrada na nuvem.</td></tr>'; return; }
-        
-        tbody.innerHTML = snap.docs.map(doc => {
-            const f = doc.data(); 
-            const nAcesso = f.role === 'gerente' ? '<span class="badge bg-warning text-dark">Gerente/Vendedor</span>' : '<span class="badge bg-secondary text-white">Mecânico / Box</span>';
-            return `<tr><td class="fw-bold text-white fs-6"><i class="bi bi-person-circle text-success me-2"></i> ${f.nome}</td><td>${nAcesso}</td><td class="text-warning fw-bold">${f.comissao||0}%</td><td class="text-success fw-bold">${f.comissao_pecas||0}%</td><td><span class="bg-dark border border-secondary px-3 py-1 rounded text-info">${f.usuario}</span> <small class="text-white-50 ms-2">[${f.senha}]</small></td><td class="admin-only text-end"><button class="btn btn-sm btn-outline-danger shadow-sm px-3" onclick="app.apagarFuncionario('${doc.id}')"><i class="bi bi-slash-circle me-1"></i> Revogar</button></td></tr>`;
-        }).join('');
+        app.bancoEquipe = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        app.renderizarEquipeRH();
     });
+};
+
+app.renderizarEquipeRH = function() {
+    const tbody = document.getElementById('tabelaEquipe'); if(!tbody) return;
+    if(app.bancoEquipe.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-white-50 py-5 fs-5">Sem equipe cadastrada na nuvem.</td></tr>'; return; }
+    
+    tbody.innerHTML = app.bancoEquipe.map(f => {
+        const nAcesso = f.role === 'gerente' ? '<span class="badge bg-warning text-dark">Gerente/Vendedor</span>' : '<span class="badge bg-secondary text-white">Mecânico / Box</span>';
+        
+        let totalCom = 0;
+        app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.comissoesDetalhadas).forEach(o => {
+            let p = o.comissoesDetalhadas.find(c => c.nome === f.nome);
+            if(p) totalCom += p.valor;
+        });
+        
+        let totalVales = 0;
+        app.bancoVales.filter(v => v.idFuncionario === f.id).forEach(v => totalVales += v.valor);
+        
+        let saldoReal = totalCom - totalVales;
+        
+        return `<tr><td class="fw-bold text-white fs-6"><i class="bi bi-person-circle text-success me-2"></i> ${f.nome}</td><td>${nAcesso}</td><td class="text-warning fw-bold">${f.comissao||0}% / ${f.comissao_pecas||0}%</td><td class="text-info fw-bold fs-5">R$ ${saldoReal.toFixed(2).replace('.',',')}</td><td><span class="bg-dark border border-secondary px-3 py-1 rounded text-info">${f.usuario}</span> <small class="text-white-50 ms-2">[${f.senha}]</small></td><td class="admin-only text-end"><button class="btn btn-sm btn-outline-warning shadow-sm px-3 me-2" onclick="app.abrirModalValeRH('${f.id}', '${f.nome}')"><i class="bi bi-cash-stack"></i> Lançar Vale</button><button class="btn btn-sm btn-outline-danger shadow-sm px-3" onclick="app.apagarFuncionario('${f.id}')"><i class="bi bi-slash-circle"></i></button></td></tr>`;
+    }).join('');
 };
 
 app.abrirModalEquipe = function() {
@@ -1021,16 +1111,48 @@ app.salvarFuncionario = async function(e) {
         usuario: document.getElementById('f_user').value, senha: document.getElementById('f_pass').value 
     });
     app.showToast("Acesso corporativo Seguro criado.", "success"); 
-    app.registrarAuditoriaGlobal("Gestão RH", `Criou credencial corporativa para: ${document.getElementById('f_nome').value}`);
+    app.registrarAuditoriaGlobal("Gestão RH", `Criou credencial para: ${document.getElementById('f_nome').value}`);
     e.target.reset(); const mod = document.getElementById('modalEquipe'); if(mod) bootstrap.Modal.getInstance(mod).hide();
 };
 
 app.apagarFuncionario = async function(id) { 
-    if(confirm("Deseja bloquear permanentemente o acesso à nuvem deste usuário?")) { 
+    if(confirm("Deseja bloquear permanentemente o acesso deste usuário?")) { 
         await app.db.collection('funcionarios').doc(id).delete(); 
-        app.showToast("Acesso destruído e invalidado.", "success"); 
-        app.registrarAuditoriaGlobal("Gestão RH", `Deletou o acesso de um funcionário (ID: ${id})`);
+        app.showToast("Acesso invalidado.", "success"); 
+        app.registrarAuditoriaGlobal("Gestão RH", `Deletou o acesso de um funcionário.`);
     } 
+};
+
+app.abrirModalValeRH = function(idFunc, nomeFunc) {
+    document.getElementById('vale_id_func').value = idFunc;
+    document.getElementById('vale_nome_func').value = nomeFunc;
+    document.getElementById('lblNomeValeFunc').innerText = nomeFunc;
+    document.getElementById('formValeRH').reset();
+    new bootstrap.Modal(document.getElementById('modalValeRH')).show();
+};
+
+app.confirmarValeRH = async function(e) {
+    e.preventDefault();
+    const idFunc = document.getElementById('vale_id_func').value;
+    const nomeFunc = document.getElementById('vale_nome_func').value;
+    const valor = parseFloat(document.getElementById('vale_valor').value);
+    const motivo = document.getElementById('vale_motivo').value;
+    
+    if (valor <= 0) { app.showToast("Valor inválido.", "error"); return; }
+    
+    const batch = app.db.batch();
+    const dataH = new Date().toISOString();
+    
+    // 1. Registra o vale no RH
+    batch.set(app.db.collection('vales_rh').doc(), { tenantId: app.t_id, idFuncionario: idFunc, nomeFuncionario: nomeFunc, valor: valor, motivo: motivo, dataRealizacao: dataH, responsavel: app.user_nome });
+    
+    // 2. Lança como Despesa Imediata no Financeiro (Caixa da Empresa pagando o vale)
+    batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: 'despesa', desc: `[VALE/RH] ${nomeFunc} - ${motivo}`, valor: valor, parcelaAtual: 1, totalParcelas: 1, metodo: 'Dinheiro', vencimento: dataH.split('T')[0], status: 'pago' });
+    
+    await batch.commit();
+    app.registrarAuditoriaGlobal("RH & Financeiro", `Lançou vale de R$ ${valor.toFixed(2)} para ${nomeFunc}.`);
+    app.showToast("Vale deduzido com sucesso e lançado no DRE.", "success");
+    bootstrap.Modal.getInstance(document.getElementById('modalValeRH')).hide();
 };
 
 app.renderizarTabelaArquivo = function() {
@@ -1076,10 +1198,10 @@ app.exportarAuditoriaPDF = function() {
 };
 
 app.apagarOS = async function() {
-    if(app.t_role !== 'admin') { app.showToast("Cancelamento Bloqueado. Sistema Chevron Antifraude exige perfil de Dono.", "error"); return; }
+    if(app.t_role !== 'admin') { app.showToast("Cancelamento Bloqueado. Exige perfil de Dono.", "error"); return; }
     
-    const m = prompt("ATENÇÃO: A Ficha Técnica será extirpada da nuvem. \nDigite a JUSTIFICATIVA REAL (Obrigatório para Auditoria Cruzada):");
-    if(!m || m.trim() === '') { app.showToast("Operação Abortada pela Segurança. A justificativa é mandatória.", "error"); return; }
+    const m = prompt("ATENÇÃO: A Ficha Técnica será extirpada. \nDigite a JUSTIFICATIVA REAL:");
+    if(!m || m.trim() === '') { app.showToast("Operação Abortada.", "error"); return; }
     
     const idField = document.getElementById('os_id'); const id = idField ? idField.value : '';
     if(!id) return;
@@ -1209,7 +1331,6 @@ app.exportarPDFMenechelli = async function() {
         }
 
         doc.save(`OS_Auditada_${placa}_${new Date().getTime()}.pdf`);
-        app.registrarAuditoriaGlobal(`Exportação de Laudo (PDF)`, `Exportou o PDF da placa ${placa}`);
         app.showToast("Laudo Oficial Auditado (PDF) Gerado e Exportado.", "success");
 
     } catch (erro) {
@@ -1221,17 +1342,16 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. GEMINI (MÉTODO BLINDADO COMPROVADO - CAD SÊNIOR)
+// 12. CÉREBRO DA I.A. GEMINI 2.5 FLASH (COM COMPRESSÃO ANTI-OVERFLOW)
 // =====================================================================
 app.minhaGeminiKey = null;
-app.iaTrabalhando = false; // Trava Global Anti-Spam de Simultaneidade
+app.iaTrabalhando = false;
 
 app.iniciarEscutaIA = function() {
     if(app.t_id) {
         app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => { 
             if(doc.exists) {
                 const d = doc.data();
-                // A chave volta a ser a do Gemini e será puxada da coleção "oficinas" dinamicamente
                 app.minhaGeminiKey = d.geminiKey || d.gemini || d.apiGemini || d.api_gemini || d.apiKeyGemini || null;
             }
         });
@@ -1277,7 +1397,7 @@ app.processarArquivoParaIA = function(event) {
 };
 
 // =========================================================
-// O VERDADEIRO MOTOR GEMINI (USANDO A SINTAXE EXATA DO CAD)
+// O VERDADEIRO MOTOR GEMINI 2.5 FLASH COM SINTAXE CAD (COMPRESSÃO)
 // =========================================================
 app.chamarGemini = async function(promptCompleto) {
     const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
@@ -1288,11 +1408,9 @@ app.chamarGemini = async function(promptCompleto) {
     }
 
     try {
-        // Exatamente como no CAD: o prompt de sistema e do usuário entram na mesma array 'parts'
         const parts = [{ text: promptCompleto }];
         
-        // Chamada REST idêntica à que funciona no CAD
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, { 
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({ contents: [{ parts }] }) 
@@ -1301,12 +1419,11 @@ app.chamarGemini = async function(promptCompleto) {
         const data = await res.json(); 
         if (data.error) throw new Error(data.error.message);
         
-        // Captura a resposta no mesmo caminho do CAD
         return data.candidates[0].content.parts[0].text;
         
     } catch(e) { 
         console.error(e);
-        return "A I.A. da Google encontrou uma instabilidade. Verifique sua chave de API. Erro: " + e.message; 
+        return "A I.A. encontrou uma instabilidade. Verifique sua chave de API ou se houve estouro de cota. Erro: " + e.message; 
     }
 };
 
@@ -1318,18 +1435,15 @@ app.perguntarJarvis = async function() {
     
     app.iaTrabalhando = true;
     resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Processando Cognição...';
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Processando Cognição (Gemini 2.5 Flash)...';
 
-    const ctx = { 
-        manuais: app.bancoIA.map(ia => ia.texto), 
-        patio: app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => ({placa: o.placa, def: o.relatoCliente, st: o.status})) 
-    };
+    // LIMITE DE TOKENS: Pegamos apenas os manuais cruciais (limitados a 5000 caracteres)
+    const manuaisPuros = app.bancoIA.map(ia => ia.texto).join('\n').substring(0, 5000);
     
-    // Montamos um ÚNICO texto longo contendo a Persona e a Pergunta (mesma técnica do CAD)
-    const promptUnificado = `Você é a Inteligência thIAguinho, o consultor sênior da oficina "${app.t_nome}".\n\n` +
-                            `DADOS DA OFICINA: ${JSON.stringify(ctx)}\n\n` +
-                            `Regra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.\n\n` +
-                            `PERGUNTA DO USUÁRIO: "${inp.value}"`;
+    const promptUnificado = `Você é o Consultor Técnico thIAguinho da oficina "${app.t_nome}".\n\n` +
+                            `MANUAIS DE REFERÊNCIA:\n${manuaisPuros}\n\n` +
+                            `Regra absoluta: Responda de forma direta. Se não houver informação no manual, diga que não sabe.\n\n` +
+                            `PERGUNTA DO MECÂNICO: "${inp.value}"`;
     
     const resposta = await app.chamarGemini(promptUnificado);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
@@ -1356,14 +1470,14 @@ app.jarvisAnalisarRevisoes = async function() {
         return; 
     }
     
+    // COMPRESSÃO DE TOKENS: Pegamos apenas as últimas 30 ordens para não estourar o payload REST
     const ctx = { 
-        historico: historicoMorto.slice(-50).map(o => ({ dt: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), cli: o.cliente, pl: o.placa })) 
+        h: historicoMorto.slice(-30).map(o => ({ d: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), c: o.cliente, p: o.placa })) 
     };
 
-    // Prompt unificado
-    const promptUnificado = `Você é o Gestor de Remarketing Sênior da oficina ${app.t_nome}.\n` +
-                            `BASE RECENTE:\n${JSON.stringify(ctx)}\n\n` +
-                            `Tarefa: Identifique clientes com potencial de retorno preventivo (troca de óleo, revisão 10k) para contato HOJE. Devolva em formato HTML limpo (apenas <ul><li>) justificando o motivo técnico. Seja agressivo comercialmente.`;
+    const promptUnificado = `Atue como Gestor de Remarketing da oficina ${app.t_nome}.\n` +
+                            `DADOS:\n${JSON.stringify(ctx)}\n\n` +
+                            `Tarefa: Filtre e indique 3 a 5 clientes para oferecermos uma revisão preventiva. Formato HTML limpo (<ul><li>).`;
     
     const resposta = await app.chamarGemini(promptUnificado);
     div.innerHTML = resposta;
