@@ -1130,14 +1130,14 @@ app.renderizarListaIA = function() {
 
 app.salvarConhecimentoIA = async function(textoAvulso = null) {
     const textarea = document.getElementById('iaConhecimentoTexto'); const valor = textoAvulso || (textarea ? textarea.value.trim() : '');
-    if(!valor) { app.showToast("O input de dados de aprendizagem não pode ser vácuo.", "warning"); return; }
+    if(!valor) { app.showToast("O input de dados de aprendizagem não pode ser vazio.", "warning"); return; }
     await app.db.collection('conhecimento_ia').add({ tenantId: app.t_id, texto: valor, dataImportacao: new Date().toISOString() });
     app.showToast("Deep Learning concluído. Regra injetada na I.A.", "success"); if(textarea && !textoAvulso) textarea.value = '';
     app.registrarAuditoriaGlobal("Gestão RAG", "Injetou novo conhecimento na base da IA.");
 };
 
 app.apagarConhecimentoIA = async function(id) {
-    if(confirm("Deseja lobotomizar a I.A apagando este fragmento de memória permanentemente?")) {
+    if(confirm("Deseja apagar este fragmento de memória da I.A.?")) {
         await app.db.collection('conhecimento_ia').doc(id).delete(); app.showToast("Célula de Memória expurgada.", "success");
         app.registrarAuditoriaGlobal("Gestão RAG", "Apagou conhecimento da base da IA.");
     }
@@ -1157,7 +1157,7 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// Conector Oficial API (Código Validado)
+// Conector Exato e Validado (Fornecido por você)
 app.chamarGemini = async function(prompt) {
     if(!app.API_KEY_GEMINI) { app.showToast("Chave da API do Google Gemini não encontrada.", "error"); return "Erro: Google Gemini API Key ausente."; }
     try {
@@ -1170,7 +1170,7 @@ app.chamarGemini = async function(prompt) {
         return data.candidates[0].content.parts[0].text;
     } catch(e) { 
         console.error(e);
-        return "Erro na conexão com a Inteligência Artificial. Verifique as credenciais ou a cota do Google Cloud."; 
+        return "Erro na conexão com a Inteligência Artificial."; 
     }
 };
 
