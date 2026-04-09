@@ -1130,10 +1130,10 @@ app.renderizarListaIA = function() {
 
 app.salvarConhecimentoIA = async function(textoAvulso = null) {
     const textarea = document.getElementById('iaConhecimentoTexto'); const valor = textoAvulso || (textarea ? textarea.value.trim() : '');
-    if(!valor) { app.showToast("O input de dados de aprendizagem não pode ser vazio.", "warning"); return; }
+    if(!valor) { app.showToast("O input de dados não pode ser vazio.", "warning"); return; }
     await app.db.collection('conhecimento_ia').add({ tenantId: app.t_id, texto: valor, dataImportacao: new Date().toISOString() });
-    app.showToast("Deep Learning concluído. Regra injetada na I.A.", "success"); if(textarea && !textoAvulso) textarea.value = '';
-    app.registrarAuditoriaGlobal("Gestão RAG", "Injetou novo conhecimento na base da IA.");
+    app.showToast("Conhecimento injetado na I.A.", "success"); if(textarea && !textoAvulso) textarea.value = '';
+    app.registrarAuditoriaGlobal("Gestão RAG", "Injetou novo manual/conhecimento na base da IA.");
 };
 
 app.apagarConhecimentoIA = async function(id) {
@@ -1152,21 +1152,22 @@ app.processarArquivoParaIA = function(event) {
     reader.onload = async function(e) {
         const text = e.target.result; const txtLimpo = text.substring(0, 10000);
         await app.salvarConhecimentoIA(`[ARQUIVO IMPORTADO: ${file.name}]\n\n${txtLimpo}`);
-        if(statusLabel) { statusLabel.className = "text-success fw-bold d-block text-center"; statusLabel.innerText = "Aquisição e Sinapse concluídas com êxito!"; setTimeout(() => { statusLabel.innerText = ""; }, 5000); }
+        if(statusLabel) { statusLabel.className = "text-success fw-bold d-block text-center"; statusLabel.innerText = "Aquisição concluída com êxito!"; setTimeout(() => { statusLabel.innerText = ""; }, 5000); }
     };
     reader.readAsText(file); 
 };
 
-// Conector Exato e Validado (Fornecido por você)
+// =====================================================================
+// CONECTOR EXATO DO CHEVRON (SEM SIMPLIFICAÇÕES OU VERIFICAÇÕES EXTRAS)
+// =====================================================================
 app.chamarGemini = async function(prompt) {
     if(!app.API_KEY_GEMINI) { app.showToast("Chave da API do Google Gemini não encontrada.", "error"); return "Erro: Google Gemini API Key ausente."; }
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${app.API_KEY_GEMINI}`, {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })        
         });
         const data = await res.json(); 
-        if(data.error) throw new Error(data.error.message);
         return data.candidates[0].content.parts[0].text;
     } catch(e) { 
         console.error(e);
