@@ -73,14 +73,14 @@
         
         <form onsubmit="realizarLogin(event)">
             <div class="mb-3 text-start">
-                <label class="text-white-50 small fw-bold mb-1">USUÁRIO / LOGIN</label>
+                <label class="text-white-50 small fw-bold mb-1">UTILIZADOR / LOGIN</label>
                 <div class="input-group">
                     <span class="input-group-text bg-dark border-secondary text-primary"><i class="bi bi-person-fill"></i></span>
                     <input type="text" class="form-control" id="username" required autocomplete="username">
                 </div>
             </div>
             <div class="mb-4 text-start">
-                <label class="text-white-50 small fw-bold mb-1">SENHA DE ACESSO</label>
+                <label class="text-white-50 small fw-bold mb-1">PALAVRA-PASSE DE ACESSO</label>
                 <div class="input-group">
                     <span class="input-group-text bg-dark border-secondary text-primary"><i class="bi bi-key-fill"></i></span>
                     <input type="password" class="form-control" id="password" required autocomplete="current-password">
@@ -116,106 +116,103 @@
             setTimeout(() => { if(t.firstChild) t.firstChild.remove() }, 4000);
         }
 
-        function rotearParaNicho(nicho) {
-            if (nicho === 'Oficinas e Estética Automotiva') window.location.href = 'painel_oficina.html';
-            else window.location.href = 'painel.html'; // Padrão Genérico
-        }
-
         async function realizarLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('btnLogin');
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Autenticando...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> A autenticar...';
             btn.disabled = true;
 
             const user = document.getElementById('username').value.trim();
             const pwd = document.getElementById('password').value.trim();
 
             try {
-                // 1. TENTA LOGAR COMO SUPER ADMIN (DONO DA PLATAFORMA)
+                // 1. TENTA ENTRAR COMO SUPER ADMIN (DONO DA PLATAFORMA)
                 const snapS = await db.collection('superadmin').where('usuario', '==', user).get();
                 if (!snapS.empty) {
                     if (snapS.docs[0].data().senha === pwd) {
+                        sessionStorage.clear(); // Limpa resíduos para não gerar conflitos de roteamento
                         sessionStorage.setItem('t_role', 'superadmin');
+                        sessionStorage.setItem('f_nome', 'Master Admin');
                         window.location.href = 'superadmin.html';
-                        return; // Trava aqui e garante o roteamento
+                        return; // TRAVA DE SEGURANÇA: Impede que o código continue e o envie para a oficina
                     } else {
-                        showToast('Senha do SuperAdmin incorreta.');
+                        showToast('Palavra-passe do SuperAdmin incorreta.');
                         btn.innerHTML = 'INICIAR SESSÃO SEGURA'; btn.disabled = false;
                         return;
                     }
                 }
 
-                // 2. TENTA LOGAR COMO ADMIN DO TENANT (DONO DA OFICINA/EMPRESA)
-                // Nota: A coleção principal no SaaS é 'clientes_saas' e não 'oficinas'
+                // 2. TENTA ENTRAR COMO ADMIN DO TENANT (DONO DA OFICINA/EMPRESA)
                 const snapA = await db.collection('clientes_saas').where('loginAdmin', '==', user).get();
                 if (!snapA.empty) {
                     const dados = snapA.docs[0].data();
                     if (dados.senhaAdmin !== pwd) { 
-                        showToast('Senha da Gestão incorreta.'); 
+                        showToast('Palavra-passe da Gestão incorreta.'); 
                     }
                     else if (dados.status === 'Bloqueado') { 
                         showToast('Licença Bloqueada. Fale com o suporte da plataforma.'); 
                     }
                     else {
-                        // Injeta todas as variáveis de ambiente necessárias
+                        sessionStorage.clear(); // Limpa resíduos
                         sessionStorage.setItem('t_id', snapA.docs[0].id); 
-                        sessionStorage.setItem('t_nome', dados.nomeFantasia); 
-                        sessionStorage.setItem('t_nicho', dados.nicho); 
-                        sessionStorage.setItem('t_role', 'admin'); // Nível Master
+                        sessionStorage.setItem('t_nome', dados.nomeFantasia || 'A Minha Oficina'); 
+                        sessionStorage.setItem('t_nicho', dados.nicho || 'Oficinas e Estética Automotiva'); 
+                        sessionStorage.setItem('t_role', 'admin'); // Nível Master da Oficina
                         sessionStorage.setItem('f_nome', 'Administrador'); 
                         sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {}));
                         
                         // Chaves de API (Essenciais para o funcionamento do Cloudinary e IA)
                         sessionStorage.setItem('t_gemini', (dados.apiKeys && dados.apiKeys.gemini) ? dados.apiKeys.gemini : '');
-                        sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : 'dmuvm1o6m');
-                        sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : 'evolution');
+                        sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : '');
+                        sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : '');
                         
-                        rotearParaNicho(dados.nicho);
+                        window.location.href = 'painel_oficina.html';
                         return;
                     }
                 } else {
-                    // 3. TENTA LOGAR COMO FUNCIONÁRIO (GERENTE OU MECÂNICO)
+                    // 3. TENTA ENTRAR COMO FUNCIONÁRIO (GERENTE OU MECÂNICO)
                     const snapF = await db.collection('funcionarios').where('usuario', '==', user).get();
                     if (!snapF.empty) {
                         const docF = snapF.docs[0];
                         const dadosF = docF.data();
                         
                         if (dadosF.senha !== pwd) { 
-                            showToast('Senha corporativa incorreta.'); 
+                            showToast('Palavra-passe corporativa incorreta.'); 
                         } else {
                             // Verifica o Status da Empresa Mãe
                             const empresaMae = await db.collection('clientes_saas').doc(dadosF.tenantId).get();
                             if(!empresaMae.exists || empresaMae.data().status === 'Bloqueado') {
                                 showToast('A matriz encontra-se com a licença suspensa. Acesso negado.');
                             } else {
+                                sessionStorage.clear(); // Limpa resíduos
                                 sessionStorage.setItem('t_id', dadosF.tenantId); 
-                                sessionStorage.setItem('t_nome', empresaMae.data().nomeFantasia);
-                                sessionStorage.setItem('t_nicho', empresaMae.data().nicho); 
+                                sessionStorage.setItem('t_nome', empresaMae.data().nomeFantasia || 'A Minha Oficina');
+                                sessionStorage.setItem('t_nicho', empresaMae.data().nicho || 'Oficinas e Estética Automotiva'); 
                                 sessionStorage.setItem('f_id', docF.id); 
                                 sessionStorage.setItem('f_nome', dadosF.nome); 
                                 sessionStorage.setItem('f_comissao', dadosF.comissao || '0'); 
-                                
-                                // A role que define se é Gerente (vê financeiro) ou Equipe (vê só produção)
-                                sessionStorage.setItem('t_role', dadosF.role || 'equipe'); 
+                                sessionStorage.setItem('t_role', dadosF.role || 'equipe'); // 'gerente' ou 'equipe'
                                 sessionStorage.setItem('t_mods', JSON.stringify(empresaMae.data().modulos || {}));
                                 
                                 // Herda as Chaves de API do Dono
                                 sessionStorage.setItem('t_gemini', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.gemini) ? empresaMae.data().apiKeys.gemini : '');
-                                sessionStorage.setItem('t_cloudName', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryName) ? empresaMae.data().apiKeys.cloudinaryName : 'dmuvm1o6m');
-                                sessionStorage.setItem('t_cloudPreset', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryPreset) ? empresaMae.data().apiKeys.cloudinaryPreset : 'evolution');
+                                sessionStorage.setItem('t_cloudName', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryName) ? empresaMae.data().apiKeys.cloudinaryName : '');
+                                sessionStorage.setItem('t_cloudPreset', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryPreset) ? empresaMae.data().apiKeys.cloudinaryPreset : '');
                                 
-                                rotearParaNicho(empresaMae.data().nicho);
+                                window.location.href = 'painel_oficina.html';
                                 return;
                             }
                         }
                     } else { 
-                        showToast('Usuário não localizado no ecossistema.'); 
+                        showToast('Utilizador não localizado no ecossistema.'); 
                     }
                 }
             } catch (err) { 
                 console.error(err); 
                 showToast('Falha de rede ou estrutural. Tente novamente.'); 
             }
+            
+            // Se chegou aqui é porque o login falhou. Restaura o botão.
             btn.innerHTML = 'INICIAR SESSÃO SEGURA'; 
             btn.disabled = false;
         }
