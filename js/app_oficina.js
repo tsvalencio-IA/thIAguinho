@@ -1221,19 +1221,18 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (API GROQ - Llama-3 Ultrarrápido e Gratuito)
+// 12. CÉREBRO DA I.A. GEMINI (MÉTODO BLINDADO COMPROVADO - CAD SÊNIOR)
 // =====================================================================
-app.minhaApiKey = null;
-app.iaTrabalhando = false; 
+app.minhaGeminiKey = null;
+app.iaTrabalhando = false; // Trava Global Anti-Spam de Simultaneidade
 
 app.iniciarEscutaIA = function() {
     if(app.t_id) {
         app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => { 
             if(doc.exists) {
                 const d = doc.data();
-                // Utilizando a mesma propriedade de API Key para não quebrar seu sistema antigo, 
-                // basta colar a Key da Groq no lugar da Key do Gemini no painel SuperAdmin
-                app.minhaApiKey = d.geminiKey || d.gemini || d.apiGemini || d.api_gemini || d.apiKeyGemini || null;
+                // A chave volta a ser a do Gemini e será puxada da coleção "oficinas" dinamicamente
+                app.minhaGeminiKey = d.geminiKey || d.gemini || d.apiGemini || d.api_gemini || d.apiKeyGemini || null;
             }
         });
     }
@@ -1277,69 +1276,66 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// CONECTOR BLINDADO COM API DA GROQ (COMPATÍVEL COM OPENAI)
-app.chamarIA = async function(prompt, sysInstruction) {
-    const key = app.minhaApiKey || sessionStorage.getItem('t_gemini');
+// =========================================================
+// O VERDADEIRO MOTOR GEMINI (USANDO A SINTAXE EXATA DO CAD)
+// =========================================================
+app.chamarGemini = async function(promptCompleto) {
+    const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
     
     if(!key || key === 'null' || key === 'undefined') { 
-        app.showToast("A chave da IA (Groq) não foi encontrada no banco.", "error"); 
-        return "Erro: API Key ausente na oficina. Registre a chave no SuperAdmin."; 
+        app.showToast("A chave da IA não foi encontrada no banco.", "error"); 
+        return "Erro: Google Gemini API Key ausente na oficina."; 
     }
 
-    const payloadOptions = {
-        method: 'POST', 
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}` // Autenticação padrão Bearer Token exigida pela Groq
-        },
-        body: JSON.stringify({
-            model: "llama3-8b-8192", // Modelo gratuito, ultrarrápido da Groq
-            messages: [
-                { role: "system", content: sysInstruction },
-                { role: "user", content: prompt }
-            ],
-            temperature: 0.1 // Temperatura baixa para garantir a verdade absoluta e dados técnicos rigorosos
-        })
-    };
-
     try {
-        const res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, payloadOptions);
+        // Exatamente como no CAD: o prompt de sistema e do usuário entram na mesma array 'parts'
+        const parts = [{ text: promptCompleto }];
+        
+        // Chamada REST idêntica à que funciona no CAD
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ contents: [{ parts }] }) 
+        });
+        
         const data = await res.json(); 
+        if (data.error) throw new Error(data.error.message);
         
-        if (!res.ok || data.error) {
-             console.error("Erro I.A Groq:", data.error);
-             throw new Error(data.error ? data.error.message : "Erro desconhecido da Groq");
-        }
+        // Captura a resposta no mesmo caminho do CAD
+        return data.candidates[0].content.parts[0].text;
         
-        return data.choices[0].message.content;
     } catch(e) { 
         console.error(e);
-        return "A I.A. encontrou uma instabilidade de comunicação com a Groq. Verifique sua chave de API ou aguarde. Erro: " + e.message; 
+        return "A I.A. da Google encontrou uma instabilidade. Verifique sua chave de API. Erro: " + e.message; 
     }
 };
 
 app.perguntarJarvis = async function() {
-    if(app.iaTrabalhando) return; 
+    if(app.iaTrabalhando) return;
     
     const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
     if(!inp || !inp.value) return; 
     
-    app.iaTrabalhando = true; 
+    app.iaTrabalhando = true;
     resDiv.classList.remove('d-none'); 
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está analisando...';
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Processando Cognição...';
 
     const ctx = { 
         manuais: app.bancoIA.map(ia => ia.texto), 
         patio: app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => ({placa: o.placa, def: o.relatoCliente, st: o.status})) 
     };
     
-    const sys = `Você é a Inteligência thIAguinho, o consultor virtual sênior da oficina "${app.t_nome}".\nDADOS DA OFICINA: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados técnicos (fale a verdade absoluta).`;
+    // Montamos um ÚNICO texto longo contendo a Persona e a Pergunta (mesma técnica do CAD)
+    const promptUnificado = `Você é a Inteligência thIAguinho, o consultor sênior da oficina "${app.t_nome}".\n\n` +
+                            `DADOS DA OFICINA: ${JSON.stringify(ctx)}\n\n` +
+                            `Regra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.\n\n` +
+                            `PERGUNTA DO USUÁRIO: "${inp.value}"`;
     
-    const resposta = await app.chamarIA(inp.value, sys);
+    const resposta = await app.chamarGemini(promptUnificado);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
     
     inp.value = '';
-    app.iaTrabalhando = false; 
+    app.iaTrabalhando = false;
 };
 
 app.jarvisAnalisarRevisoes = async function() {
@@ -1364,9 +1360,12 @@ app.jarvisAnalisarRevisoes = async function() {
         historico: historicoMorto.slice(-50).map(o => ({ dt: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), cli: o.cliente, pl: o.placa })) 
     };
 
-    const sys = `Você é o Gestor de Remarketing Sênior da oficina ${app.t_nome}.\nBASE RECENTE:\n${JSON.stringify(ctx)}\nTarefa: Identifique clientes com potencial de retorno preventivo (troca de óleo, revisão) para contato HOJE. Devolva em formato HTML limpo (apenas <ul><li>) justificando o motivo técnico. Seja agressivo comercialmente. Trabalhe apenas com os dados reais informados.`;
+    // Prompt unificado
+    const promptUnificado = `Você é o Gestor de Remarketing Sênior da oficina ${app.t_nome}.\n` +
+                            `BASE RECENTE:\n${JSON.stringify(ctx)}\n\n` +
+                            `Tarefa: Identifique clientes com potencial de retorno preventivo (troca de óleo, revisão 10k) para contato HOJE. Devolva em formato HTML limpo (apenas <ul><li>) justificando o motivo técnico. Seja agressivo comercialmente.`;
     
-    const resposta = await app.chamarIA("Exija a lista de clientes para remarketing de hoje.", sys);
+    const resposta = await app.chamarGemini(promptUnificado);
     div.innerHTML = resposta;
     app.iaTrabalhando = false;
 };
