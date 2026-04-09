@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>thIAguinho Hub - ERP Automotivo Master (J.A.R.V.I.S)</title>
+    <title>thIAguinho Hub - ERP Automotivo Master</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -23,8 +23,6 @@
         ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: var(--bg-darker); } ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; } 
         
         .wrapper { display: flex; flex-grow: 1; overflow: hidden; height: 100vh; }
-        
-        /* Menu Lateral */
         .sidebar { width: var(--sidebar-width); background-color: var(--bg-card); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; z-index: 1040; transition: margin-left 0.3s ease; flex-shrink: 0; }
         .sidebar.collapsed { margin-left: calc(var(--sidebar-width) * -1); }
         .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); text-align: center; }
@@ -33,12 +31,10 @@
         .nav-sidebar .nav-link:hover { background-color: rgba(255,255,255,0.05); color: #fff; }
         .nav-sidebar .nav-link.active { background-color: var(--bs-accent); color: #000; font-weight: 800; }
         
-        /* Conteúdo Principal */
         .main-content { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; overflow-y: auto; height: 100vh; }
         .topbar { background-color: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1030;}
         .content-area { padding: 30px; flex-grow: 1; display: flex; flex-direction: column; }
 
-        /* Kanban Master */
         .kanban-board { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 15px; flex-grow: 1; min-height: 500px;}
         .kanban-col { background: rgba(30, 41, 59, 0.5); border: 1px dashed var(--border-color); border-radius: 12px; padding: 15px; min-width: 290px; width: 290px; display: flex; flex-direction: column; }
         .kanban-cards { flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
@@ -47,7 +43,6 @@
         .fast-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 5px; opacity: 0; transition: 0.2s;}
         .os-card:hover .fast-actions { opacity: 1; }
         
-        /* Chat Global CRM */
         .chat-container { height: 60vh; max-height: 600px; display: flex; flex-direction: column; background-color: #1e2124; border-radius: 12px; border: 1px solid #495057; overflow: hidden; }
         .chat-messages { flex-grow: 1; overflow-y: auto; padding: 20px; }
         .message { margin-bottom: 15px; max-width: 85%; padding: 12px 15px; border-radius: 15px; font-size: 0.95rem; word-wrap: break-word; }
@@ -55,18 +50,14 @@
         .message.cliente { background-color: #334155; align-self: flex-start; margin-right: auto; border-bottom-left-radius: 2px; border: 1px solid var(--border-color); }
         .badge-nav { position: absolute; right: 15px; font-size: 0.7rem; padding: 4px 6px; border-radius: 50%; }
 
-        /* Timeline do Histórico da OS */
         .timeline { position: relative; padding-left: 30px; list-style: none; margin-bottom: 0; }
         .timeline-item { position: relative; margin-bottom: 15px; }
         .timeline-item::before { content: ''; position: absolute; left: -26px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--bs-accent); border: 2px solid var(--bg-card); }
         
         .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
-        
-        /* Regras de Visualização (RBAC dinâmico pelo JS) */
         .admin-only { display: block; }
         .mecanico-only { display: none; }
         .gestao-only { display: none; }
-        
         .master-footer { text-align: center; padding: 15px; background: #000; border-top: 1px solid var(--border-color); color: #64748b; font-size: 0.85rem; letter-spacing: 1px; width: 100%; flex-shrink: 0;}
     </style>
 </head>
@@ -79,12 +70,11 @@
                 <h5 class="mt-2 text-white fw-bold" id="lblEmpresa">Carregando...</h5>
                 <span class="badge bg-dark border border-secondary text-info fw-normal text-uppercase">ERP Master</span>
             </div>
-            <div class="nav-sidebar" id="menuLateral">
-                </div>
+            <div class="nav-sidebar" id="menuLateral"></div>
             <div class="p-3 border-top border-secondary text-center bg-black mt-auto">
                 <small class="text-white-50 d-block mb-1">Operador: <strong class="text-info" id="lblUsuario">User</strong></small>
-                <small class="text-warning d-block mb-2 fw-bold" id="lblComissaoUser">Carregando Nível...</small>
-                <button class="btn btn-outline-danger w-100 fw-bold shadow-sm" onclick="app.sair()"><i class="bi bi-power me-2"></i> Sair / Trancar Máquina</button>
+                <small class="text-warning d-block mb-2 fw-bold" id="lblComissaoUser">Acesso Gestor</small>
+                <button class="btn btn-outline-danger w-100 fw-bold shadow-sm" onclick="app.sair()"><i class="bi bi-power me-2"></i> Trancar Máquina</button>
             </div>
         </nav>
 
@@ -92,7 +82,7 @@
             <header class="topbar shadow-sm">
                 <div class="d-flex align-items-center">
                     <button class="btn btn-dark border-secondary me-3" onclick="document.getElementById('sidebar').classList.toggle('collapsed')"><i class="bi bi-list fs-4 text-white"></i></button>
-                    <h4 class="mb-0 fw-bold text-white" id="tituloPagina">Dashboard J.A.R.V.I.S</h4>
+                    <h4 class="mb-0 fw-bold text-white" id="tituloPagina">Dashboard</h4>
                 </div>
                 <div class="d-flex align-items-center gap-3">
                     <div class="input-group" style="width: 350px;">
@@ -107,7 +97,7 @@
                 <div id="tela_jarvis" class="modulo-tela">
                     <div class="card border-0 bg-dark p-5 mb-4 shadow text-center position-relative overflow-hidden" style="border: 1px solid #0dcaf0 !important;">
                         <i class="bi bi-robot position-absolute opacity-10" style="font-size: 15rem; left: -20px; bottom: -40px; color: #0dcaf0;"></i>
-                        <h2 class="text-info fw-bold z-1 position-relative">J.A.R.V.I.S. - Cérebro da Oficina</h2>
+                        <h2 class="text-info fw-bold z-1 position-relative">t.h.I.A.g.u.i.n.h.o. - Cérebro da Oficina</h2>
                         <p class="text-white-50 mb-4 fs-5 z-1 position-relative">Monitoramento Ativo de O.S., Estoque e Relacionamento com Cliente.</p>
                         
                         <div class="row g-4 z-1 position-relative justify-content-center admin-only">
@@ -121,7 +111,7 @@
                             </div>
                             <div class="col-md-6 text-start">
                                 <div class="bg-black p-4 rounded-4 border border-secondary h-100">
-                                    <h5 class="text-info fw-bold"><i class="bi bi-chat-square-dots-fill me-2"></i> Pergunte ao J.A.R.V.I.S</h5>
+                                    <h5 class="text-info fw-bold"><i class="bi bi-chat-square-dots-fill me-2"></i> Pergunte ao t.h.I.A.g.u.i.n.h.o</h5>
                                     <div class="input-group mt-3">
                                         <input type="text" class="form-control bg-dark border-secondary text-white" id="jarvisInput" placeholder="Ex: Qual o defeito relatado no ABC-1234?">
                                         <button class="btn btn-info" onclick="app.perguntarJarvis()"><i class="bi bi-send-fill"></i></button>
@@ -130,13 +120,11 @@
                                 </div>
                             </div>
                         </div>
-                        
                         <div class="row g-4 z-1 position-relative justify-content-center mecanico-only">
                             <div class="col-md-8 text-start">
                                 <div class="bg-black p-4 rounded-4 border border-secondary h-100 text-center">
                                     <h5 class="text-warning fw-bold"><i class="bi bi-wallet2 me-2"></i> Minhas Comissões (Entregues)</h5>
                                     <h1 class="display-3 text-success fw-bold mt-3" id="kpiMinhaComissao">R$ 0,00</h1>
-                                    <p class="text-white-50">Sua produção é calculada automaticamente a cada veículo faturado.</p>
                                 </div>
                             </div>
                         </div>
@@ -149,11 +137,49 @@
                         <button class="btn btn-info fw-bold shadow-lg" onclick="app.abrirModalOS()"><i class="bi bi-plus-lg me-1"></i> Nova Recepção (O.S.)</button>
                     </div>
                     <div class="kanban-board">
-                        <div class="kanban-col"><h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 fw-bold"><i class="bi bi-cone-striped text-warning me-2"></i> 1. Recepção/Fila <span class="badge bg-secondary float-end" id="count_patio">0</span></h6><div class="kanban-cards" id="col_patio"></div></div>
-                        <div class="kanban-col"><h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 fw-bold"><i class="bi bi-file-earmark-text text-primary me-2"></i> 2. Orçamento Feito <span class="badge bg-secondary float-end" id="count_orcamento">0</span></h6><div class="kanban-cards" id="col_orcamento"></div></div>
+                        <div class="kanban-col"><h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 fw-bold"><i class="bi bi-cone-striped text-warning me-2"></i> 1. Avaliação <span class="badge bg-secondary float-end" id="count_patio">0</span></h6><div class="kanban-cards" id="col_patio"></div></div>
+                        <div class="kanban-col"><h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 fw-bold"><i class="bi bi-file-earmark-text text-primary me-2"></i> 2. Orçamento <span class="badge bg-secondary float-end" id="count_orcamento">0</span></h6><div class="kanban-cards" id="col_orcamento"></div></div>
                         <div class="kanban-col"><h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 fw-bold"><i class="bi bi-hourglass-split text-danger me-2"></i> 3. Aguard. Cliente <span class="badge bg-secondary float-end" id="count_aprovacao">0</span></h6><div class="kanban-cards" id="col_aprovacao"></div></div>
                         <div class="kanban-col"><h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 fw-bold"><i class="bi bi-tools text-info me-2"></i> 4. Execução (Box) <span class="badge bg-secondary float-end" id="count_box">0</span></h6><div class="kanban-cards" id="col_box"></div></div>
-                        <div class="kanban-col"><h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 fw-bold"><i class="bi bi-check-circle-fill text-success me-2"></i> 5. Pronto / Lavagem <span class="badge bg-secondary float-end" id="count_pronto">0</span></h6><div class="kanban-cards" id="col_pronto"></div></div>
+                        <div class="kanban-col"><h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 fw-bold"><i class="bi bi-check-circle-fill text-success me-2"></i> 5. Pronto / Lavar <span class="badge bg-secondary float-end" id="count_pronto">0</span></h6><div class="kanban-cards" id="col_pronto"></div></div>
+                    </div>
+                </div>
+
+                <div id="tela_arquivo" class="modulo-tela" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-archive-fill me-2 text-warning"></i> Histórico de Veículos Entregues</h4>
+                    </div>
+                    <div class="card bg-transparent border-0">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle border-secondary shadow-sm">
+                                <thead><tr><th>Data Baixa</th><th>Placa</th><th>Veículo</th><th>Cliente</th><th class="gestao-only">Total Faturado</th><th class="text-center">Ações</th></tr></thead>
+                                <tbody id="tabelaArquivoCorpo"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="mt-5 border-top border-secondary pt-4 admin-only">
+                        <h5 class="text-danger fw-bold mb-3"><i class="bi bi-trash3-fill me-2"></i> Lixeira de Auditoria</h5>
+                        <div class="table-responsive bg-black p-3 rounded border border-danger">
+                            <table class="table table-dark table-sm align-middle border-secondary mb-0">
+                                <thead><tr><th>Data Exclusão</th><th>Placa/Ref.</th><th>Excluído Por</th><th>Motivo / Justificativa</th></tr></thead>
+                                <tbody id="tabelaLixeiraCorpo"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tela_crm" class="modulo-tela" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-person-lines-fill me-2 text-info"></i> Base CRM e Portal Web</h4>
+                        <button class="btn btn-info fw-bold shadow gestao-only" onclick="app.abrirModalCRM('nova')"><i class="bi bi-plus-lg me-1"></i> Cadastrar Cliente</button>
+                    </div>
+                    <div class="card bg-transparent border-0">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover align-middle border-secondary shadow-sm">
+                                <thead><tr><th>Nome / Razão Social</th><th>WhatsApp</th><th>Documento</th><th>Login Portal</th><th class="gestao-only text-end">Ação</th></tr></thead>
+                                <tbody id="tabelaCrmCorpo"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -184,88 +210,27 @@
                     </div>
                 </div>
 
-                <div id="tela_arquivo" class="modulo-tela" style="display: none;">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-archive-fill me-2 text-warning"></i> Histórico de Veículos Entregues</h4>
-                    </div>
-                    <div class="card bg-transparent border-0">
-                        <div class="table-responsive">
-                            <table class="table table-dark table-hover align-middle border-secondary shadow-sm">
-                                <thead><tr><th>Data Baixa</th><th>Placa</th><th>Veículo</th><th>Cliente</th><th class="gestao-only">Total Faturado</th><th class="text-center">Ações</th></tr></thead>
-                                <tbody id="tabelaArquivoCorpo"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="mt-5 border-top border-secondary pt-4 admin-only">
-                        <h5 class="text-danger fw-bold mb-3"><i class="bi bi-trash3-fill me-2"></i> Lixeira de Auditoria (Soft Delete)</h5>
-                        <p class="text-white-50 small">O.S. canceladas ou excluídas ficam retidas aqui com a justificativa.</p>
-                        <div class="table-responsive bg-black p-3 rounded border border-danger">
-                            <table class="table table-dark table-sm align-middle border-secondary mb-0">
-                                <thead><tr><th>Data Exclusão</th><th>Placa/Ref.</th><th>Excluído Por</th><th>Motivo / Justificativa Obrigatória</th></tr></thead>
-                                <tbody id="tabelaLixeiraCorpo"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="tela_crm" class="modulo-tela" style="display: none;">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-person-lines-fill me-2 text-info"></i> Base CRM e Portal Web</h4>
-                        <button class="btn btn-info fw-bold shadow gestao-only" data-bs-toggle="modal" data-bs-target="#modalCrm"><i class="bi bi-plus-lg me-1"></i> Cadastrar Cliente</button>
-                    </div>
-                    <div class="card bg-transparent border-0">
-                        <div class="table-responsive">
-                            <table class="table table-dark table-hover align-middle border-secondary shadow-sm">
-                                <thead><tr><th>Nome / Razão Social</th><th>WhatsApp</th><th>Documento (CPF/CNPJ)</th><th>Login do Portal</th><th class="gestao-only text-end">Ação</th></tr></thead>
-                                <tbody id="tabelaCrmCorpo"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
                 <div id="tela_estoque" class="modulo-tela" style="display: none;">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="text-white fw-bold mb-0"><i class="bi bi-box-seam me-2 text-primary"></i> Almoxarifado / Estoque</h4>
-                        <button class="btn btn-primary fw-bold gestao-only" onclick="app.abrirModalNF()"><i class="bi bi-plus-lg me-1"></i> Entrada de NF e Peças</button>
+                        <div class="d-flex gap-2 gestao-only">
+                            <button class="btn btn-primary fw-bold" onclick="app.abrirModalNF('nova')"><i class="bi bi-plus-lg me-1"></i> Entrada de Peças</button>
+                        </div>
                     </div>
                     <div class="card bg-transparent border-0">
                         <table class="table table-dark table-hover align-middle border-secondary">
-                            <thead><tr><th>Fornecedor/NF</th><th>Peça</th><th>Qtd. Fis.</th><th class="gestao-only">Custo(R$)</th><th>Venda(R$)</th><th class="admin-only text-end">Ações</th></tr></thead>
+                            <thead><tr><th>Fornecedor/Origem</th><th>Peça / Produto</th><th>Qtd. Fis.</th><th class="gestao-only">Custo(R$)</th><th>Venda(R$)</th><th class="gestao-only text-end">Ações</th></tr></thead>
                             <tbody id="tabelaEstoqueCorpo"></tbody>
                         </table>
                     </div>
                 </div>
 
-                <div id="tela_ia" class="modulo-tela h-100" style="display: none;">
-                    <div class="row h-100 g-4 admin-only">
-                        <div class="col-md-12 d-flex flex-column h-100">
-                            <h5 class="text-warning fw-bold mb-3"><i class="bi bi-database-fill-up me-2"></i> Treinamento J.A.R.V.I.S (Memória e Manuais)</h5>
-                            <p class="text-white-50 small">Suba manuais técnicos em PDF, listas de peças ou regras da oficina para injetar na mente da Inteligência Artificial.</p>
-                            <div class="mb-3">
-                                <label class="btn btn-outline-warning w-100 fw-bold p-3" style="border-style: dashed;">
-                                    <i class="bi bi-file-earmark-pdf-fill me-2"></i> Selecionar Catálogo (PDF/TXT)
-                                    <input type="file" id="iaFileUpload" accept=".pdf,.txt" class="d-none" onchange="app.processarArquivoParaIA(event)">
-                                </label>
-                                <small class="text-success d-block mt-2 fw-bold text-center" id="iaFileStatus"></small>
-                            </div>
-                            <div class="flex-grow-1 d-flex flex-column">
-                                <textarea class="form-control bg-black text-white border-secondary flex-grow-1 mb-3" id="iaConhecimentoTexto" placeholder="Ou digite/cole conhecimentos técnicos e regras financeiras da sua oficina aqui..."></textarea>
-                                <button class="btn btn-success fw-bold shadow-sm" onclick="app.salvarConhecimentoIA()"><i class="bi bi-hdd-network-fill me-2"></i> Gravar Regra na I.A.</button>
-                            </div>
-                            <div class="mt-4 border-top border-secondary pt-3">
-                                <h6 class="text-white-50 small fw-bold">Arquivos e Regras Memorizadas Atualmente:</h6>
-                                <div id="listaConhecimentosIA" style="max-height: 250px; overflow-y: auto;"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <div id="tela_financeiro" class="modulo-tela" style="display: none;">
                     <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-bank text-success me-2"></i> DRE, Despesas e Caixas</h4>
+                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-bank text-success me-2"></i> DRE, Despesas e Faturamentos</h4>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-outline-danger fw-bold" onclick="app.abrirModalFinanceiro('despesa')"><i class="bi bi-dash-circle me-1"></i> Lançar Despesa</button>
-                            <button class="btn btn-outline-success fw-bold" onclick="app.abrirModalFinanceiro('receita')"><i class="bi bi-plus-circle me-1"></i> Receita Avulsa</button>
+                            <button class="btn btn-outline-danger fw-bold" onclick="app.abrirModalFinanceiro('nova', 'despesa')"><i class="bi bi-dash-circle me-1"></i> Lançar Despesa</button>
+                            <button class="btn btn-outline-success fw-bold" onclick="app.abrirModalFinanceiro('nova', 'receita')"><i class="bi bi-plus-circle me-1"></i> Lançar Receita</button>
                         </div>
                     </div>
                     <ul class="nav nav-tabs border-secondary mb-4" role="tablist">
@@ -287,6 +252,29 @@
                     </div>
                 </div>
 
+                <div id="tela_ia" class="modulo-tela h-100" style="display: none;">
+                    <div class="row h-100 g-4 admin-only">
+                        <div class="col-md-12 d-flex flex-column h-100">
+                            <h5 class="text-warning fw-bold mb-3"><i class="bi bi-database-fill-up me-2"></i> Treinamento t.h.I.A.g.u.i.n.h.o (Upload de Manuais)</h5>
+                            <div class="mb-3">
+                                <label class="btn btn-outline-warning w-100 fw-bold p-3" style="border-style: dashed;">
+                                    <i class="bi bi-file-earmark-pdf-fill me-2"></i> Selecionar Catálogo (PDF/TXT)
+                                    <input type="file" id="iaFileUpload" accept=".pdf,.txt" class="d-none" onchange="app.processarArquivoParaIA(event)">
+                                </label>
+                                <small class="text-success d-block mt-2 text-center" id="iaFileStatus"></small>
+                            </div>
+                            <div class="flex-grow-1 d-flex flex-column">
+                                <textarea class="form-control bg-black text-white border-secondary flex-grow-1 mb-3" id="iaConhecimentoTexto" placeholder="Ou cole conhecimentos técnicos aqui..."></textarea>
+                                <button class="btn btn-success fw-bold shadow-sm" onclick="app.salvarConhecimentoIA()"><i class="bi bi-hdd-network-fill me-2"></i> Gravar Regra na I.A.</button>
+                            </div>
+                            <div class="mt-4 border-top border-secondary pt-3">
+                                <h6 class="text-white-50 small fw-bold">Regras Memorizadas Atualmente:</h6>
+                                <div id="listaConhecimentosIA" style="max-height: 250px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="tela_equipe" class="modulo-tela" style="display: none;">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="text-white fw-bold"><i class="bi bi-people-fill me-2 text-success"></i> Gestão de Colaboradores</h4>
@@ -297,26 +285,35 @@
                         <tbody id="tabelaEquipe"></tbody>
                     </table>
                 </div>
+
             </main>
-            <footer class="master-footer">
-                Powered by <strong>thIAguinho Soluções Digitais</strong> &copy; 2026 - Tecnologia Automotiva Enterprise
-            </footer>
+            <footer class="master-footer">Powered by <strong>thIAguinho Soluções Digitais</strong> &copy; 2026</footer>
         </div>
     </div>
 
-    <div class="modal fade" id="modalCrm" tabindex="-1"><div class="modal-dialog"><div class="modal-content bg-dark border-info"><div class="modal-header border-secondary bg-black"><h5 class="modal-title text-white fw-bold">Ficha do Cliente</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+    <div class="modal fade" id="modalCrm" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content bg-dark border-info"><div class="modal-header border-secondary bg-black"><h5 class="modal-title text-white fw-bold">Ficha de Cliente</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
     <div class="modal-body p-4">
         <form onsubmit="app.salvarClienteCRM(event)">
             <input type="hidden" id="c_id">
             
-            <div class="mb-3"><label class="text-white-50">Nome do Cliente / Razão Social</label><input type="text" class="form-control bg-black text-white" id="c_nome" required></div>
-            <div class="row g-3 mb-3"><div class="col-6"><label class="text-white-50">WhatsApp (DDD+Número)</label><input type="text" class="form-control bg-black text-white" id="c_tel" required></div><div class="col-6"><label class="text-white-50">CPF/CNPJ</label><input type="text" class="form-control bg-black text-white" id="c_doc"></div></div>
+            <h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3"><i class="bi bi-person-vcard"></i> Dados Pessoais</h6>
+            <div class="row g-3 mb-3"><div class="col-md-7"><label class="text-white-50 small fw-bold">Nome do Cliente / Razão Social</label><input type="text" class="form-control bg-black text-white" id="c_nome" required></div><div class="col-md-5"><label class="text-white-50 small fw-bold">CPF / CNPJ</label><input type="text" class="form-control bg-black text-warning fw-bold" id="c_doc" onblur="app.validarDocUI(this)"></div></div>
+            <div class="row g-3 mb-4"><div class="col-md-6"><label class="text-white-50 small fw-bold">WhatsApp (DDD+Número)</label><input type="text" class="form-control bg-black text-white" id="c_tel" required></div><div class="col-md-6"><label class="text-white-50 small fw-bold">E-mail</label><input type="email" class="form-control bg-black text-white" id="c_email"></div></div>
             
-            <h6 class="text-warning fw-bold mt-4 mb-3 border-bottom border-secondary pb-2"><i class="bi bi-laptop"></i> Credenciais - Portal do Cliente</h6>
+            <h6 class="text-white-50 border-bottom border-secondary pb-2 mb-3 mt-4"><i class="bi bi-geo-alt"></i> Endereço</h6>
+            <div class="row g-3 mb-4 p-3 bg-black rounded border border-secondary">
+                <div class="col-md-3"><label class="text-white-50 small">CEP</label><input type="text" class="form-control bg-dark text-white" id="c_cep" onblur="app.buscarCEP(this.value)"></div>
+                <div class="col-md-7"><label class="text-white-50 small">Endereço (Rua/Av)</label><input type="text" class="form-control bg-dark text-white" id="c_rua"></div>
+                <div class="col-md-2"><label class="text-white-50 small">Nº</label><input type="text" class="form-control bg-dark text-white" id="c_num"></div>
+                <div class="col-md-6"><label class="text-white-50 small">Bairro</label><input type="text" class="form-control bg-dark text-white" id="c_bairro"></div>
+                <div class="col-md-6"><label class="text-white-50 small">Cidade/UF</label><input type="text" class="form-control bg-dark text-white" id="c_cidade"></div>
+            </div>
+
+            <h6 class="text-warning fw-bold mt-4 mb-3 border-bottom border-secondary pb-2"><i class="bi bi-laptop"></i> Acesso ao Portal Web</h6>
             <div class="row g-3 mb-4">
-                <div class="col-md-6"><label class="text-white-50 small fw-bold">E-mail (Login)</label><input type="email" class="form-control bg-black text-info fw-bold" id="c_user" required></div>
+                <div class="col-md-6"><label class="text-white-50 small fw-bold">Usuário / E-mail (Login)</label><input type="text" class="form-control bg-black text-info fw-bold" id="c_user" required></div>
                 <div class="col-md-6">
-                    <label class="text-white-50 small fw-bold">Senha Segura (PIN)</label>
+                    <label class="text-white-50 small fw-bold">Senha (PIN)</label>
                     <div class="input-group">
                         <input type="text" class="form-control bg-black text-warning fw-bold" id="c_pass" required>
                         <button class="btn btn-warning fw-bold text-dark" type="button" onclick="document.getElementById('c_pass').value=Math.random().toString(36).slice(-6)">Gerar</button>
@@ -324,27 +321,27 @@
                 </div>
             </div>
             
-            <div class="mb-4"><label class="text-white-50">Anotações Internas da Oficina</label><textarea class="form-control bg-black text-white" id="c_notas" rows="2"></textarea></div>
+            <div class="mb-4"><label class="text-white-50">Anotações Internas</label><textarea class="form-control bg-black text-white" id="c_notas" rows="2"></textarea></div>
             <button type="submit" class="btn btn-info w-100 fw-bold shadow-lg py-3 text-dark">SALVAR NO CRM</button>
         </form>
     </div></div></div></div>
 
-    <div class="modal fade" id="modalNF" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content bg-dark border-primary"><div class="modal-header border-secondary bg-black"><h5 class="modal-title text-white fw-bold"><i class="bi bi-receipt me-2 text-primary"></i> Entrada de Peças / Importação N.F.</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+    <div class="modal fade" id="modalNF" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content bg-dark border-primary"><div class="modal-header border-secondary bg-black"><h5 class="modal-title text-white fw-bold"><i class="bi bi-receipt me-2 text-primary"></i> Lançamento de Estoque</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
     <div class="modal-body p-4">
         
         <div class="p-4 bg-info bg-opacity-10 border border-info text-center rounded mb-4" style="cursor: pointer; border-style: dashed;" onclick="document.getElementById('xmlFileInput').click()">
-            <i class="bi bi-filetype-xml display-5 text-info mb-2"></i><br><strong class="text-white">Importar XML da Nota Fiscal Eletrônica (NF-e)</strong><br>
-            <small class="text-white-50">O sistema extrairá Fornecedor, Peças, Quantidades e Custos automaticamente para a tabela abaixo.</small>
+            <i class="bi bi-filetype-xml display-5 text-info mb-2"></i><br><strong class="text-white">Importar XML da Nota Fiscal (Opcional)</strong><br>
+            <small class="text-white-50">Deixe em branco para lançamentos manuais / pedidos sem NF.</small>
             <input type="file" id="xmlFileInput" accept=".xml" class="d-none" onchange="app.processarXML(event)">
         </div>
 
         <form id="formNF" onsubmit="app.salvarEntradaEstoque(event)">
-            <div class="row g-3 mb-3">
-                <div class="col-md-5"><label class="text-white-50 small fw-bold">Fornecedor Emitente</label><input type="text" class="form-control bg-black text-white fw-bold" id="nf_fornecedor" required></div>
-                <div class="col-md-3"><label class="text-white-50 small fw-bold">Nº NF</label><input type="text" class="form-control bg-black text-white" id="nf_numero" required></div>
+            <input type="hidden" id="p_id"> <div class="row g-3 mb-3">
+                <div class="col-md-5"><label class="text-white-50 small fw-bold">Fornecedor / Origem</label><input type="text" class="form-control bg-black text-white fw-bold" id="nf_fornecedor" required></div>
+                <div class="col-md-3"><label class="text-white-50 small fw-bold">Nº Documento/NF</label><input type="text" class="form-control bg-black text-white" id="nf_numero" placeholder="Opcional"></div>
                 <div class="col-md-2"><label class="text-white-50 small fw-bold">Data Emissão</label><input type="date" class="form-control bg-black text-white" id="nf_data" required></div>
                 <div class="col-md-2">
-                    <label class="text-white-50 small fw-bold text-warning">Forma de Pagto</label>
+                    <label class="text-white-50 small fw-bold text-warning">Liquidação</label>
                     <select class="form-select bg-black text-white fw-bold" id="nf_metodo_pagamento" onchange="app.verificarPgtoCompraNF()">
                         <option value="Boleto - Parcelado">Boleto (A Prazo)</option>
                         <option value="Pix">Pix / Dinheiro</option>
@@ -352,7 +349,7 @@
                     </select>
                 </div>
                 <div class="col-md-12 mt-2" id="nf_div_parcelas">
-                    <label class="text-danger small fw-bold">Parcelamento / Condição (Integra com Contas a Pagar)</label>
+                    <label class="text-danger small fw-bold">Condição (Gera o Contas a Pagar)</label>
                     <select class="form-select bg-black text-danger border-danger" id="nf_parcelas">
                         <option value="1x">À vista (1x)</option><option value="2x">2x Parcelas</option><option value="3x">3x Parcelas</option><option value="4x">4x Parcelas</option><option value="6x">6x Parcelas</option>
                     </select>
@@ -360,20 +357,20 @@
             </div>
             
             <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
-                <h6 class="text-white mb-0">Relação de Peças (Tabela Flexível e Infinita)</h6>
-                <button type="button" class="btn btn-sm btn-outline-info fw-bold" onclick="app.adicionarLinhaNF()"><i class="bi bi-plus"></i> + Inserir Peça Manualmente</button>
+                <h6 class="text-white mb-0">Relação de Peças / Produtos</h6>
+                <button type="button" class="btn btn-sm btn-outline-info fw-bold" onclick="app.adicionarLinhaNF()"><i class="bi bi-plus"></i> + Inserir Linha Manual</button>
             </div>
             
             <div class="table-responsive bg-black border border-secondary p-2 rounded">
                 <table class="table table-dark table-sm align-middle mb-0" id="tabelaItensNF">
-                    <thead><tr><th>Descrição do Produto/Peça</th><th width="100">NCM</th><th width="80">CFOP</th><th width="80">Qtd</th><th width="120">Custo Un.</th><th width="120">Venda Un.</th><th width="40"></th></tr></thead>
+                    <thead><tr><th>Descrição da Peça</th><th width="100">NCM</th><th width="80">CFOP</th><th width="80">Qtd</th><th width="120">Custo Un.</th><th width="120">Venda Un.</th><th width="40"></th></tr></thead>
                     <tbody id="corpoItensNF"></tbody>
                 </table>
             </div>
             
             <div class="d-flex justify-content-between align-items-center mt-4">
-                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="nf_gerar_financeiro" checked><label class="text-warning fw-bold ms-2 mt-1">Lançar no Contas a Pagar Automaticamente (DRE)</label></div>
-                <button type="submit" class="btn btn-primary fw-bold px-5 shadow-lg">PROCESSAR ENTRADA NO ESTOQUE E FISCAL</button>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="nf_gerar_financeiro" checked><label class="text-warning fw-bold ms-2 mt-1">Lançar no Contas a Pagar Automático (DRE)</label></div>
+                <button type="submit" class="btn btn-primary fw-bold px-5 shadow-lg">SALVAR NO ESTOQUE / FISCAL</button>
             </div>
         </form>
     </div></div></div></div>
@@ -381,12 +378,13 @@
     <div class="modal fade" id="modalFin" tabindex="-1"><div class="modal-dialog"><div class="modal-content bg-dark border-secondary" id="modalFinContent"><div class="modal-header bg-black border-secondary"><h5 class="modal-title fw-bold" id="fin_titulo">Lançamento Financeiro</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
     <div class="modal-body p-4">
         <form onsubmit="app.salvarLancamentoFinanceiro(event)">
+            <input type="hidden" id="fin_id">
             <input type="hidden" id="fin_tipo">
-            <div class="mb-3"><label class="text-white-50">Descrição / Motivo</label><input type="text" class="form-control bg-black text-white" id="fin_desc" required></div>
-            <div class="row g-3 mb-3"><div class="col-6"><label class="text-white-50">Valor Total (R$)</label><input type="number" step="0.01" class="form-control bg-black fw-bold" id="fin_valor" required></div><div class="col-6"><label class="text-white-50">Data 1º Vencimento</label><input type="date" class="form-control bg-black text-white" id="fin_data" required></div></div>
+            <div class="mb-3"><label class="text-white-50">Descrição / Motivo / Fornecedor</label><input type="text" class="form-control bg-black text-white" id="fin_desc" required></div>
+            <div class="row g-3 mb-3"><div class="col-6"><label class="text-white-50">Valor Total (R$)</label><input type="number" step="0.01" class="form-control bg-black fw-bold" id="fin_valor" required></div><div class="col-6"><label class="text-white-50">Vencimento / Baixa</label><input type="date" class="form-control bg-black text-white" id="fin_data" required></div></div>
             <div class="row g-3 mb-4">
                 <div class="col-md-6">
-                    <label class="text-white-50">Forma de Pagamento</label>
+                    <label class="text-white-50">Forma de Pagto.</label>
                     <select class="form-select bg-black text-white" id="fin_metodo" onchange="app.verificarPgtoFinManual()">
                         <option value="Pix">Pix / Transferência</option>
                         <option value="Dinheiro">Dinheiro</option>
@@ -395,6 +393,7 @@
                         <option value="Cartão de Crédito - Parcelado">Cartão Crédito (Parcelado)</option>
                         <option value="Boleto - À Vista">Boleto à Vista</option>
                         <option value="Boleto - Parcelado">Boleto Parcelado</option>
+                        <option value="Carteira Digital">Carteira Digital</option>
                     </select>
                 </div>
                 <div class="col-md-6" id="divParcelas">
@@ -403,8 +402,15 @@
                         <option value="1">1x</option><option value="2">2x</option><option value="3">3x</option><option value="4">4x</option><option value="6">6x</option><option value="12">12x</option>
                     </select>
                 </div>
+                <div class="col-md-12 mt-2" id="divStatusEdit" style="display:none;">
+                    <label class="text-white-50 fw-bold">Status do Pagamento</label>
+                    <select class="form-select bg-black text-white" id="fin_status">
+                        <option value="pendente">Pendente / Em Aberto</option>
+                        <option value="pago">Pago / Liquidado</option>
+                    </select>
+                </div>
             </div>
-            <button type="submit" class="btn w-100 py-3 fw-bold shadow-lg" id="btnSalvarFin">PROCESSAR LANÇAMENTO</button>
+            <button type="submit" class="btn w-100 py-3 fw-bold shadow-lg" id="btnSalvarFin">PROCESSAR</button>
         </form>
     </div></div></div></div>
 
@@ -419,7 +425,7 @@
                         <button type="button" class="btn-close btn-close-white ms-3" data-bs-dismiss="modal"></button>
                     </div>
                 </div>
-                <div class="modal-body p-4" id="conteudoPDF">
+                <div class="modal-body p-4">
                     <form id="formOS">
                         <input type="hidden" id="os_id">
                         <div class="row g-3 mb-4 p-4 rounded-3" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color);">
@@ -473,7 +479,7 @@
                             </div>
                             
                             <div class="tab-pane fade" id="tabChecklist">
-                                <div class="mb-4"><label class="form-label text-warning fw-bold">Solicitação / Reclamação do Cliente (Queixa Principal)</label><textarea class="form-control bg-black text-warning border-secondary" id="os_relato_cliente" rows="3" placeholder="O que o cliente reclamou que o carro/moto tem?"></textarea></div>
+                                <div class="mb-4"><label class="form-label text-warning fw-bold">Solicitação / Reclamação do Cliente (Queixa Principal)</label><textarea class="form-control bg-black text-warning border-secondary" id="os_relato_cliente" rows="3"></textarea></div>
                                 <div class="bg-black p-3 border border-secondary rounded">
                                     <h6 class="text-white-50">Checklist Visual (Marcadores de Avaria)</h6>
                                     <div class="row g-3">
@@ -519,7 +525,6 @@
         <div class="modal-dialog"><div class="modal-content bg-dark border-success"><div class="modal-header bg-black border-secondary"><h5 class="modal-title text-success fw-bold"><i class="bi bi-check-circle-fill me-2"></i> Recebimento e Entrega</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
         <div class="modal-body p-4 text-center">
             <h2 class="text-success fw-bold mb-4" id="fat_valor_total">R$ 0,00</h2>
-            
             <div class="text-start mb-3">
                 <label class="text-white-50 fw-bold">Liquidação (Como o cliente pagou?)</label>
                 <select class="form-select bg-black text-white fw-bold border-success" id="fat_metodo" onchange="app.verificarPgtoOS()">
@@ -530,16 +535,15 @@
                     <option value="Cartão de Débito">Cartão de Débito</option>
                     <option value="Boleto - À Vista">Boleto à Vista (A Prazo)</option>
                     <option value="Boleto - Parcelado">Boleto Parcelado (Crediário)</option>
+                    <option value="Carteira Digital">Carteira Digital</option>
                 </select>
             </div>
-            
             <div class="text-start mb-4" id="fat_div_parcelas" style="display:none;">
                 <label class="text-white-50 fw-bold">Títulos / Qtd. de Parcelas</label>
                 <select class="form-select bg-black border-secondary text-white" id="fat_parcelas">
-                    <option value="2x">2x</option><option value="3x">3x</option><option value="4x">4x</option><option value="5x">5x</option><option value="6x">6x</option><option value="10x">10x</option><option value="12x">12x</option><option value="30/60 Dias">30/60 Dias (2x)</option><option value="30/60/90 Dias">30/60/90 Dias (3x)</option>
+                    <option value="2x">2x</option><option value="3x">3x</option><option value="4x">4x</option><option value="5x">5x</option><option value="6x">6x</option><option value="10x">10x</option><option value="12x">12x</option>
                 </select>
             </div>
-            
             <button type="button" class="btn btn-success w-100 fw-bold fs-5 py-3 shadow-lg" onclick="app.processarFaturamentoCompleto()"><i class="bi bi-rocket-fill me-2"></i> FATURAR, BAIXAR ESTOQUE E ARQUIVAR O.S.</button>
         </div></div></div>
     </div>
