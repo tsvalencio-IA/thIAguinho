@@ -1113,10 +1113,10 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (MOTOR SÊNIOR COM AUTO-FALLBACK E ANTI-SPAM)
+// 12. CÉREBRO DA I.A. (MOTOR SÊNIOR COM AUTO-FALLBACK SEGURO)
 // =====================================================================
 app.minhaGeminiKey = null;
-app.iaEmProcessamento = false; // Trava de segurança Anti-Spam
+app.iaTrabalhando = false; // Trava Global Anti-Spam de Simultaneidade
 
 app.iniciarEscutaIA = function() {
     if(app.t_id) {
@@ -1167,57 +1167,53 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// CONECTOR DE ALTA DISPONIBILIDADE COM ROTA ALTERNATIVA
+// CONECTOR BLINDADO COM DESVIO INSTANTÂNEO DE ROTA (SEM ERRO 404)
 app.chamarGemini = async function(prompt, sysInstruction) {
     const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
     
     if(!key || key === 'null' || key === 'undefined') { 
-        app.showToast("A chave da IA não foi encontrada.", "error"); 
+        app.showToast("A chave da IA não foi encontrada no banco.", "error"); 
         return "Erro: Google Gemini API Key ausente na oficina."; 
     }
-    
-    // Função interna para executar a chamada isolada
-    const executarFetch = async (modeloName) => {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloName}:generateContent?key=${key}`, {
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                systemInstruction: { parts: [{ text: sysInstruction }] },
-                generationConfig: { temperature: 0.1 }
-            })
-        });
-        return await res.json();
+
+    const payloadOptions = {
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            systemInstruction: { parts: [{ text: sysInstruction }] },
+            generationConfig: { temperature: 0.1 }
+        })
     };
 
     try {
-        // Tenta a Rota 1: O modelo original do seu sistema admin.html
-        let data = await executarFetch('gemini-2.5-flash');
-
-        // O SEGREDO: Se a Google bloquear por Cota (429) ou modelo não encontrado (404)...
-        if (data.error && (data.error.code === 429 || data.error.code === 404)) {
-            console.warn(`[I.A] Rota primária bloqueada pela Google (Erro ${data.error.code}). Acionando Fallback Automático...`);
-            // Faz o desvio automático e transparente para a rota oficial estável sem o cliente ver o erro
-            data = await executarFetch('gemini-1.5-flash-latest');
-        }
+        // Tenta PRIMEIRO o modelo do Admin (2.5-flash)
+        let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, payloadOptions);
         
-        if (data.error) throw new Error(data.error.message);
+        // Se a Google bloquear por Simultaneidade (429) ou erro temporário...
+        if (!res.ok) {
+            console.warn("Rota 2.5-flash sobrecarregada. Acionando rota secundária 1.5-flash...");
+            // Desvia automaticamente para o modelo 1.5-flash oficial, sem sufixos bizarros.
+            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, payloadOptions);
+        }
+
+        const data = await res.json(); 
+        if(data.error) throw new Error(data.error.message);
         
         return data.candidates[0].content.parts[0].text;
-
     } catch(e) { 
-        console.error("Falha geral na IA: ", e);
-        return "A I.A. da Google está sobrecarregada ou bloqueou temporariamente a requisição. Aguarde um minuto e tente novamente. Detalhe: " + e.message; 
+        console.error(e);
+        return "A I.A. da Google bloqueou a requisição. Aguarde 1 minuto e faça a pergunta novamente sem clicar em outros botões ao mesmo tempo. Erro: " + e.message; 
     }
 };
 
 app.perguntarJarvis = async function() {
-    if(app.iaEmProcessamento) return; // Bloqueia cliques múltiplos (Anti-Spam)
+    if(app.iaTrabalhando) return; // Se o radar estiver rodando, ignora o clique
     
     const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
     if(!inp || !inp.value) return; 
     
-    app.iaEmProcessamento = true; // Ativa a trava
+    app.iaTrabalhando = true; // Trava a API
     resDiv.classList.remove('d-none'); 
     resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está analisando...';
 
@@ -1226,22 +1222,22 @@ app.perguntarJarvis = async function() {
         patio: app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => ({placa: o.placa, def: o.relatoCliente, st: o.status})) 
     };
     
-    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DE TREINAMENTO E PÁTIO: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
+    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DA OFICINA: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
     
     const resposta = await app.chamarGemini(inp.value, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
     
     inp.value = '';
-    app.iaEmProcessamento = false; // Libera a trava
+    app.iaTrabalhando = false; // Libera a API
 };
 
 app.perguntarJarvisMecanico = async function() {
-    if(app.iaEmProcessamento) return;
+    if(app.iaTrabalhando) return;
     
     const inp = document.getElementById('jarvisInputMecanico'); const resDiv = document.getElementById('jarvisRespostaMecanico');
     if(!inp || !inp.value) return; 
     
-    app.iaEmProcessamento = true;
+    app.iaTrabalhando = true;
     resDiv.classList.remove('d-none'); 
     resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando nos manuais...';
 
@@ -1252,20 +1248,24 @@ app.perguntarJarvisMecanico = async function() {
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
     
     inp.value = '';
-    app.iaEmProcessamento = false;
+    app.iaTrabalhando = false;
 };
 
 app.jarvisAnalisarRevisoes = async function() {
-    if(app.iaEmProcessamento) return;
+    if(app.iaTrabalhando) {
+        app.showToast("Aguarde a IA terminar a tarefa atual.", "warning");
+        return;
+    }
     
     const div = document.getElementById('jarvisCRMInsights'); if(!div) return;
-    app.iaEmProcessamento = true;
+    
+    app.iaTrabalhando = true;
     div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando Histórico...';
     
     const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
     if(historicoMorto.length === 0) { 
         div.innerHTML = '<span class="text-white-50">Não há registros suficientes.</span>'; 
-        app.iaEmProcessamento = false;
+        app.iaTrabalhando = false;
         return; 
     }
     
@@ -1277,5 +1277,5 @@ app.jarvisAnalisarRevisoes = async function() {
     
     const resposta = await app.chamarGemini("Analise o histórico e me dê os clientes para remarketing.", sys);
     div.innerHTML = resposta;
-    app.iaEmProcessamento = false;
+    app.iaTrabalhando = false;
 };
