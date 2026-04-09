@@ -1113,17 +1113,15 @@ app.exportarPDFMenechelli = async function() {
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH NATIVO) - BUSCA INTELIGENTE
+// 12. CÉREBRO DA I.A. (GEMINI 2.5 FLASH) - ESTRUTURA SÊNIOR OTIMIZADA
 // =====================================================================
 app.minhaGeminiKey = null;
 
 app.iniciarEscutaIA = function() {
-    // Busca a chave no Firebase tentando todos os nomes de campos possíveis
     if(app.t_id) {
         app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => { 
             if(doc.exists) {
                 const d = doc.data();
-                // O "Pulo do Gato": procura a chave em qualquer variação que o SuperAdmin novo possa estar usando
                 app.minhaGeminiKey = d.geminiKey || d.gemini || d.apiGemini || d.api_gemini || d.apiKeyGemini || null;
             }
         });
@@ -1168,9 +1166,8 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// CONECTOR EXATO DO CHEVRON USANDO systemInstruction
+// CONECTOR EXATO DO CHEVRON USANDO systemInstruction e modelo 2.5-flash
 app.chamarGemini = async function(prompt, sysInstruction) {
-    // Usa a chave do banco. Se não achar, usa a sua variável de sessão original como fallback de segurança.
     const key = app.minhaGeminiKey || sessionStorage.getItem('t_gemini');
     
     if(!key || key === 'null' || key === 'undefined') { 
@@ -1179,7 +1176,7 @@ app.chamarGemini = async function(prompt, sysInstruction) {
     }
     
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
             method: 'POST', 
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -1193,7 +1190,7 @@ app.chamarGemini = async function(prompt, sysInstruction) {
         return data.candidates[0].content.parts[0].text;
     } catch(e) { 
         console.error(e);
-        return "Erro na conexão com a Inteligência Artificial: " + e.message; 
+        return "Erro na resposta da API (Verifique limites da Cota): " + e.message; 
     }
 };
 
@@ -1203,12 +1200,17 @@ app.perguntarJarvis = async function() {
     resDiv.classList.remove('d-none'); 
     resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está analisando...';
 
-    const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
-    const dadosOS = app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => `[Placa: ${o.placa} | Veículo: ${o.veiculo} | Status: ${o.status} | Problema: ${o.relatoCliente || ''}]`).join('\n');
+    // OTIMIZAÇÃO: JSON Compresso igual ao seu admin.html para evitar o Erro 429 (Cota Excedida)
+    const ctx = { 
+        manuais: app.bancoIA.map(ia => ia.texto), 
+        patio: app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => ({placa: o.placa, def: o.relatoCliente, st: o.status})) 
+    };
     
-    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DE TREINAMENTO (RAG): ${contexto}\nCARROS NO PÁTIO: ${dadosOS}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
+    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".
+DADOS DE TREINAMENTO E PÁTIO: ${JSON.stringify(ctx)}
+Regra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
+    
     const prompt = inp.value;
-    
     const resposta = await app.chamarGemini(prompt, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
     inp.value = '';
@@ -1220,10 +1222,12 @@ app.perguntarJarvisMecanico = async function() {
     resDiv.classList.remove('d-none'); 
     resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando nos manuais...';
 
-    const contexto = app.bancoIA.map(ia => ia.texto).join('\n\n');
-    const sys = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".\nMANUAIS (RAG): ${contexto}\nRegra: Responda direto e CITE a fonte se usar um manual. Jamais invente especificações.`;
-    const prompt = inp.value;
+    const ctx = { manuais: app.bancoIA.map(ia => ia.texto) };
+    const sys = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".
+MANUAIS (RAG): ${JSON.stringify(ctx)}
+Regra: Responda direto e CITE a fonte se usar um manual. Jamais invente especificações.`;
     
+    const prompt = inp.value;
     const resposta = await app.chamarGemini(prompt, sys);
     resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
     inp.value = '';
@@ -1236,10 +1240,16 @@ app.jarvisAnalisarRevisoes = async function() {
     const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
     if(historicoMorto.length === 0) { div.innerHTML = '<span class="text-white-50">Não há registros suficientes.</span>'; return; }
     
-    const dadosParaIA = historicoMorto.map(o => `Data Faturada: ${new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR')} | Cliente: ${o.cliente} | Veículo: ${o.veiculo} | Placa: ${o.placa}`).join('\n');
-    const sys = `Gestor de Remarketing da oficina ${app.t_nome}.\nBASE:\n${dadosParaIA}\nTarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
-    const prompt = "Analise o histórico e me dê os clientes para remarketing.";
+    // OTIMIZAÇÃO: Pega só os últimos 50 registros no máximo
+    const ctx = { 
+        historico: historicoMorto.slice(-50).map(o => ({ dt: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), cli: o.cliente, pl: o.placa })) 
+    };
+
+    const sys = `Gestor de Remarketing da oficina ${app.t_nome}.
+BASE: ${JSON.stringify(ctx)}
+Tarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
     
+    const prompt = "Analise o histórico e me dê os clientes para remarketing.";
     const resposta = await app.chamarGemini(prompt, sys);
     div.innerHTML = resposta;
 };
