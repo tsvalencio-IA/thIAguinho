@@ -1100,30 +1100,39 @@ app.iaTrabalhando = false;
 app.carregarGeminiKey = async function() {
     if (!app.t_id) return null;
     try {
-        const doc = await app.db.collection('oficinas').doc(app.t_id).get();
+        // Agora a chave fica na coleção 'tenants', dentro do objeto 'apiKeys'
+        const doc = await app.db.collection('tenants').doc(app.t_id).get();
         if (doc.exists) {
             const data = doc.data();
-            // Tenta todas as variações possíveis de nome de campo para a chave
-            app.minhaGeminiKey = data.geminiKey || data.gemini || data.apiGemini || data.api_gemini || data.apiKeyGemini || data.keyGemini || data.apiKey || null;
+            // Padrão da estrutura thIAguinho: data.apiKeys.gemini
+            app.minhaGeminiKey = (data.apiKeys && data.apiKeys.gemini) ? data.apiKeys.gemini : null;
+            
+            // Fallback para outros campos caso a estrutura mude
+            if (!app.minhaGeminiKey) {
+                app.minhaGeminiKey = data.geminiKey || data.gemini || data.apiGemini || data.apiKeyGemini || data.keyGemini || data.apiKey || null;
+            }
+
             if (app.minhaGeminiKey) {
-                console.log("[IA] Chave Gemini carregada com sucesso.");
+                console.log("[IA] Chave Gemini carregada com sucesso da estrutura de tenants.");
                 return app.minhaGeminiKey;
             } else {
-                console.warn("[IA] Nenhuma chave encontrada no documento da oficina.");
+                console.warn("[IA] Nenhuma chave Gemini encontrada para esta oficina no campo apiKeys.gemini.");
             }
         } else {
-            console.error("[IA] Documento da oficina não encontrado no Firestore.");
+            console.error("[IA] Oficina (Tenant) não encontrada no Firestore para o ID:", app.t_id);
         }
-    } catch (e) { console.error("[IA] Erro ao buscar chave no Firestore:", e); }
+    } catch (e) { console.error("[IA] Erro crítico ao buscar chave no Firestore:", e); }
     return null;
 };
 
 app.iniciarEscutaIA = function() {
     if(app.t_id) {
-        app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => { 
+        // Escuta em tempo real as mudanças no documento do Tenant (incluindo a chave Gemini)
+        app.db.collection('tenants').doc(app.t_id).onSnapshot(doc => { 
             if(doc.exists) {
                 const data = doc.data();
-                app.minhaGeminiKey = data.geminiKey || data.gemini || data.apiGemini || data.api_gemini || data.apiKeyGemini || null;
+                app.minhaGeminiKey = (data.apiKeys && data.apiKeys.gemini) ? data.apiKeys.gemini : (data.geminiKey || data.gemini || null);
+                if (app.minhaGeminiKey) console.log("[IA] Chave Gemini sincronizada em tempo real.");
             }
         });
     }
