@@ -69,6 +69,30 @@
         .mecanico-only { display: none; }
         .gestao-only { display: none; }
         
+        /* Estilo Personalizado para as Abas do Prontuário para destacar a aba Ativa */
+        .nav-tabs .nav-link {
+            color: #adb5bd; /* Cor inativa */
+            border: 1px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.2s ease-in-out;
+        }
+        .nav-tabs .nav-link:hover {
+            border-color: var(--border-color) var(--border-color) transparent;
+            color: #fff;
+        }
+        .nav-tabs .nav-link.active {
+            background-color: var(--bg-card) !important; /* Fundo da aba ativa */
+            color: var(--bs-accent) !important; /* Cor do texto da aba ativa */
+            border-color: var(--border-color) var(--border-color) transparent !important;
+            font-weight: bold;
+            border-bottom: 3px solid var(--bs-accent) !important; /* Destaque inferior na aba ativa */
+        }
+        /* Garantir que as abas do financeiro também tenham um destaque claro */
+        #tela_financeiro .nav-tabs .nav-link.active {
+             border-bottom: 3px solid var(--bs-accent) !important;
+             background-color: transparent !important;
+        }
+
         .master-footer { text-align: center; padding: 15px; background: #000; border-top: 1px solid var(--border-color); color: #64748b; font-size: 0.85rem; letter-spacing: 1px; width: 100%; flex-shrink: 0;}
     </style>
 </head>
@@ -110,49 +134,36 @@
                     <div class="card border-0 bg-dark p-5 mb-4 shadow text-center position-relative overflow-hidden" style="border: 1px solid #0dcaf0 !important;">
                         <i class="bi bi-robot position-absolute opacity-10" style="font-size: 15rem; left: -20px; bottom: -40px; color: #0dcaf0;"></i>
                         <h2 class="text-info fw-bold z-1 position-relative">t.h.I.A.g.u.i.n.h.o - Inteligência Automotiva</h2>
-                        <p class="text-white-50 mb-4 fs-5 z-1 position-relative">Gestor Virtual de CRM, Estoque e Dúvidas Técnicas da sua Oficina (Powered by Gemini 2.5 Flash).</p>
+                        <p class="text-white-50 mb-4 fs-5 z-1 position-relative">Gestor Virtual de CRM, Estoque e Dúvidas Técnicas da sua Oficina.</p>
                         
                         <div class="row g-4 z-1 position-relative justify-content-center gestao-only">
                             <div class="col-md-6 text-start">
                                 <div class="bg-black p-4 rounded-4 border border-secondary h-100">
                                     <h5 class="text-warning fw-bold"><i class="bi bi-calendar-check-fill me-2"></i> Radar de Revisões (Remarketing Avançado)</h5>
-                                    <p class="text-white-50 small">A I.A. cruza o Histórico Morto e avisa quem está na hora de trocar o óleo, correia ou fazer preventivas.</p>
-                                    <button class="btn btn-outline-warning w-100 mb-3 fw-bold" onclick="app.jarvisAnalisarRevisoes()"><i class="bi bi-radar"></i> Processar Base de Clientes Agora</button>
+                                    <p class="text-white-50 small">A I.A. escaneia o Histórico Morto para encontrar clientes ideais para novas revisões preventivas.</p>
+                                    <button class="btn btn-outline-warning w-100 mb-3 fw-bold" onclick="app.jarvisAnalisarRevisoes()"><i class="bi bi-radar"></i> Rodar Radar de Clientes</button>
                                     <div id="jarvisCRMInsights" class="text-white mt-3 small" style="max-height: 200px; overflow-y: auto;"></div>
                                 </div>
                             </div>
                             <div class="col-md-6 text-start">
                                 <div class="bg-black p-4 rounded-4 border border-secondary h-100 d-flex flex-column">
-                                    <h5 class="text-info fw-bold"><i class="bi bi-chat-square-dots-fill me-2"></i> Bate-Papo com a I.A. (Consultor Técnico)</h5>
-                                    <p class="text-white-50 small">Tire dúvidas baseadas nos manuais em PDF que você treinou na aba de Conhecimento.</p>
+                                    <h5 class="text-info fw-bold"><i class="bi bi-chat-square-dots-fill me-2"></i> Bate-Papo com a I.A. (Jarvis)</h5>
+                                    <p class="text-white-50 small">Tire dúvidas técnicas baseadas nos manuais que você treinou.</p>
                                     
                                     <div id="jarvisResposta" class="text-white small bg-dark p-3 rounded border border-info flex-grow-1 d-none mb-3" style="max-height: 200px; overflow-y: auto;"></div>
                                     
-                                    <div class="input-group mt-auto shadow-lg">
+                                    <div class="input-group mt-auto">
                                         <input type="text" class="form-control bg-dark border-secondary text-white" id="jarvisInput" placeholder="Ex: Qual o torque do cabeçote do HB20?">
-                                        <button class="btn btn-info px-4 fw-bold" onclick="app.perguntarJarvis()"><i class="bi bi-send-fill text-dark me-1"></i> Enviar</button>
+                                        <button class="btn btn-info px-4" onclick="app.perguntarJarvis()"><i class="bi bi-send-fill text-dark"></i></button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        <div class="row g-4 z-1 position-relative justify-content-center mecanico-only mt-2">
-                            <div class="col-md-5 text-start">
+                        <div class="row g-4 z-1 position-relative justify-content-center mecanico-only">
+                            <div class="col-md-8 text-start">
                                 <div class="bg-black p-4 rounded-4 border border-secondary h-100 text-center">
-                                    <h5 class="text-warning fw-bold"><i class="bi bi-wallet2 me-2"></i> Minhas Comissões (Vendas Faturadas)</h5>
-                                    <h1 class="display-4 text-success fw-bold mt-4" id="kpiMinhaComissao">R$ 0,00</h1>
-                                    <p class="text-white-50 small mt-2">Comissões processadas em tempo real pelas O.S. que você executou e que já foram quitadas pelo cliente.</p>
-                                </div>
-                            </div>
-                            <div class="col-md-7 text-start">
-                                <div class="bg-black p-4 rounded-4 border border-secondary h-100 d-flex flex-column">
-                                    <h5 class="text-info fw-bold"><i class="bi bi-robot me-2"></i> Assistência I.A. de Box</h5>
-                                    <p class="text-white-50 small">Use a I.A. para descobrir o CFOP das peças, ler manuais de desmontagem e códigos de erro OBD2.</p>
-                                    <div id="jarvisRespostaMecanico" class="text-white small bg-dark p-3 rounded border border-info flex-grow-1 d-none mb-3" style="max-height: 150px; overflow-y: auto;"></div>
-                                    <div class="input-group mt-auto">
-                                        <input type="text" class="form-control bg-dark border-secondary text-white" id="jarvisInputMecanico" placeholder="Ex: O que significa o erro P0300?">
-                                        <button class="btn btn-info px-3" onclick="app.perguntarJarvisMecanico()"><i class="bi bi-search text-dark"></i></button>
-                                    </div>
+                                    <h5 class="text-warning fw-bold"><i class="bi bi-wallet2 me-2"></i> Minhas Comissões (Veículos Entregues)</h5>
+                                    <h1 class="display-3 text-success fw-bold mt-3" id="kpiMinhaComissao">R$ 0,00</h1>
                                 </div>
                             </div>
                         </div>
@@ -161,7 +172,7 @@
 
                 <div id="tela_os" class="modulo-tela h-100" style="display: none;">
                     <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-kanban me-2 text-info"></i> Pátio Ativo (O.S.)</h4>
+                        <h4 class="text-white fw-bold mb-0"><i class="bi bi-kanban me-2 text-info"></i> Pátio Ativo</h4>
                         <button class="btn btn-info fw-bold shadow-lg px-4 gestao-only" onclick="app.abrirModalOS('nova')"><i class="bi bi-plus-lg me-1"></i> Nova Recepção de Veículo</button>
                     </div>
                     <div class="kanban-board">
@@ -187,8 +198,8 @@
                     </div>
                     
                     <div class="mt-4 border-top border-secondary pt-4 admin-only">
-                        <h5 class="text-danger fw-bold mb-3"><i class="bi bi-trash3-fill me-2"></i> Lixeira de Auditoria (Chevron Antifraude)</h5>
-                        <p class="text-white-50 small">Ordens de Serviço canceladas não desaparecem. Ficam retidas aqui com a devida justificativa e tracking de utilizador.</p>
+                        <h5 class="text-danger fw-bold mb-3"><i class="bi bi-trash3-fill me-2"></i> Lixeira de Auditoria (Soft Delete)</h5>
+                        <p class="text-white-50 small">Ordens de Serviço canceladas não desaparecem. Ficam retidas aqui com a devida justificativa antifraude.</p>
                         <div class="table-responsive bg-black border border-danger rounded p-2">
                             <table class="table table-dark table-sm align-middle border-secondary mb-0">
                                 <thead><tr><th>Data Exclusão</th><th>Placa Ref.</th><th>Quem Excluiu</th><th>Motivo / Justificativa Obrigatória</th></tr></thead>
@@ -206,7 +217,7 @@
                     <div class="card bg-transparent border-0">
                         <div class="table-responsive">
                             <table class="table table-dark table-hover align-middle border-secondary shadow-sm">
-                                <thead><tr><th>Nome / Razão Social</th><th>Documento (CPF/CNPJ)</th><th>WhatsApp</th><th>Acessos (Portal do Cliente)</th><th class="gestao-only text-end">Ações</th></tr></thead>
+                                <thead><tr><th>Nome / Razão Social</th><th>Documento (CPF/CNPJ)</th><th>WhatsApp</th><th>Login do Portal</th><th class="gestao-only text-end">Ações</th></tr></thead>
                                 <tbody id="tabelaCrmCorpo"></tbody>
                             </table>
                         </div>
@@ -281,20 +292,22 @@
                         </div>
                     </div>
                     
-                    <div class="row g-2 mb-4 bg-black p-3 rounded-4 border border-secondary shadow-sm gestao-only">
-                        <div class="col-md-3">
-                            <label class="text-white-50 small fw-bold">Data Inicial</label>
-                            <input type="date" class="form-control bg-dark text-white border-secondary" id="filtroFinInicio">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="text-white-50 small fw-bold">Data Final</label>
-                            <input type="date" class="form-control bg-dark text-white border-secondary" id="filtroFinFim">
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button class="btn btn-info w-100 fw-bold" onclick="app.filtrarFinanceiro()"><i class="bi bi-funnel-fill me-1"></i> Aplicar Filtros</button>
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button class="btn btn-outline-success w-100 fw-bold" onclick="app.exportarRelatorioFinanceiro()"><i class="bi bi-file-earmark-excel-fill me-1"></i> Exportar Relatório</button>
+                    <div class="bg-black p-3 rounded-4 border border-secondary shadow-sm mb-4 gestao-only">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3 col-sm-6">
+                                <label class="text-white-50 small fw-bold mb-1">Data Inicial</label>
+                                <input type="date" class="form-control bg-dark text-white border-secondary" id="filtroFinInicio">
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <label class="text-white-50 small fw-bold mb-1">Data Final</label>
+                                <input type="date" class="form-control bg-dark text-white border-secondary" id="filtroFinFim">
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <button class="btn btn-info w-100 fw-bold" onclick="app.filtrarFinanceiro()"><i class="bi bi-funnel-fill me-1"></i> Aplicar Filtros</button>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <button class="btn btn-outline-success w-100 fw-bold" onclick="app.exportarRelatorioFinanceiro()"><i class="bi bi-file-earmark-excel-fill me-1"></i> Exportar Relatório</button>
+                            </div>
                         </div>
                     </div>
 
@@ -413,14 +426,14 @@
         <div class="modal-dialog modal-xl">
             <div class="modal-content bg-dark border-primary">
                 <div class="modal-header border-secondary bg-black">
-                    <h5 class="modal-title text-white fw-bold"><i class="bi bi-receipt me-2 text-primary"></i> Almoxarifado / Entrada de Compras</h5>
+                    <h5 class="modal-title text-white fw-bold"><i class="bi bi-receipt me-2 text-primary"></i> Almoxarifado / Gestão de Compras</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
                     <div class="p-4 bg-info bg-opacity-10 border border-info text-center rounded mb-4 shadow-sm" style="cursor: pointer; border-style: dashed;" onclick="document.getElementById('xmlFileInput').click()">
                         <i class="bi bi-filetype-xml display-5 text-info mb-2"></i><br>
                         <strong class="text-white fs-5">Importação Mágica de XML (NF-e)</strong><br>
-                        <small class="text-white-50">O sistema extrai Produtos, CFOP, NCM, Quantidades e Custos automaticamente.</small>
+                        <small class="text-white-50">O sistema lê o XML e extrai Produtos, CFOP, NCM, Quantidades e Custos automaticamente.</small>
                         <input type="file" id="xmlFileInput" accept=".xml" class="d-none" onchange="app.processarXML(event)">
                     </div>
                     
@@ -445,7 +458,7 @@
                             <div class="col-md-6" id="nf_div_parcelas">
                                 <label class="text-danger small fw-bold">Condição de Parcelamento</label>
                                 <select class="form-select bg-dark text-danger border-danger fw-bold" id="nf_parcelas">
-                                    <option value="1x">À vista / Parcela Única (1x)</option>
+                                    <option value="1x">À vista / Peça Única (1x)</option>
                                     <option value="2x">2x Parcelas Mensais</option>
                                     <option value="3x">3x Parcelas Mensais</option>
                                     <option value="4x">4x Parcelas Mensais</option>
@@ -455,8 +468,8 @@
                         </div>
 
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="text-white mb-0"><i class="bi bi-box me-2"></i> Relação de Itens e Peças</h6>
-                            <button type="button" class="btn btn-sm btn-outline-info fw-bold shadow-sm" onclick="app.adicionarLinhaNF()"><i class="bi bi-plus-lg"></i> Adicionar Linha Manual</button>
+                            <h6 class="text-white mb-0"><i class="bi bi-box me-2"></i> Relação de Itens / Peças</h6>
+                            <button type="button" class="btn btn-sm btn-outline-info fw-bold shadow-sm" onclick="app.adicionarLinhaNF()"><i class="bi bi-plus-lg"></i> Inserir Peça Manualmente</button>
                         </div>
                         
                         <div class="table-responsive bg-black border border-secondary p-2 rounded mb-4 shadow-inner">
@@ -533,16 +546,16 @@
 
                         <ul class="nav nav-tabs border-secondary mb-4" id="prontuarioTabs" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active bg-transparent text-info fw-bold border-secondary border-bottom-0 px-4" id="laudo-tab" data-bs-toggle="tab" data-bs-target="#tabLaudo" type="button" role="tab" aria-controls="tabLaudo" aria-selected="true"><i class="bi bi-camera me-2"></i> Laudo e Fotos</button>
+                                <button class="nav-link active" id="laudo-tab" data-bs-toggle="tab" data-bs-target="#tabLaudo" type="button" role="tab" aria-controls="tabLaudo" aria-selected="true"><i class="bi bi-camera me-2"></i> Laudo e Fotos</button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link bg-transparent text-white-50 border-secondary border-bottom-0 px-4" id="check-tab" data-bs-toggle="tab" data-bs-target="#tabChecklist" type="button" role="tab" aria-controls="tabChecklist" aria-selected="false"><i class="bi bi-ui-checks me-2"></i> Queixa & Checklist</button>
+                                <button class="nav-link" id="check-tab" data-bs-toggle="tab" data-bs-target="#tabChecklist" type="button" role="tab" aria-controls="tabChecklist" aria-selected="false"><i class="bi bi-ui-checks me-2"></i> Queixa & Checklist</button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link bg-transparent text-warning fw-bold border-secondary border-bottom-0 px-4" id="pecas-tab" data-bs-toggle="tab" data-bs-target="#tabPecas" type="button" role="tab" aria-controls="tabPecas" aria-selected="false"><i class="bi bi-tools me-2"></i> Orçamento Fiscal (R$)</button>
+                                <button class="nav-link" id="pecas-tab" data-bs-toggle="tab" data-bs-target="#tabPecas" type="button" role="tab" aria-controls="tabPecas" aria-selected="false"><i class="bi bi-tools me-2"></i> Orçamento Fiscal (R$)</button>
                             </li>
                             <li class="nav-item" role="presentation" data-html2canvas-ignore>
-                                <button class="nav-link bg-transparent text-success fw-bold border-secondary border-bottom-0 px-4" id="hist-tab" data-bs-toggle="tab" data-bs-target="#tabHistorico" type="button" role="tab" aria-controls="tabHistorico" aria-selected="false"><i class="bi bi-shield-check me-2"></i> Histórico / Auditoria</button>
+                                <button class="nav-link" id="hist-tab" data-bs-toggle="tab" data-bs-target="#tabHistorico" type="button" role="tab" aria-controls="tabHistorico" aria-selected="false"><i class="bi bi-shield-check me-2"></i> Histórico / Auditoria</button>
                             </li>
                         </ul>
 
@@ -579,19 +592,29 @@
 
                             <div class="tab-pane fade" id="tabPecas" role="tabpanel" aria-labelledby="pecas-tab">
                                 <div class="d-flex gap-2 mb-4 gestao-only" data-html2canvas-ignore>
-                                    <select class="form-select bg-dark text-white border-secondary p-3" id="selectProdutoEstoque"><option value="">Buscar peça no Estoque Físico ou NFs lançadas...</option></select>
+                                    <select class="form-select bg-dark text-white border-secondary p-3" id="selectProdutoEstoque"><option value="">Buscar peça vinculada no Estoque Físico...</option></select>
                                     <button type="button" class="btn btn-primary fw-bold text-nowrap px-4 shadow" onclick="app.adicionarDoEstoque()"><i class="bi bi-download me-1"></i> Puxar Item</button>
                                 </div>
                                 <button type="button" class="btn btn-outline-info fw-bold mb-3 text-nowrap px-4" onclick="app.adicionarMaoDeObra()" data-html2canvas-ignore><i class="bi bi-person-workspace me-1"></i> Inserir Mão de Obra (Serviço)</button>
                                 
                                 <div class="table-responsive bg-black border border-secondary p-2 rounded-3 shadow-inner">
                                     <table class="table table-dark table-sm align-middle mb-0" id="tabelaPecas">
-                                        <thead><tr><th class="ps-3 py-2">Descrição (Peça ou Serviço)</th><th width="100">NCM/CFOP</th><th width="90">Qtd</th><th class="gestao-only" width="130">Custo Base</th><th width="140">Vlr Venda</th><th width="140">Subtotal</th><th width="50" data-html2canvas-ignore></th></tr></thead>
+                                        <thead>
+                                            <tr>
+                                                <th class="ps-3 py-2">Descrição (Peça ou Serviço)</th>
+                                                <th width="100">NCM/CFOP</th>
+                                                <th width="90">Qtd</th>
+                                                <th class="gestao-only" width="130">Custo/Un</th>
+                                                <th width="140">Venda/Un</th>
+                                                <th width="140">Total(R$)</th>
+                                                <th width="50" data-html2canvas-ignore></th>
+                                            </tr>
+                                        </thead>
                                         <tbody id="listaPecasCorpo"></tbody>
                                     </table>
                                 </div>
                                 <div class="text-end mt-4 p-3 bg-dark rounded-4 border border-success d-inline-block float-end shadow-lg">
-                                    <h3 class="text-white mb-0 fs-5">Valor Orçamento: <span class="text-success fw-bold ms-3 display-6" id="os_total_geral">R$ 0,00</span></h3>
+                                    <h3 class="text-white mb-0 fs-5">Valor Total do Orçamento: <span class="text-success fw-bold ms-3 display-6" id="os_total_geral">R$ 0,00</span></h3>
                                 </div>
                                 <div class="clearfix"></div>
                             </div>
@@ -599,7 +622,7 @@
                             <div class="tab-pane fade" id="tabHistorico" role="tabpanel" aria-labelledby="hist-tab" data-html2canvas-ignore>
                                 <div class="p-4 bg-black rounded-4 border border-secondary shadow-inner" style="min-height: 300px;">
                                     <h5 class="text-white border-bottom border-secondary pb-3 mb-4"><i class="bi bi-clock-history text-success me-2"></i> Trilha de Auditoria (Timeline Imutável)</h5>
-                                    <p class="text-white-50 small mb-4">Todas as interações, aprovações, orçamentos e alterações de status são registradas com a assinatura do usuário (dia e hora), garantindo segurança total da oficina.</p>
+                                    <p class="text-white-50 small mb-4">Todas as interações, orçamentos e alterações de status são registradas com a assinatura do usuário (dia e hora), garantindo segurança total.</p>
                                     <ul class="timeline text-white-50" id="listaHistorico"></ul>
                                 </div>
                             </div>
@@ -648,7 +671,7 @@
                         </select>
                     </div>
                     
-                    <button type="button" class="btn btn-success w-100 fw-bold fs-5 py-4 shadow-lg" onclick="app.processarFaturamentoCompleto()"><i class="bi bi-rocket-fill me-2"></i> CONFIRMAR PAGTO, BAIXAR ESTOQUE E ARQUIVAR O.S.</button>
+                    <button type="button" class="btn btn-success w-100 fw-bold fs-5 py-4 shadow-lg" onclick="app.processarFaturamentoCompleto()"><i class="bi bi-rocket-fill me-2"></i> CONFIRMAR PAGTO E ARQUIVAR O.S.</button>
                 </div>
             </div>
         </div>
@@ -667,7 +690,7 @@
                         <input type="hidden" id="fin_tipo">
                         
                         <div class="mb-3">
-                            <label class="text-white-50 small fw-bold">Descrição / Fornecedor / Origem da Operação</label>
+                            <label class="text-white-50 small fw-bold">Descrição / Fornecedor / Cliente / Origem</label>
                             <input type="text" class="form-control bg-black text-white fw-bold" id="fin_desc" required>
                         </div>
                         
