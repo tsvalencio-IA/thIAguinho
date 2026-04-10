@@ -15,7 +15,7 @@ app.firebaseConfig = {
 if (!firebase.apps.length) firebase.initializeApp(app.firebaseConfig);
 app.db = firebase.firestore();
 
-// Credenciais dinâmicas
+// Credenciais dinâmicas ESTABELECIDAS (NÃO ALTERAR)
 app.CLOUDINARY_CLOUD_NAME = sessionStorage.getItem('t_cloudName') || 'dmuvm1o6m'; 
 app.CLOUDINARY_UPLOAD_PRESET = sessionStorage.getItem('t_cloudPreset') || 'evolution'; 
 app.t_id = sessionStorage.getItem('t_id');
@@ -25,1285 +25,1542 @@ app.user_nome = sessionStorage.getItem('f_nome');
 app.user_comissao_mo = parseFloat(sessionStorage.getItem('f_comissao') || 0); 
 app.user_comissao_pecas = parseFloat(sessionStorage.getItem('f_comissao_pecas') || 0);
 
-if (!app.t_id) window.location.replace('index.html');
-
-// Bancos de Dados Locais na Memória
+// Variáveis Globais de Estado
+app.bancoOS = [];
 app.bancoOSCompleto = [];
+app.bancoClientes = [];
 app.bancoEstoque = [];
-app.bancoFin = [];
-app.bancoCrm = [];
+app.bancoFinanceiro = [];
 app.bancoIA = [];
-app.bancoMensagens = [];
-app.bancoAuditoria = [];
-app.bancoEquipe = []; 
-app.bancoVales = [];
-app.fotosOSAtual = [];
-app.historicoOSAtual = [];
-app.chatActiveClienteId = null;
-app.osParaFaturar = null;
-
-app.filtroFinDataInicio = null;
-app.filtroFinDataFim = null;
-app.bancoFinFiltrado = [];
+app.equipe = [];
+app.chatClienteAtual = null;
+app.osAtual = null;
 
 // =====================================================================
-// MOTOR DE AUDITORIA GLOBAL (PADRÃO CHEVRON B2B)
-// =====================================================================
-app.registrarAuditoriaGlobal = async function(modulo, acaoRealizada) {
-    try {
-        await app.db.collection('lixeira_auditoria').add({
-            tenantId: app.t_id,
-            apagadoEm: new Date().toISOString(),
-            apagadoPor: app.user_nome,
-            placaOriginal: modulo,
-            motivo: acaoRealizada
-        });
-    } catch(e) { console.error("Erro ao registrar auditoria: ", e); }
-};
-
-// =====================================================================
-// 2. INICIALIZAÇÃO DA INTERFACE (RBAC) E NAVEGAÇÃO
+// 2. INICIALIZAÇÃO E CONTROLE DE ACESSO (RBAC)
 // =====================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    const lblEmpresa = document.getElementById('lblEmpresa'); if(lblEmpresa) lblEmpresa.innerText = app.t_nome;
-    const lblUsuario = document.getElementById('lblUsuario'); if(lblUsuario) lblUsuario.innerText = app.user_nome;
+    if (!app.t_id) { window.location.href = 'index.html'; return; }
     
-    // Controle de Acesso Dinâmico (RBAC)
-    const style = document.createElement('style');
-    if (app.t_role === 'equipe') {
-        style.innerHTML = '.admin-only, .gestao-only { display: none !important; } .mecanico-only { display: flex !important; display: block !important; }';
-        const lblCom = document.getElementById('lblComissaoUser');
-        if(lblCom) lblCom.innerText = `Mecânico (MO: ${app.user_comissao_mo}% | Pç: ${app.user_comissao_pecas}%)`;
-    } else if (app.t_role === 'gerente') {
-        style.innerHTML = '.admin-only, .mecanico-only { display: none !important; } .gestao-only { display: block !important; display: inline-block !important; } tr .gestao-only, th.gestao-only, td.gestao-only { display: table-cell !important; }';
-        const lblCom = document.getElementById('lblComissaoUser');
-        if(lblCom) lblCom.innerText = `Gestor / Vendedor`;
-    } else {
-        style.innerHTML = '.mecanico-only { display: none !important; } .gestao-only, .admin-only { display: block !important; display: inline-block !important; } tr .gestao-only, th.gestao-only, td.gestao-only { display: table-cell !important; }';
-        const lblCom = document.getElementById('lblComissaoUser');
-        if(lblCom) lblCom.innerText = `Admin Proprietário`;
-    }
-    document.head.appendChild(style);
-
-    app.construirMenuLateral();
-    const linkInicio = document.querySelector('.nav-sidebar .nav-link');
-    if(linkInicio) app.mostrarTela('tela_jarvis', 'thIAguinho Inteligência Automotiva', linkInicio);
+    document.getElementById('lblEmpresa').innerText = app.t_nome;
+    document.getElementById('lblUsuario').innerText = app.user_nome || 'Gestor Master';
     
-    // FIX-03: Recarrega comissao_pecas do banco se não veio no sessionStorage
-    if(app.t_role === 'equipe' && sessionStorage.getItem('f_id')) {
-        app.db.collection('funcionarios').doc(sessionStorage.getItem('f_id')).get().then(doc => {
-            if(doc.exists) {
-                const d = doc.data();
-                app.user_comissao_pecas = parseFloat(d.comissao_pecas || 0);
-                app.user_comissao_mo = parseFloat(d.comissao || 0);
-                sessionStorage.setItem('f_comissao_pecas', app.user_comissao_pecas);
-                sessionStorage.setItem('f_comissao', app.user_comissao_mo);
-                const lblCom = document.getElementById('lblComissaoUser');
-                if(lblCom) lblCom.innerText = `Mecânico (MO: ${app.user_comissao_mo}% | Pç: ${app.user_comissao_pecas}%)`;
-            }
-        });
-    }
-
-    app.iniciarEscutaOS();
-    app.iniciarEscutaCrm();
-    app.iniciarEscutaMensagens();
-    app.iniciarEscutaMensagensInternas();
-    app.iniciarEscutaEquipeInternaParaBox();
-    app.iniciarEscutaIA();
+    app.aplicarRBAC();
+    app.montarMenu();
+    app.iniciarEscutasGlobais();
     
-    if(app.t_role === 'admin' || app.t_role === 'gerente') {
-        app.iniciarEscutaEstoque();
-        app.iniciarEscutaFinanceiro();
-        app.iniciarEscutaValesRH();
-    }
-    if(app.t_role === 'admin') {
-        app.iniciarEscutaLixeira();
-    }
-    app.configurarCloudinary();
-
-    // FIX-07: Enter no input do Jarvis
-    const jarvisInp = document.getElementById('jarvisInput');
-    if(jarvisInp) jarvisInp.addEventListener('keydown', function(e) {
-        if(e.key === 'Enter') { e.preventDefault(); app.perguntarJarvis(); }
-    });
+    // Mostra o Dashboard (Pátio) por padrão
+    app.navegar('tela_os', 'Dashboard Pátio');
 });
 
-app.iniciarEscutaEquipeInternaParaBox = function() {
-    app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoEquipe = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        app.renderizarEquipeRH();
-    });
+app.sair = function() {
+    sessionStorage.clear();
+    window.location.href = 'index.html';
 };
 
-app.iniciarEscutaValesRH = function() {
-    app.db.collection('vales_rh').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoVales = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        app.renderizarEquipeRH();
-    });
-};
-
-// =====================================================================
-// TOASTS DESTRUTIVOS (Resolve o bug da tela travada)
-// =====================================================================
-app.showToast = function(msg, type='success') {
-    const bg = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-warning text-dark';
-    const icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill';
-    
-    const wrap = document.createElement('div');
-    wrap.innerHTML = `<div class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-3" role="alert" aria-live="assertive" aria-atomic="true" style="transition: opacity 0.5s ease;">
-                        <div class="d-flex">
-                            <div class="toast-body fw-bold"><i class="bi ${icon} me-2"></i> ${msg}</div>
-                            <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.parentElement.parentElement.remove()"></button>
-                        </div>
-                      </div>`;
-                      
-    const toastEl = wrap.firstElementChild;
+app.showToast = function(msg, tipo = 'info') {
     const container = document.getElementById('toastContainer');
-    if (container) {
-        container.appendChild(toastEl);
-        // Auto-destruição após 4 segundos
-        setTimeout(() => {
-            toastEl.style.opacity = '0';
-            setTimeout(() => toastEl.remove(), 500);
-        }, 4000);
+    if (!container) return;
+    const bg = tipo === 'success' ? 'bg-success' : (tipo === 'error' ? 'bg-danger' : (tipo === 'warning' ? 'bg-warning text-dark' : 'bg-info text-dark'));
+    const toastHtml = `
+        <div class="toast align-items-center ${bg} text-white border-0 mb-2 shadow" role="alert" aria-live="assertive" aria-atomic="true" style="opacity:1; display:block; min-width:250px;">
+            <div class="d-flex">
+                <div class="toast-body fw-bold">${msg}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.parentElement.parentElement.remove()"></button>
+            </div>
+        </div>`;
+    container.insertAdjacentHTML('beforeend', toastHtml);
+    const elements = container.querySelectorAll('.toast');
+    const newToast = elements[elements.length - 1];
+    setTimeout(() => { if (newToast) newToast.remove(); }, 4000);
+};
+
+app.aplicarRBAC = function() {
+    const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
+    
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? 'block' : 'none');
+    document.querySelectorAll('.gestao-only').forEach(el => el.style.display = isAdmin ? 'block' : 'none');
+    document.querySelectorAll('.mecanico-only').forEach(el => el.style.display = !isAdmin ? 'block' : 'none');
+    
+    if(!isAdmin && document.getElementById('lblComissaoUser')) {
+        document.getElementById('lblComissaoUser').innerText = `Comissão: ${app.user_comissao_mo}% (M.O) | ${app.user_comissao_pecas}% (Peças)`;
     }
 };
 
-app.sair = function() { sessionStorage.clear(); window.location.href = 'index.html'; };
-
-app.construirMenuLateral = function() {
-    const menu = document.getElementById('menuLateral'); if (!menu) return;
-    let html = `<a class="nav-link active" onclick="app.mostrarTela('tela_jarvis', 'Central thIAguinho', this)"><i class="bi bi-robot"></i> Central thIAguinho (I.A)</a>`;
-    html += `<a class="nav-link" onclick="app.mostrarTela('tela_os', 'Pátio Kanban', this)"><i class="bi bi-kanban text-info"></i> Pátio Kanban (O.S)</a>`;
-    html += `<a class="nav-link" onclick="app.mostrarTela('tela_arquivo', 'Arquivo Morto', this); app.renderizarTabelaArquivo();"><i class="bi bi-archive text-warning"></i> Arquivo Morto / Entregues</a>`;
-    html += `<a class="nav-link" onclick="app.mostrarTela('tela_chat_interno', 'Chat Equipe', this)"><i class="bi bi-headset text-warning"></i> Chat Equipe Interna</a>`;
+app.montarMenu = function() {
+    const menu = document.getElementById('menuLateral');
+    const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
     
-    if (app.t_role === 'admin' || app.t_role === 'gerente') {
-        html += `<a class="nav-link" onclick="app.mostrarTela('tela_crm', 'Base CRM', this)"><i class="bi bi-person-vcard text-info"></i> CRM e Clientes</a>`;
-        html += `<a class="nav-link" onclick="app.mostrarTela('tela_chat', 'Chat CRM Global', this)"><i class="bi bi-chat-dots-fill text-primary"></i> Chat Global c/ Cliente <span id="chatBadgeGlobal" class="badge bg-danger badge-nav d-none">0</span></a>`;
-        html += `<a class="nav-link" onclick="app.mostrarTela('tela_estoque', 'Armazém / Estoque', this)"><i class="bi bi-box-seam text-primary"></i> Estoque Físico e NFs</a>`;
-        html += `<a class="nav-link" onclick="app.mostrarTela('tela_financeiro', 'DRE e Caixas', this)"><i class="bi bi-bank text-success"></i> Financeiro / DRE</a>`;
-        html += `<a class="nav-link" onclick="app.mostrarTela('tela_equipe', 'Gestão de RH e Equipe', this); app.renderizarEquipeRH();"><i class="bi bi-people-fill text-success"></i> Equipe e RH</a>`;
-    }
-    if (app.t_role === 'admin') {
-        html += `<a class="nav-link" onclick="app.mostrarTela('tela_ia', 'Treinamento I.A.', this)"><i class="bi bi-database-fill-up text-warning"></i> Base RAG / Manuais I.A.</a>`;
+    let html = `
+        <a class="nav-link active" onclick="app.navegar('tela_os', 'Dashboard Pátio', this)"><i class="bi bi-kanban"></i> Pátio Ativo (O.S)</a>
+        <a class="nav-link" onclick="app.navegar('tela_jarvis', 'Inteligência Automotiva', this)"><i class="bi bi-robot text-info"></i> Assistente J.A.R.V.I.S</a>
+        <a class="nav-link" onclick="app.navegar('tela_chat_interno', 'Comunicação da Equipe', this)"><i class="bi bi-headset text-warning"></i> Chat Interno</a>
+    `;
+    
+    if(isAdmin) {
+        html += `
+            <a class="nav-link" onclick="app.navegar('tela_chat', 'Atendimento aos Clientes', this)"><i class="bi bi-chat-dots"></i> Chat c/ Clientes</a>
+            <a class="nav-link" onclick="app.navegar('tela_crm', 'Base de Clientes', this)"><i class="bi bi-people"></i> CRM / Clientes</a>
+            <a class="nav-link" onclick="app.navegar('tela_estoque', 'Gestão de Estoque', this)"><i class="bi bi-box-seam"></i> Estoque e Compras</a>
+            <a class="nav-link text-success" onclick="app.navegar('tela_financeiro', 'DRE e Financeiro', this)"><i class="bi bi-bank"></i> Fluxo de Caixa / DRE</a>
+            <a class="nav-link" onclick="app.navegar('tela_equipe', 'RH e Pagamentos', this)"><i class="bi bi-person-badge"></i> Equipe e RH</a>
+            <a class="nav-link text-warning" onclick="app.navegar('tela_arquivo', 'Histórico de O.S.', this)"><i class="bi bi-archive"></i> Arquivo Morto</a>
+            <a class="nav-link text-info" onclick="app.navegar('tela_ia', 'Base de Conhecimento RAG', this)"><i class="bi bi-database-fill-up"></i> Treinamento IA (RAG)</a>
+        `;
     }
     menu.innerHTML = html;
 };
 
-app.mostrarTela = function(id, titulo, btn) {
+app.navegar = function(telaId, titulo, elementoClicado = null) {
     document.querySelectorAll('.modulo-tela').forEach(t => t.style.display = 'none');
-    const tela = document.getElementById(id); if(tela) tela.style.display = 'block';
-    const hTitulo = document.getElementById('tituloPagina'); if(hTitulo) hTitulo.innerText = titulo;
-    if(btn) { document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
-};
-
-// =====================================================================
-// 3. CRM E INTEGRAÇÃO PORTAL DO CLIENTE
-// =====================================================================
-app.buscarCEP = function(cep) {
-    cep = cep.replace(/\D/g, ''); if(cep.length !== 8) return;
-    fetch(`https://viacep.com.br/ws/${cep}/json/`).then(res => res.json()).then(data => {
-        if(!data.erro) {
-            if(document.getElementById('c_rua')) document.getElementById('c_rua').value = data.logradouro;
-            if(document.getElementById('c_bairro')) document.getElementById('c_bairro').value = data.bairro;
-            if(document.getElementById('c_cidade')) document.getElementById('c_cidade').value = data.localidade;
-        }
-    });
-};
-
-app.validarDocUI = function(input) {
-    const val = input.value.replace(/\D/g, '');
-    if(val.length > 0) { input.classList.remove('border-danger'); input.classList.add('border-success'); }
-};
-
-app.iniciarEscutaCrm = function() {
-    app.db.collection('clientes_base').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoCrm = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const tb = document.getElementById('tabelaCrmCorpo');
-        if(tb) {
-            tb.innerHTML = app.bancoCrm.map(c => `<tr><td><strong class="text-white">${c.nome}</strong></td><td>${c.documento||'-'}</td><td>${c.telefone}</td><td class="text-info">${c.usuario || 'S/Acesso'}</td><td class="gestao-only text-end"><button class="btn btn-sm btn-outline-info me-1 border-0 shadow-sm" onclick="app.abrirModalCRM('edit', '${c.id}')"><i class="bi bi-pencil"></i> Editar</button><button class="btn btn-sm btn-outline-danger border-0 admin-only shadow-sm" onclick="app.apagarCliente('${c.id}')"><i class="bi bi-trash"></i></button></td></tr>`).join('');
-        }
-        const list = document.getElementById('listaClientesCRM');
-        if(list) list.innerHTML = app.bancoCrm.map(c => `<option value="${c.nome}" data-id="${c.id}">Tel: ${c.telefone}</option>`).join('');
-        app.renderListaChatCRM();
-    });
-};
-
-app.abrirModalCRM = function(mode = 'nova', id = '') {
-    const frm = document.getElementById('formCrm'); if(frm) frm.reset();
-    if(document.getElementById('crm_id')) document.getElementById('crm_id').value = '';
-    if(document.getElementById('c_pass')) document.getElementById('c_pass').value = Math.random().toString(36).slice(-6);
+    const tela = document.getElementById(telaId);
+    if(tela) tela.style.display = 'block';
     
-    if(mode === 'edit') {
-        const c = app.bancoCrm.find(x => x.id === id);
-        if(c) {
-            if(document.getElementById('crm_id')) document.getElementById('crm_id').value = c.id; 
-            if(document.getElementById('c_nome')) document.getElementById('c_nome').value = c.nome || ''; 
-            if(document.getElementById('c_tel')) document.getElementById('c_tel').value = c.telefone || ''; 
-            if(document.getElementById('c_doc')) document.getElementById('c_doc').value = c.documento || ''; 
-            if(document.getElementById('c_email')) document.getElementById('c_email').value = c.email || '';
-            if(document.getElementById('c_cep')) document.getElementById('c_cep').value = c.cep || ''; 
-            if(document.getElementById('c_rua')) document.getElementById('c_rua').value = c.rua || '';
-            if(document.getElementById('c_num')) document.getElementById('c_num').value = c.num || ''; 
-            if(document.getElementById('c_bairro')) document.getElementById('c_bairro').value = c.bairro || '';
-            if(document.getElementById('c_cidade')) document.getElementById('c_cidade').value = c.cidade || '';
-            if(document.getElementById('c_user')) document.getElementById('c_user').value = c.usuario || ''; 
-            if(document.getElementById('c_pass')) document.getElementById('c_pass').value = c.senha || ''; 
-            if(document.getElementById('c_notas')) document.getElementById('c_notas').value = c.anotacoes || '';
+    document.getElementById('tituloPagina').innerText = titulo;
+    
+    if(elementoClicado) {
+        document.querySelectorAll('.nav-sidebar .nav-link').forEach(l => l.classList.remove('active'));
+        elementoClicado.classList.add('active');
+    }
+    
+    if (window.innerWidth < 992) {
+        document.getElementById('sidebar').classList.add('collapsed');
+    }
+    
+    // Traz a chave do LocalStorage pro input visual caso abra a tela de IA
+    if(telaId === 'tela_ia') {
+        const keyLocal = localStorage.getItem('gemini_local_' + app.t_id);
+        if(keyLocal) document.getElementById('localGeminiKey').value = keyLocal;
+    }
+};
+
+app.filtrarGlobal = function() {
+    const termo = document.getElementById('buscaGeral').value.toLowerCase();
+    
+    // Pátio
+    document.querySelectorAll('.os-card').forEach(card => {
+        const texto = card.innerText.toLowerCase();
+        card.style.display = texto.includes(termo) ? 'block' : 'none';
+    });
+    
+    // Arquivo Morto
+    document.querySelectorAll('#tabelaArquivoCorpo tr').forEach(tr => {
+        const texto = tr.innerText.toLowerCase();
+        tr.style.display = texto.includes(termo) ? '' : 'none';
+    });
+    
+    // CRM
+    document.querySelectorAll('#tabelaCrmCorpo tr').forEach(tr => {
+        const texto = tr.innerText.toLowerCase();
+        tr.style.display = texto.includes(termo) ? '' : 'none';
+    });
+    
+    // Estoque
+    document.querySelectorAll('#tabelaEstoqueCorpo tr').forEach(tr => {
+        const texto = tr.innerText.toLowerCase();
+        tr.style.display = texto.includes(termo) ? '' : 'none';
+    });
+};
+
+app.iniciarEscutasGlobais = function() {
+    // Escuta Clientes (CRM)
+    app.db.collection('clientes_base').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        app.bancoClientes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        app.renderizarTabelaCRM();
+        app.atualizarDatalistClientes();
+        app.renderizarListaChatClientes();
+    });
+
+    // Escuta Equipe
+    app.carregarEquipe();
+
+    // Escuta Ordens de Serviço Ativas
+    app.db.collection('ordens_servico').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        app.bancoOSCompleto = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        app.bancoOS = app.bancoOSCompleto.filter(os => os.status !== 'entregue' && os.status !== 'cancelada');
+        app.renderizarKanban();
+        app.renderizarArquivoMorto();
+        app.calcularKPIsMecanico();
+    });
+
+    // Escuta Lixeira de O.S (Auditoria Soft Delete)
+    app.db.collection('ordens_servico_apagadas').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        const tbody = document.getElementById('tabelaLixeiraCorpo');
+        if(!tbody) return;
+        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="4" class="text-center text-white-50">Lixeira vazia.</td></tr>'; return; }
+        tbody.innerHTML = snap.docs.map(doc => {
+            const d = doc.data();
+            return `<tr><td>${new Date(d.dataExclusao).toLocaleString('pt-BR')}</td><td class="fw-bold text-warning">${d.placa}</td><td>${d.usuarioQueApagou}</td><td class="text-white-50">${d.motivoExclusao}</td></tr>`;
+        }).join('');
+    });
+
+    // Escuta Estoque
+    app.db.collection('estoque').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        app.bancoEstoque = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        app.renderizarEstoque();
+        app.atualizarSelectEstoqueOS();
+    });
+
+    // Escuta Financeiro
+    app.db.collection('financeiro').where('tenantId', '==', app.t_id).onSnapshot(snap => {
+        app.bancoFinanceiro = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        app.filtrarFinanceiro();
+    });
+
+    // Escuta Mensagens Globais do Chat
+    app.db.collection('mensagens').where('tenantId', '==', app.t_id).onSnapshot(() => {
+        app.renderizarListaChatClientes();
+        if(app.chatClienteAtual) app.abrirChatCliente(app.chatClienteAtual.id, app.chatClienteAtual.nome);
+    });
+    
+    // Escuta Chat Interno Equipe
+    app.db.collection('chat_interno').where('tenantId', '==', app.t_id).orderBy('timestamp', 'asc').onSnapshot(snap => {
+        const cx = document.getElementById('chatAreaMsgInterno');
+        if(!cx) return;
+        if(snap.empty) { cx.innerHTML = '<div class="text-center text-white-50 my-auto">Nenhuma mensagem da equipe ainda.</div>'; return; }
+        
+        cx.innerHTML = snap.docs.map(doc => {
+            const m = doc.data();
+            const isAdmin = m.role === 'admin' || m.role === 'gerente';
+            const cssCor = isAdmin ? 'text-info fw-bold' : 'text-warning';
+            const dataHora = m.timestamp ? new Date(m.timestamp.toDate()).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '';
+            return `<div class="mb-3 border-bottom border-secondary pb-2"><small class="${cssCor} me-2">${m.nome}</small><small class="text-white-50" style="font-size:0.7rem;">${dataHora}</small><div class="text-white mt-1">${m.text}</div></div>`;
+        }).join('');
+        cx.scrollTop = cx.scrollHeight;
+    });
+
+    app.iniciarEscutaIA();
+};
+
+app.tocarAlerta = function() {
+    const audio = document.getElementById('audioAlerta');
+    if(audio) audio.play().catch(e => console.log('Áudio bloqueado pelo navegador.'));
+};
+
+// =====================================================================
+// 3. CRM E PORTAL WEB
+// =====================================================================
+app.abrirModalCRM = function(tipo, id = null) {
+    const form = document.getElementById('formCrm');
+    form.reset();
+    document.getElementById('crm_id').value = '';
+    
+    if (tipo === 'nova') {
+        const passGerada = Math.floor(100000 + Math.random() * 900000).toString();
+        document.getElementById('c_pass').value = passGerada;
+    } else if (tipo === 'editar' && id) {
+        const cliente = app.bancoClientes.find(c => c.id === id);
+        if(cliente) {
+            document.getElementById('crm_id').value = cliente.id;
+            document.getElementById('c_nome').value = cliente.nome || '';
+            document.getElementById('c_doc').value = cliente.documento || '';
+            document.getElementById('c_tel').value = cliente.telefone || '';
+            document.getElementById('c_email').value = cliente.email || '';
+            document.getElementById('c_cep').value = cliente.cep || '';
+            document.getElementById('c_rua').value = cliente.rua || '';
+            document.getElementById('c_num').value = cliente.numero || '';
+            document.getElementById('c_bairro').value = cliente.bairro || '';
+            document.getElementById('c_cidade').value = cliente.cidade || '';
+            document.getElementById('c_user').value = cliente.usuario || '';
+            document.getElementById('c_pass').value = cliente.senha || '';
+            document.getElementById('c_notas').value = cliente.notas || '';
         }
     }
-    const modal = document.getElementById('modalCrm'); if(modal) new bootstrap.Modal(modal).show();
+    new bootstrap.Modal(document.getElementById('modalCrm')).show();
 };
 
 app.salvarClienteCRM = async function(e) {
     e.preventDefault();
-    const idField = document.getElementById('crm_id'); const id = idField ? idField.value : '';
-    const docElem = document.getElementById('c_doc'); const docValue = docElem ? docElem.value.replace(/\D/g, '') : '';
-    const nomeCli = document.getElementById('c_nome') ? document.getElementById('c_nome').value : '';
+    const id = document.getElementById('crm_id').value;
+    const nome = document.getElementById('c_nome').value;
+    const user = document.getElementById('c_user').value;
     
-    const payload = { 
-        tenantId: app.t_id, nome: nomeCli, telefone: document.getElementById('c_tel') ? document.getElementById('c_tel').value : '', 
-        documento: docValue, email: document.getElementById('c_email') ? document.getElementById('c_email').value : '',
-        cep: document.getElementById('c_cep') ? document.getElementById('c_cep').value : '', rua: document.getElementById('c_rua') ? document.getElementById('c_rua').value : '', 
-        num: document.getElementById('c_num') ? document.getElementById('c_num').value : '', bairro: document.getElementById('c_bairro') ? document.getElementById('c_bairro').value : '', 
-        cidade: document.getElementById('c_cidade') ? document.getElementById('c_cidade').value : '', usuario: document.getElementById('c_user') ? document.getElementById('c_user').value.trim() : '', 
-        senha: document.getElementById('c_pass') ? document.getElementById('c_pass').value.trim() : '', anotacoes: document.getElementById('c_notas') ? document.getElementById('c_notas').value : '' 
+    if(!user) { app.showToast("Crie um login de portal para o cliente.", "warning"); return; }
+    
+    // Verifica duplicidade de login
+    const userExiste = app.bancoClientes.find(c => c.usuario === user && c.id !== id);
+    if(userExiste) { app.showToast("Este usuário de portal já existe.", "error"); return; }
+
+    const dados = {
+        tenantId: app.t_id,
+        nome: nome,
+        documento: document.getElementById('c_doc').value,
+        telefone: document.getElementById('c_tel').value,
+        email: document.getElementById('c_email').value,
+        cep: document.getElementById('c_cep').value,
+        rua: document.getElementById('c_rua').value,
+        numero: document.getElementById('c_num').value,
+        bairro: document.getElementById('c_bairro').value,
+        cidade: document.getElementById('c_cidade').value,
+        usuario: user,
+        senha: document.getElementById('c_pass').value,
+        notas: document.getElementById('c_notas').value,
+        ultimaAtualizacao: new Date().toISOString()
     };
-    
-    if(id) { 
-        await app.db.collection('clientes_base').doc(id).update(payload); 
-        app.showToast("Ficha do cliente atualizada com sucesso.");
-        app.registrarAuditoriaGlobal("CRM Cliente", `Editou os dados do cliente: ${nomeCli}`);
-    } else { 
-        await app.db.collection('clientes_base').add(payload); 
-        app.showToast("Novo cliente registrado no CRM."); 
-        app.registrarAuditoriaGlobal("CRM Cliente", `Cadastrou o novo cliente: ${nomeCli}`);
+
+    try {
+        if (id) {
+            await app.db.collection('clientes_base').doc(id).update(dados);
+            app.showToast("Ficha atualizada no CRM.", "success");
+        } else {
+            await app.db.collection('clientes_base').add(dados);
+            app.showToast("Novo Cliente salvo. Portal ativado.", "success");
+        }
+        bootstrap.Modal.getInstance(document.getElementById('modalCrm')).hide();
+    } catch (err) {
+        console.error(err);
+        app.showToast("Erro ao gravar cliente.", "error");
     }
-    
-    e.target.reset(); const modal = document.getElementById('modalCrm'); if(modal) bootstrap.Modal.getInstance(modal).hide();
 };
 
-app.apagarCliente = async function(id) {
-    if(app.t_role !== 'admin') { app.showToast("Apenas o proprietário pode apagar clientes.", "error"); return; }
-    if(confirm("Apagar cliente? O histórico associado não será apagado, mas o perfil deixará de existir.")) { 
-        const c = app.bancoCrm.find(x => x.id === id);
-        await app.db.collection('clientes_base').doc(id).delete(); 
-        app.showToast("Cliente Removido.", "success"); 
-        app.registrarAuditoriaGlobal("CRM Cliente", `Deletou permanentemente o cliente: ${c ? c.nome : id}`);
+app.renderizarTabelaCRM = function() {
+    const tbody = document.getElementById('tabelaCrmCorpo');
+    if (!tbody) return;
+    
+    const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
+
+    if (app.bancoClientes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${isAdmin ? 5 : 4}" class="text-center text-white-50">Nenhum cliente na base CRM.</td></tr>`;
+        return;
     }
+
+    tbody.innerHTML = app.bancoClientes.map(c => {
+        let btnAdmin = isAdmin ? `<td class="text-end"><button class="btn btn-sm btn-info shadow-sm fw-bold" onclick="app.abrirModalCRM('editar', '${c.id}')"><i class="bi bi-pencil-square"></i> Editar</button></td>` : '';
+        return `
+            <tr>
+                <td class="fw-bold text-white">${c.nome}</td>
+                <td class="text-warning font-monospace">${c.documento || '-'}</td>
+                <td class="text-success fw-bold"><i class="bi bi-whatsapp"></i> ${c.telefone}</td>
+                <td><span class="bg-dark px-2 py-1 rounded text-info border border-secondary">${c.usuario}</span></td>
+                ${btnAdmin}
+            </tr>
+        `;
+    }).join('');
+};
+
+app.atualizarDatalistClientes = function() {
+    const dl = document.getElementById('listaClientesCRM');
+    if(dl) {
+        dl.innerHTML = app.bancoClientes.map(c => `<option value="${c.nome}" data-id="${c.id}" data-tel="${c.telefone}" data-doc="${c.documento}">`).join('');
+    }
+};
+
+app.buscarCEP = async function(cep) {
+    const limpo = cep.replace(/\D/g, '');
+    if(limpo.length === 8) {
+        try {
+            const res = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+            const data = await res.json();
+            if(!data.erro) {
+                document.getElementById('c_rua').value = data.logradouro;
+                document.getElementById('c_bairro').value = data.bairro;
+                document.getElementById('c_cidade').value = `${data.localidade} / ${data.uf}`;
+                document.getElementById('c_num').focus();
+            }
+        } catch(e) { console.log("Erro CEP", e); }
+    }
+};
+
+// =====================================================================
+// 4. KANBAN E ORDEM DE SERVIÇO (PRONTUÁRIO)
+// =====================================================================
+app.renderizarKanban = function() {
+    ['patio', 'orcamento', 'aprovacao', 'box', 'pronto'].forEach(st => {
+        const col = document.getElementById(`col_${st}`);
+        const count = document.getElementById(`count_${st}`);
+        if(!col) return;
+        
+        const list = app.bancoOS.filter(o => o.status === st).sort((a,b) => new Date(b.ultimaAtualizacao) - new Date(a.ultimaAtualizacao));
+        count.innerText = list.length;
+        
+        col.innerHTML = list.map(os => {
+            let infoEquipe = '';
+            if(os.status === 'box' && os.equipeNomes) {
+                infoEquipe = `<div class="mt-2 pt-2 border-top border-secondary text-info small"><i class="bi bi-tools"></i> ${os.equipeNomes.join(', ')} <br><i class="bi bi-geo-alt"></i> ${os.boxDestino||''}</div>`;
+            }
+
+            return `
+            <div class="os-card shadow-sm" onclick="app.abrirModalOS('editar', '${os.id}')">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-dark border border-secondary text-warning fs-6 text-uppercase">${os.placa}</span>
+                    <span class="text-white-50 small" style="font-size:0.7rem;">${new Date(os.ultimaAtualizacao).toLocaleDateString('pt-BR')}</span>
+                </div>
+                <div class="fw-bold text-white text-truncate mb-1">${os.veiculo}</div>
+                <div class="text-white-50 small mb-2 text-truncate"><i class="bi bi-person"></i> ${os.cliente}</div>
+                <div class="text-success fw-bold text-end w-100 fs-5 mt-2">R$ ${(os.total||0).toFixed(2)}</div>
+                ${infoEquipe}
+                
+                <div class="fast-actions admin-only" onclick="event.stopPropagation()">
+                    <button class="btn btn-sm btn-success" onclick="app.moverOSRapido('${os.id}', '${os.status}', 1)" title="Avançar"><i class="bi bi-arrow-right"></i></button>
+                </div>
+            </div>`;
+        }).join('');
+    });
+};
+
+app.moverOSRapido = async function(id, statusAtual, direcao) {
+    const fluxo = ['patio', 'orcamento', 'aprovacao', 'box', 'pronto'];
+    const idx = fluxo.indexOf(statusAtual);
+    const novoIdx = idx + direcao;
+    if(novoIdx >= 0 && novoIdx < fluxo.length) {
+        const novoStatus = fluxo[novoIdx];
+        if(novoStatus === 'box') {
+            app.prepararAtribuicaoBox(id);
+            return;
+        }
+        await app.db.collection('ordens_servico').doc(id).update({ status: novoStatus, ultimaAtualizacao: new Date().toISOString() });
+        app.registrarAuditoria(id, `Moveu O.S. para a fase: ${novoStatus.toUpperCase()}`);
+        if(novoStatus === 'pronto') { app.prepararNotificacaoWhatsApp(id, 'pronto'); }
+    }
+};
+
+app.abrirModalOS = function(tipo, id = null) {
+    const form = document.getElementById('formOS');
+    form.reset();
+    document.getElementById('os_id').value = '';
+    document.getElementById('header_placa').innerText = 'Nova Recepção';
+    document.getElementById('listaPecasCorpo').innerHTML = '';
+    document.getElementById('galeriaFotosOS').innerHTML = '';
+    document.getElementById('listaHistorico').innerHTML = '';
+    document.getElementById('os_total_geral').innerText = 'R$ 0,00';
+    document.getElementById('alertaLinkCliente').classList.add('d-none');
+    
+    // Controle de Botões
+    const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
+    const btnDel = document.getElementById('btnDeletarOS');
+    const btnFat = document.getElementById('btnFaturar');
+    const btnPdf = document.getElementById('btnGerarPDF');
+    if(btnDel) btnDel.classList.add('d-none');
+    if(btnFat) btnFat.classList.add('d-none');
+    if(btnPdf) btnPdf.classList.add('d-none');
+
+    document.getElementById('laudo-tab').click(); // Volta pra primeira aba
+
+    if (tipo === 'editar' && id) {
+        const os = app.bancoOSCompleto.find(o => o.id === id);
+        if(os) {
+            app.osAtual = JSON.parse(JSON.stringify(os)); // Clone
+            
+            document.getElementById('os_id').value = os.id;
+            document.getElementById('header_placa').innerText = os.placa.toUpperCase();
+            document.getElementById('os_placa').value = os.placa;
+            document.getElementById('os_veiculo').value = os.veiculo;
+            document.getElementById('os_cliente').value = os.cliente;
+            document.getElementById('os_cliente_id').value = os.clienteId || '';
+            document.getElementById('os_cliente_cpf').value = os.clienteCpf || '';
+            document.getElementById('os_celular').value = os.celular || '';
+            document.getElementById('os_status').value = os.status;
+            
+            document.getElementById('os_diagnostico').value = os.diagnostico || '';
+            document.getElementById('os_relato_cliente').value = os.relatoCliente || '';
+            
+            // Checklist
+            if(os.checklist) {
+                document.getElementById('chk_combustivel').checked = os.checklist.combustivel || false;
+                document.getElementById('chk_arranhado').checked = os.checklist.arranhado || false;
+                document.getElementById('chk_bateria').checked = os.checklist.bateria || false;
+                document.getElementById('chk_pneus').checked = os.checklist.pneus || false;
+            }
+
+            app.renderizarPecasOS(os.pecas || []);
+            app.renderizarFotosOS(os.fotos || []);
+            app.renderizarHistoricoOS(os.historico || []);
+            
+            app.verificarStatusLink();
+
+            if(isAdmin && btnDel) btnDel.classList.remove('d-none');
+            if(btnPdf) btnPdf.classList.remove('d-none');
+            if(isAdmin && btnFat && (os.status === 'pronto' || os.status === 'entregue')) btnFat.classList.remove('d-none');
+        }
+    } else {
+        app.osAtual = null;
+        app.verificarStatusLink();
+    }
+    new bootstrap.Modal(document.getElementById('modalOS')).show();
 };
 
 app.aoSelecionarClienteOS = function() {
-    const nomeDigitado = document.getElementById('os_cliente').value.trim();
-    const cliente = app.bancoCrm.find(c => c.nome.toLowerCase() === nomeDigitado.toLowerCase());
-    if(cliente) { 
-        if(document.getElementById('os_celular')) document.getElementById('os_celular').value = cliente.telefone || ''; 
-        if(document.getElementById('os_cliente_id')) document.getElementById('os_cliente_id').value = cliente.id; 
+    const val = document.getElementById('os_cliente').value;
+    const opt = document.querySelector(`#listaClientesCRM option[value="${val}"]`);
+    if(opt) {
+        document.getElementById('os_cliente_id').value = opt.getAttribute('data-id');
+        document.getElementById('os_cliente_cpf').value = opt.getAttribute('data-doc');
+        document.getElementById('os_celular').value = opt.getAttribute('data-tel');
+    } else {
+        document.getElementById('os_cliente_id').value = '';
+        document.getElementById('os_cliente_cpf').value = '';
     }
 };
 
 app.editarClienteRapido = function() {
-    const nome = document.getElementById('os_cliente').value.trim();
-    const cliente = app.bancoCrm.find(c => c.nome.toLowerCase() === nome.toLowerCase());
-    if(cliente) { app.abrirModalCRM('edit', cliente.id); } 
-    else { if(document.getElementById('c_nome')) document.getElementById('c_nome').value = nome; app.abrirModalCRM('nova'); }
+    const id = document.getElementById('os_cliente_id').value;
+    if(id) {
+        bootstrap.Modal.getInstance(document.getElementById('modalOS')).hide();
+        app.abrirModalCRM('editar', id);
+    } else {
+        app.showToast("Selecione um cliente válido da lista primeiro.", "warning");
+    }
 };
 
-app.enviarWhatsAppAprovacao = function() {
-    const nome = document.getElementById('os_cliente').value;
-    const cel = document.getElementById('os_celular').value;
-    const cZ = app.bancoCrm.find(x => x.nome === nome);
-    if(!cel) return app.showToast("Celular não informado na O.S.", "error");
+app.verificarStatusLink = function() {
+    const st = document.getElementById('os_status').value;
+    const alerta = document.getElementById('alertaLinkCliente');
+    if(!alerta) return;
     
-    let baseURL = window.location.origin + window.location.pathname.replace('painel_oficina.html', '');
-    const u = baseURL + 'clientes/projeto_oficina.html';
+    if(st === 'aprovacao') alerta.classList.remove('d-none');
+    else alerta.classList.add('d-none');
     
-    let txt = `Olá ${nome}! A O.S. do seu veículo foi atualizada na *${app.t_nome}*.\nAcesse o nosso portal oficial para acompanhar as fotos da revisão, verificar o orçamento e aprovar os serviços pelo chat:\n👉 ${u}`;
-    if(cZ && cZ.usuario) { txt += `\n\n*Suas Credenciais Seguras:*\nLogin: ${cZ.usuario}\nPIN: ${cZ.senha}`; }
-    
-    window.open(`https://wa.me/55${cel.replace(/\D/g, '')}?text=${encodeURIComponent(txt)}`, '_blank');
+    if(st === 'box' && app.osAtual && app.osAtual.status !== 'box') {
+        app.prepararAtribuicaoBox(app.osAtual.id);
+    }
 };
 
-
 // =====================================================================
-// 4. MÓDULOS DE CHAT (GLOBAL PARA CLIENTES E INTERNO PARA EQUIPE)
+// 5. MÓDULO DE FOTOS (CLOUDINARY) E CHECKLIST
 // =====================================================================
-app.iniciarEscutaMensagens = function() {
-    app.db.collection('mensagens').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoMensagens = snap.docs.map(d => ({id: d.id, ...d.data()}));
-        app.bancoMensagens.sort((a,b) => (a.timestamp?.toMillis()||0) - (b.timestamp?.toMillis()||0));
-        
-        let nL = 0; app.bancoMensagens.forEach(m => { if(m.sender === 'cliente' && !m.lidaAdmin) nL++; });
-        const badge = document.getElementById('chatBadgeGlobal');
-        if(badge) { if(nL > 0) { badge.innerText = nL; badge.classList.remove('d-none'); } else { badge.classList.add('d-none'); } }
-        
-        app.renderListaChatCRM();
-        if(app.chatActiveClienteId) {
-            const h = document.getElementById('chatNomeCliente');
-            app.abrirChatCRM(app.chatActiveClienteId, h ? h.innerText.replace('Atendimento Ativo: ', '') : 'Cliente');
+document.getElementById('btnUploadCloudinary').addEventListener('click', function() {
+    cloudinary.openUploadWidget({
+        cloudName: app.CLOUDINARY_CLOUD_NAME,
+        uploadPreset: app.CLOUDINARY_UPLOAD_PRESET,
+        sources: ['local', 'camera'],
+        multiple: true,
+        maxFiles: 5,
+        clientAllowedFormats: ['jpg', 'png', 'jpeg', 'webp', 'mp4'],
+        language: "pt",
+        text: { pt: { menu: { files: 'Ficheiros Locais', camera: 'Câmera' } } }
+    }, (error, result) => {
+        if (!error && result && result.event === "success") {
+            app.adicionarFotoOS(result.info.secure_url);
         }
     });
+});
+
+app.adicionarFotoOS = function(url) {
+    if(!app.osAtual) app.osAtual = {};
+    if(!app.osAtual.fotos) app.osAtual.fotos = [];
+    app.osAtual.fotos.push(url);
+    app.renderizarFotosOS(app.osAtual.fotos);
+    app.showToast("Mídia indexada ao Laudo.", "success");
+    if(document.getElementById('os_id').value) app.registrarAuditoria(document.getElementById('os_id').value, "Capturou nova evidência fotográfica.");
 };
 
-app.renderListaChatCRM = function() {
-    const lista = document.getElementById('chatListaClientesCRM'); if(!lista) return;
-    lista.innerHTML = app.bancoCrm.map(c => {
-        const naoLidas = app.bancoMensagens.filter(m => m.clienteId === c.id && m.sender === 'cliente' && !m.lidaAdmin).length;
-        const bHtml = naoLidas > 0 ? `<span class="badge bg-danger ms-2">${naoLidas}</span>` : '';
-        return `<button class="list-group-item list-group-item-action bg-transparent text-white border-secondary py-3 d-flex justify-content-between align-items-center" onclick="app.abrirChatCRM('${c.id}', '${c.nome}')">
-            <span><i class="bi bi-person-circle text-primary me-2"></i> ${c.nome}</span>${bHtml}
-        </button>`;
+app.renderizarFotosOS = function(fotos) {
+    const div = document.getElementById('galeriaFotosOS');
+    if(!div) return;
+    if(fotos.length === 0) { div.innerHTML = '<span class="text-white-50 p-2 my-auto mx-auto"><i class="bi bi-camera-slash me-2"></i> Sem evidências anexadas.</span>'; return; }
+    
+    div.innerHTML = fotos.map((f, index) => {
+        const isVideo = f.includes('.mp4') || f.includes('.webm');
+        const media = isVideo ? `<video src="${f}" style="width:100%; height:100%; object-fit:cover;"></video><i class="bi bi-play-circle-fill position-absolute text-white fs-3" style="top:50%; left:50%; transform:translate(-50%,-50%);"></i>` : `<img src="${f}" style="width:100%; height:100%; object-fit:cover;">`;
+        return `
+        <div class="position-relative shadow-sm rounded overflow-hidden border border-secondary" style="width: 140px; height: 140px;">
+            ${media}
+            <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1 rounded-circle" style="padding: 2px 6px;" onclick="app.removerFotoOS(${index})" data-html2canvas-ignore><i class="bi bi-x"></i></button>
+            <button type="button" class="btn btn-sm btn-dark position-absolute bottom-0 end-0 m-1 rounded-circle border-secondary" onclick="window.open('${f}')" data-html2canvas-ignore><i class="bi bi-arrows-fullscreen"></i></button>
+        </div>`;
     }).join('');
 };
 
-app.abrirChatCRM = function(clienteId, nomeCliente) {
-    app.chatActiveClienteId = clienteId;
-    const header = document.getElementById('chatNomeCliente');
-    if(header) header.innerHTML = `<span class="text-white-50">Atendimento Ativo:</span> <b class="text-accent fs-5">${nomeCliente}</b>`;
-    
-    const inputArea = document.getElementById('chatAreaInputGlobal'); if(inputArea) inputArea.style.display = 'flex';
-    const area = document.getElementById('chatAreaMsgGlobal'); if(!area) return;
-    area.innerHTML = '';
-    
-    const mD = app.bancoMensagens.filter(x => x.clienteId === clienteId);
-    if(mD.length === 0) {
-        area.innerHTML = '<div class="text-center text-white-50 mt-5 pt-5"><i class="bi bi-chat-dots display-1 mb-4 opacity-50"></i><p>Inicie o Atendimento.</p></div>';
-    } else {
-        mD.forEach(x => {
-            if(x.sender === 'cliente' && !x.lidaAdmin) { app.db.collection('mensagens').doc(x.id).update({lidaAdmin: true}); }
-            const t = x.timestamp ? new Date(x.timestamp.toDate()).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : 'agora';
-            let c = x.text;
-            
-            if(x.fileUrl) {
-                if(x.fileType === 'video' || x.fileUrl.includes('.mp4')) c += `<br><video src="${x.fileUrl}" controls style="max-width:100%; border-radius:8px; margin-top:5px;"></video>`;
-                else if(x.fileType === 'audio' || x.fileUrl.includes('.mp3') || x.fileUrl.includes('.ogg')) c += `<br><audio src="${x.fileUrl}" controls style="max-width:100%; margin-top:5px;"></audio>`;
-                else if(x.fileUrl.includes('.pdf')) c += `<br><a href="${x.fileUrl}" target="_blank" class="btn btn-sm btn-dark mt-2"><i class="bi bi-file-pdf text-danger"></i> Abrir PDF</a>`;
-                else c += `<br><img src="${x.fileUrl}" onclick="window.open('${x.fileUrl}')" style="max-width:100%; border-radius:8px; cursor:pointer; margin-top:5px;">`;
-            }
-            area.innerHTML += `<div class="message ${x.sender === 'admin' ? 'admin shadow-sm' : 'cliente shadow-sm'}">${c}<small class="d-block text-end mt-1" style="font-size:0.7rem;opacity:0.7;">${t}</small></div>`;
-        });
-        area.scrollTop = area.scrollHeight;
+app.removerFotoOS = function(index) {
+    if(confirm("Remover esta evidência do prontuário?")) {
+        app.osAtual.fotos.splice(index, 1);
+        app.renderizarFotosOS(app.osAtual.fotos);
+        if(document.getElementById('os_id').value) app.registrarAuditoria(document.getElementById('os_id').value, "Removeu uma evidência fotográfica.");
     }
 };
 
-app.enviarMensagemChatGlobal = async function() {
-    const input = document.getElementById('inputChatGlobal'); const val = input ? input.value.trim() : '';
-    if(!val || !app.chatActiveClienteId) return;
-    await app.db.collection('mensagens').add({ tenantId: app.t_id, clienteId: app.chatActiveClienteId, sender: 'admin', text: val, lidaCliente: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-    input.value = '';
+// =====================================================================
+// 6. PEÇAS, ORÇAMENTO E VALORES (DENTRO DA O.S.)
+// =====================================================================
+app.atualizarSelectEstoqueOS = function() {
+    const sel = document.getElementById('selectProdutoEstoque');
+    if(!sel) return;
+    sel.innerHTML = '<option value="">Buscar peça no Estoque Físico...</option>' + 
+        app.bancoEstoque.map(p => `<option value="${p.id}" data-desc="${p.descricao}" data-custo="${p.custo}" data-venda="${p.venda}" data-ncm="${p.ncm}" data-cfop="${p.cfop}">[Qtd: ${p.qtd}] ${p.sku} - ${p.descricao} (R$ ${p.venda.toFixed(2)})</option>`).join('');
 };
 
-app.enviarAnexoChatGlobal = async function() {
-    const inp = document.getElementById('chatFileInputGlobal');
-    if(!inp || !inp.files || inp.files.length === 0 || !app.chatActiveClienteId) return;
-    app.showToast("Realizando Upload Seguro na Nuvem...", "warning");
+app.adicionarDoEstoque = function() {
+    const sel = document.getElementById('selectProdutoEstoque');
+    const opt = sel.options[sel.selectedIndex];
+    if(!opt || !opt.value) return;
+    
+    app.inserirLinhaPecaOS({
+        tipo: 'peca',
+        idEstoque: opt.value,
+        desc: opt.getAttribute('data-desc'),
+        ncm: opt.getAttribute('data-ncm') || '',
+        cfop: opt.getAttribute('data-cfop') || '',
+        custo: parseFloat(opt.getAttribute('data-custo')),
+        venda: parseFloat(opt.getAttribute('data-venda')),
+        qtd: 1
+    });
+    sel.value = '';
+};
+
+app.adicionarMaoDeObra = function() {
+    app.inserirLinhaPecaOS({ tipo: 'servico', desc: 'Mão de Obra Mecânica / Serviço', ncm: '00', cfop: '00', custo: 0, venda: 0, qtd: 1 });
+};
+
+app.inserirLinhaPecaOS = function(p) {
+    if(!app.osAtual) app.osAtual = {};
+    if(!app.osAtual.pecas) app.osAtual.pecas = [];
+    app.osAtual.pecas.push(p);
+    app.renderizarPecasOS(app.osAtual.pecas);
+};
+
+app.renderizarPecasOS = function(pecas) {
+    const tbody = document.getElementById('listaPecasCorpo');
+    if(!tbody) return;
+    
+    const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
+    let html = '';
+    let totalGer = 0;
+    
+    pecas.forEach((p, i) => {
+        const subtotal = (p.qtd * p.venda);
+        totalGer += subtotal;
+        
+        const colCusto = isAdmin ? `<td><input type="number" step="0.01" class="form-control bg-dark text-danger form-control-sm border-secondary" value="${p.custo}" onchange="app.attPecaOS(${i}, 'custo', this.value)"></td>` : '<td class="gestao-only"></td>';
+        
+        const icon = p.tipo === 'servico' ? '<i class="bi bi-person-workspace text-info me-2" title="Mão de Obra"></i>' : '<i class="bi bi-box me-2 text-warning" title="Peça Física"></i>';
+
+        html += `
+        <tr>
+            <td class="ps-3"><div class="d-flex align-items-center">${icon} <input type="text" class="form-control bg-dark text-white form-control-sm border-secondary w-100" value="${p.desc}" onchange="app.attPecaOS(${i}, 'desc', this.value)"></div></td>
+            <td><input type="text" class="form-control bg-dark text-white form-control-sm border-secondary text-center" value="${p.ncm}" title="NCM/CFOP" onchange="app.attPecaOS(${i}, 'ncm', this.value)"></td>
+            <td><input type="number" class="form-control bg-dark text-white form-control-sm border-secondary text-center fw-bold" value="${p.qtd}" min="0.1" step="0.1" onchange="app.attPecaOS(${i}, 'qtd', this.value)"></td>
+            ${colCusto}
+            <td><input type="number" step="0.01" class="form-control bg-dark text-success fw-bold form-control-sm border-secondary" value="${p.venda}" onchange="app.attPecaOS(${i}, 'venda', this.value)"></td>
+            <td class="text-success fw-bold align-middle">R$ ${subtotal.toFixed(2)}</td>
+            <td data-html2canvas-ignore><button type="button" class="btn btn-sm btn-danger rounded-circle" onclick="app.removerPecaOS(${i})"><i class="bi bi-trash"></i></button></td>
+        </tr>`;
+    });
+    
+    tbody.innerHTML = html;
+    document.getElementById('os_total_geral').innerText = `R$ ${totalGer.toFixed(2)}`;
+};
+
+app.attPecaOS = function(i, campo, val) {
+    if(campo==='qtd' || campo==='custo' || campo==='venda') app.osAtual.pecas[i][campo] = parseFloat(val)||0;
+    else app.osAtual.pecas[i][campo] = val;
+    app.renderizarPecasOS(app.osAtual.pecas);
+};
+
+app.removerPecaOS = function(i) {
+    app.osAtual.pecas.splice(i, 1);
+    app.renderizarPecasOS(app.osAtual.pecas);
+};
+
+// =====================================================================
+// 7. HISTÓRICO, AUDITORIA E SALVAMENTO O.S.
+// =====================================================================
+app.registrarAuditoria = async function(osId, acao) {
+    const op = document.getElementById('lblUsuario').innerText;
+    const log = { data: new Date().toISOString(), acao: acao, usuario: op };
+    
     try {
-        const fd = new FormData(); fd.append('file', inp.files[0]); fd.append('upload_preset', app.CLOUDINARY_UPLOAD_PRESET);
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${app.CLOUDINARY_CLOUD_NAME}/auto/upload`, {method:'POST', body:fd});
-        const data = await res.json();
-        if(data.secure_url) {
-            await app.db.collection('mensagens').add({ tenantId: app.t_id, clienteId: app.chatActiveClienteId, sender: 'admin', text: "📎 Evidência da Oficina:", fileUrl: data.secure_url, fileType: data.resource_type, lidaCliente: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-            inp.value = ''; app.showToast("Anexo enviado com sucesso para o cliente!", "success");
-        }
-    } catch(e) { console.error(e); app.showToast("Falha no envio da imagem.", "error"); }
+        await app.db.collection('ordens_servico').doc(osId).update({
+            historico: firebase.firestore.FieldValue.arrayUnion(log),
+            ultimaAtualizacao: new Date().toISOString()
+        });
+    } catch(e) { console.log("Auditoria silenciosa falhou", e); }
 };
 
-// Chat Interno Equipe <-> Gestor
-app.iniciarEscutaMensagensInternas = function() {
-    app.db.collection('chat_interno').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        let msgs = snap.docs.map(d => d.data());
-        msgs.sort((a,b) => (a.timestamp?.toMillis()||0) - (b.timestamp?.toMillis()||0));
-        const area = document.getElementById('chatAreaMsgInterno');
-        if(area) {
-            if(msgs.length === 0) area.innerHTML = '<div class="text-center text-white-50 mt-5 pt-5"><i class="bi bi-headset display-1 opacity-25"></i><p>O chat da equipa está limpo. Comece a comunicação.</p></div>';
-            else {
-                area.innerHTML = msgs.map(m => {
-                    const t = m.timestamp ? new Date(m.timestamp.toDate()).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : 'agora';
-                    const cssClass = m.usuario === app.user_nome ? 'admin' : 'cliente'; 
-                    return `<div class="message ${cssClass} shadow-sm"><strong>${m.usuario}:</strong><br>${m.text}<small class="d-block text-end mt-1" style="font-size:0.7rem;opacity:0.7;">${t}</small></div>`;
-                }).join('');
-                area.scrollTop = area.scrollHeight;
-            }
-        }
-    });
-};
-
-app.enviarMensagemInterna = async function() {
-    const inp = document.getElementById('inputChatInterno'); if(!inp || !inp.value.trim()) return;
-    await app.db.collection('chat_interno').add({ tenantId: app.t_id, usuario: app.user_nome, text: inp.value.trim(), timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-    inp.value = '';
-};
-
-// =====================================================================
-// 5. ESTOQUE FÍSICO COM SKU E ENTRADA DE N.F. (XML MÁGICO)
-// =====================================================================
-app.iniciarEscutaEstoque = function() {
-    app.db.collection('estoque').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoEstoque = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const tbody = document.getElementById('tabelaEstoqueCorpo');
-        if(tbody) {
-            tbody.innerHTML = app.bancoEstoque.map(p => `<tr><td><small class="text-white-50">${p.fornecedor||'N/A'}</small><br><span class="badge bg-primary">NF: ${p.nf||'S/N'}</span></td><td><span class="text-warning fw-bold font-monospace">${p.sku||'-'}</span></td><td><span class="text-info small">[NCM: ${p.ncm||'-'}]</span></td><td><strong class="text-white">${p.desc}</strong></td><td><span class="badge bg-secondary px-3 py-2 fs-6 shadow-sm">${p.qtd} un</span></td><td class="gestao-only text-danger fw-bold">R$ ${p.custo.toFixed(2)}</td><td class="text-success fw-bold fs-6">R$ ${p.venda.toFixed(2)}</td><td class="gestao-only text-end"><button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalNF('edit', '${p.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-outline-danger shadow-sm admin-only" onclick="app.apagarProduto('${p.id}')"><i class="bi bi-trash-fill"></i></button></td></tr>`).join('');
-        }
-        const sel = document.getElementById('selectProdutoEstoque');
-        if(sel) {
-            sel.innerHTML = '<option value="">Puxar Peça do Almoxarifado / Estoque Físico...</option>' + app.bancoEstoque.filter(p=>p.qtd>0).map(p => `<option value="${p.id}" data-venda="${p.venda}" data-custo="${p.custo}" data-desc="${p.desc}" data-ncm="${p.ncm||'-'}">[Est: ${p.qtd}] - ${p.sku ? '('+p.sku+') ' : ''}${p.desc} (R$ ${p.venda.toFixed(2)})</option>`).join('');
-        }
-    });
-};
-
-app.abrirModalNF = function(mode='nova', id='') {
-    const frm = document.getElementById('formNF'); if(frm) frm.reset();
-    if(document.getElementById('corpoItensNF')) document.getElementById('corpoItensNF').innerHTML = '';
-    if(document.getElementById('p_id')) document.getElementById('p_id').value = '';
-    if(document.getElementById('nf_data')) document.getElementById('nf_data').value = new Date().toISOString().split('T')[0];
+app.renderizarHistoricoOS = function(hist) {
+    const ul = document.getElementById('listaHistorico');
+    if(!ul) return;
+    if(hist.length === 0) { ul.innerHTML = '<li>Nenhum registro de auditoria encontrado.</li>'; return; }
     
-    if(mode === 'edit') {
-        const p = app.bancoEstoque.find(x => x.id === id);
-        if(p) {
-            if(document.getElementById('p_id')) document.getElementById('p_id').value = p.id;
-            if(document.getElementById('nf_fornecedor')) document.getElementById('nf_fornecedor').value = p.fornecedor || '';
-            if(document.getElementById('nf_numero')) document.getElementById('nf_numero').value = p.nf || '';
-            if(document.getElementById('nf_data')) document.getElementById('nf_data').value = p.dataEntrada ? p.dataEntrada.split('T')[0] : new Date().toISOString().split('T')[0];
-            app.adicionarLinhaNF(p.desc, p.ncm, p.cfop, p.qtd, p.custo, p.venda, p.sku);
-        }
-    } else { app.adicionarLinhaNF('', '', '', 1, 0, 0, ''); }
-    
-    const mod = document.getElementById('modalNF'); if(mod) new bootstrap.Modal(mod).show();
+    ul.innerHTML = [...hist].sort((a,b) => new Date(b.data) - new Date(a.data)).map(h => 
+        `<li class="timeline-item">
+            <div class="timeline-item-header">
+                <strong class="text-info">${new Date(h.data).toLocaleString('pt-BR')}</strong>
+                <span class="badge bg-dark border border-secondary text-white-50"><i class="bi bi-person-fill"></i> ${h.usuario}</span>
+            </div>
+            <div class="timeline-item-body">${h.acao}</div>
+        </li>`
+    ).join('');
 };
 
-app.processarXML = function(event) {
-    const file = event.target.files[0]; if(!file) return;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const xmlText = e.target.result; const parser = new DOMParser(); const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-        const emit = xmlDoc.getElementsByTagName("emit")[0]; 
-        if(emit && document.getElementById('nf_fornecedor')) { const xNome = emit.getElementsByTagName("xNome")[0]; if(xNome) document.getElementById('nf_fornecedor').value = xNome.textContent; }
-        const ide = xmlDoc.getElementsByTagName("ide")[0]; 
-        if(ide && document.getElementById('nf_numero')) { const nNF = ide.getElementsByTagName("nNF")[0]; if(nNF) document.getElementById('nf_numero').value = nNF.textContent; }
-        
-        const det = xmlDoc.getElementsByTagName("det");
-        if(document.getElementById('corpoItensNF')) document.getElementById('corpoItensNF').innerHTML = ''; 
-        for(let i=0; i<det.length; i++) {
-            const prod = det[i].getElementsByTagName("prod")[0];
-            if(prod) {
-                const sku = prod.getElementsByTagName("cProd")[0]?.textContent || '';
-                const desc = prod.getElementsByTagName("xProd")[0]?.textContent || ''; const ncm = prod.getElementsByTagName("NCM")[0]?.textContent || ''; const cfop = prod.getElementsByTagName("CFOP")[0]?.textContent || '';
-                const qtd = parseFloat(prod.getElementsByTagName("qCom")[0]?.textContent || 0); const vUnCom = parseFloat(prod.getElementsByTagName("vUnCom")[0]?.textContent || 0);
-                app.adicionarLinhaNF(desc, ncm, cfop, qtd, vUnCom, (vUnCom * 1.8), sku); 
-            }
+app.salvarOS = async function() {
+    const id = document.getElementById('os_id').value;
+    const placa = document.getElementById('os_placa').value.toUpperCase().trim();
+    if(!placa) { app.showToast("Placa é obrigatória.", "error"); return; }
+    
+    const totText = document.getElementById('os_total_geral').innerText.replace('R$ ', '');
+    const totalCalc = parseFloat(totText) || 0;
+    
+    const dados = {
+        tenantId: app.t_id,
+        placa: placa,
+        veiculo: document.getElementById('os_veiculo').value,
+        cliente: document.getElementById('os_cliente').value,
+        clienteId: document.getElementById('os_cliente_id').value,
+        clienteCpf: document.getElementById('os_cliente_cpf').value,
+        celular: document.getElementById('os_celular').value,
+        status: document.getElementById('os_status').value,
+        diagnostico: document.getElementById('os_diagnostico').value,
+        relatoCliente: document.getElementById('os_relato_cliente').value,
+        pecas: app.osAtual ? (app.osAtual.pecas || []) : [],
+        fotos: app.osAtual ? (app.osAtual.fotos || []) : [],
+        total: totalCalc,
+        ultimaAtualizacao: new Date().toISOString(),
+        checklist: {
+            combustivel: document.getElementById('chk_combustivel').checked,
+            arranhado: document.getElementById('chk_arranhado').checked,
+            bateria: document.getElementById('chk_bateria').checked,
+            pneus: document.getElementById('chk_pneus').checked
         }
-        app.showToast("XML lido com sucesso. Modifique a sua margem de venda final na tabela.", "success");
     };
-    reader.readAsText(file);
-};
-
-app.adicionarLinhaNF = function(desc='', ncm='', cfop='', qtd=1, custo=0, venda=0, sku='') {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-warning border-secondary p-2 font-monospace it-sku" value="${sku}" placeholder="Cód..."></td>
-                    <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-desc" value="${desc}" required></td>
-                    <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-ncm" value="${ncm}"></td>
-                    <td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-cfop" value="${cfop}"></td>
-                    <td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary p-2 it-qtd" value="${qtd}" min="1"></td>
-                    <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary p-2 it-custo" value="${custo}"></td>
-                    <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary p-2 it-venda fw-bold" value="${venda}"></td>
-                    <td><button type="button" class="btn btn-sm btn-outline-danger p-0 px-2 mt-1" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>`;
-    const tb = document.getElementById('corpoItensNF'); if(tb) tb.appendChild(tr);
-};
-
-app.verificarPgtoCompraNF = function() {
-    const fElem = document.getElementById('nf_metodo_pagamento'); const d = document.getElementById('nf_div_parcelas');
-    if(!fElem || !d) return; const f = fElem.value;
-    if(f.includes('Parcelado') || f.includes('Prazo')) { d.style.display = 'block'; } else { d.style.display = 'none'; if(document.getElementById('nf_parcelas')) document.getElementById('nf_parcelas').value = "1x"; }
-};
-
-app.salvarEntradaEstoque = async function(e) {
-    e.preventDefault();
-    const idField = document.getElementById('p_id'); const id = idField ? idField.value : '';
-    const fornecedor = document.getElementById('nf_fornecedor') ? document.getElementById('nf_fornecedor').value : ''; 
-    const nf = document.getElementById('nf_numero') ? document.getElementById('nf_numero').value : '';
-    const dtBase = document.getElementById('nf_data') ? document.getElementById('nf_data').value : new Date().toISOString().split('T')[0];
-    const fp = document.getElementById('nf_metodo_pagamento') ? document.getElementById('nf_metodo_pagamento').value : ''; 
-    const parc = document.getElementById('nf_parcelas') ? document.getElementById('nf_parcelas').value : '1x';
-    const gerarFinanceiro = document.getElementById('nf_gerar_financeiro') ? document.getElementById('nf_gerar_financeiro').checked : false;
     
-    let totalCustoGlobalNF = 0; const batch = app.db.batch();
-    
-    if(id) {
-        const tr = document.querySelector('#corpoItensNF tr');
-        if(tr) {
-            batch.update(app.db.collection('estoque').doc(id), { fornecedor, nf, desc: tr.querySelector('.it-desc').value, sku: tr.querySelector('.it-sku').value.trim(), qtd: parseFloat(tr.querySelector('.it-qtd').value), custo: parseFloat(tr.querySelector('.it-custo').value), venda: parseFloat(tr.querySelector('.it-venda').value), ncm: tr.querySelector('.it-ncm').value, cfop: tr.querySelector('.it-cfop').value });
-            app.registrarAuditoriaGlobal("Estoque", `Editou o item do fornecedor ${fornecedor}`);
+    // Se for equipe, injeta o ID deles como criador inicial, se não tiver.
+    if(app.t_role === 'equipe' && !id) {
+        dados.criadoPorMecanicoId = sessionStorage.getItem('f_id');
+        dados.criadoPorNome = app.user_nome;
+    }
+
+    try {
+        if(id) {
+            await app.db.collection('ordens_servico').doc(id).update(dados);
+            app.registrarAuditoria(id, `Alterou dados da O.S. (Status: ${dados.status})`);
+            app.showToast("O.S. Atualizada com sucesso no Kanban.", "success");
+        } else {
+            dados.dataCriacao = new Date().toISOString();
+            const logInit = [{ data: new Date().toISOString(), acao: "Criação da Ordem de Serviço na Fase: Avaliação", usuario: app.user_nome }];
+            dados.historico = logInit;
+            await app.db.collection('ordens_servico').add(dados);
+            app.showToast("Nova O.S. Injetada no Pátio.", "success");
         }
-    } else {
-        document.querySelectorAll('#corpoItensNF tr').forEach(tr => {
-            const desc = tr.querySelector('.it-desc').value.trim(); const sku = tr.querySelector('.it-sku').value.trim(); const q = parseFloat(tr.querySelector('.it-qtd').value)||0; const c = parseFloat(tr.querySelector('.it-custo').value)||0; const v = parseFloat(tr.querySelector('.it-venda').value)||0;
-            if(desc !== '' && q > 0) {
-                totalCustoGlobalNF += (q * c);
-                batch.set(app.db.collection('estoque').doc(), { tenantId: app.t_id, fornecedor: fornecedor, nf: nf, sku: sku, desc: desc, qtd: q, custo: c, venda: v, ncm: tr.querySelector('.it-ncm').value, cfop: tr.querySelector('.it-cfop').value, usuarioEntrada: app.user_nome, dataEntrada: new Date().toISOString() });
-            }
+        bootstrap.Modal.getInstance(document.getElementById('modalOS')).hide();
+    } catch(err) {
+        console.error(err);
+        app.showToast("Falha estrutural ao salvar a O.S.", "error");
+    }
+};
+
+app.apagarOS = async function() {
+    const id = document.getElementById('os_id').value;
+    const placa = document.getElementById('os_placa').value;
+    if(!id) return;
+    
+    const motivo = prompt("SEGURANÇA: Esta ação moverá a OS para a Lixeira de Auditoria. Descreva o motivo da exclusão:");
+    if(motivo === null || motivo.trim() === '') { app.showToast("Exclusão abortada. Motivo é obrigatório.", "warning"); return; }
+    
+    try {
+        // Grava na lixeira
+        await app.db.collection('ordens_servico_apagadas').add({
+            tenantId: app.t_id,
+            osIdOriginal: id,
+            placa: placa,
+            dataExclusao: new Date().toISOString(),
+            usuarioQueApagou: app.user_nome,
+            motivoExclusao: motivo,
+            dadosCompletosOS: app.osAtual
         });
-        if(totalCustoGlobalNF === 0) { app.showToast("Nenhum item válido para dar entrada.", "error"); return; }
-
-        if(gerarFinanceiro) {
-            let nP = 1; if(fp.includes('Parcelado') || fp.includes('Prazo')) { if(parc.includes('2x')) nP = 2; else if(parc.includes('3x')) nP = 3; else if(parc.includes('4x')) nP = 4; else if(parc.includes('6x')) nP = 6; }
-            const vP = totalCustoGlobalNF / nP; const stsPgto = (fp.includes('Boleto') || fp.includes('Pendente') || fp.includes('Parcelado') || fp.includes('Crédito') || fp.includes('Prazo')) ? 'pendente' : 'pago';
-            for(let i=0; i<nP; i++) { 
-                let dV = new Date(dtBase); if(nP>1 || stsPgto==='pendente') dV.setDate(dV.getDate() + (i*30)); 
-                batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: 'despesa', desc: nP>1 ? `NF Compra: ${nf} (${fornecedor}) - Parc ${i+1}/${nP}` : `NF Compra: ${nf} (${fornecedor})`, valor: vP, parcelaAtual: i+1, totalParcelas: nP, metodo: fp, vencimento: dV.toISOString().split('T')[0], status: stsPgto }); 
-            }
-        }
-        app.registrarAuditoriaGlobal("Estoque e DRE", `Deu entrada em nova nota fiscal de ${fornecedor}, total R$ ${totalCustoGlobalNF.toFixed(2)}`);
-    }
-
-    await batch.commit(); app.showToast("Estoque Atualizado e Compra Lançada!", "success"); e.target.reset(); 
-    const mod = document.getElementById('modalNF'); if(mod) bootstrap.Modal.getInstance(mod).hide();
-};
-
-app.apagarProduto = async function(id) {
-    if(app.t_role !== 'admin') { app.showToast("Apenas a Administração Master pode excluir produtos.", "error"); return; }
-    if(confirm("Excluir produto permanentemente da base?")) { 
-        await app.db.collection('estoque').doc(id).delete(); 
-        app.registrarAuditoriaGlobal("Estoque", `Deletou um produto do estoque (ID: ${id}).`);
-        app.showToast("Produto Excluído.", "success"); 
-    }
-};
-
-// =====================================================================
-// 6. MOTOR KANBAN E GESTÃO DE O.S. (ATUALIZADO COM ATRIBUIÇÃO DE BOX E MÚLTIPLOS MECÂNICOS)
-// =====================================================================
-app.iniciarEscutaOS = function() {
-    app.db.collection('ordens_servico').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoOSCompleto = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if(app.t_role === 'equipe') {
-            let minhaCom = 0;
-            app.bancoOSCompleto.filter(o => o.status === 'entregue').forEach(o => {
-                if(o.comissoesDetalhadas && Array.isArray(o.comissoesDetalhadas)) {
-                    // OS com rateio salvo
-                    const minhaParte = o.comissoesDetalhadas.find(c => c.nome === app.user_nome);
-                    if(minhaParte) minhaCom += (minhaParte.valor || 0);
-                } else if(o.mecanicoAtribuido) {
-                    // OS antiga sem rateio — recalcula
-                    const mecsArr = o.mecanicoAtribuido.split(' + ').map(m => m.trim());
-                    if(mecsArr.includes(app.user_nome)) {
-                        let moB = o.maoObraTotal || 0, pcB = o.pecasTotal || 0;
-                        if(moB === 0 && pcB === 0 && o.pecas) {
-                            o.pecas.forEach(p => { const s=(p.qtd||1)*(p.venda||0); if(p.isMaoObra) moB+=s; else pcB+=s; });
-                            if(moB===0&&pcB===0) moB = o.total||0;
-                        }
-                        minhaCom += (moB/mecsArr.length)*(app.user_comissao_mo/100) + (pcB/mecsArr.length)*(app.user_comissao_pecas/100);
-                    }
-                }
-            });
-            let meusVales = 0;
-            if(app.bancoVales) { app.bancoVales.filter(v => v.nomeFuncionario === app.user_nome).forEach(v => meusVales += (v.valor||0)); }
-            const divKpi = document.getElementById('kpiMinhaComissao');
-            if(divKpi) divKpi.innerText = `R$ ${(minhaCom - meusVales).toFixed(2).replace('.',',')}`;
-        }
-        app.renderizarKanban(); app.renderizarTabelaArquivo();
-        if(app.t_role === 'admin' || app.t_role === 'gerente') app.renderizarEquipeRH();
-    });
-};
-
-app.filtrarGlobal = function() { app.renderizarKanban(); app.renderizarTabelaArquivo(); };
-
-app.renderizarKanban = function() {
-    const busca = document.getElementById('buscaGeral'); const t = busca ? busca.value.toLowerCase().trim() : '';
-    let ativos = app.bancoOSCompleto.filter(os => os.status !== 'entregue');
-    if(t) ativos = ativos.filter(os => (os.placa&&os.placa.toLowerCase().includes(t)) || (os.cliente&&os.cliente.toLowerCase().includes(t)) || (os.veiculo&&os.veiculo.toLowerCase().includes(t)));
-
-    const cols = { patio: '', orcamento: '', aprovacao: '', box: '', pronto: '' };
-    let counts = { patio: 0, orcamento: 0, aprovacao: 0, box: 0, pronto: 0 };
-    const ordem = ['patio', 'orcamento', 'aprovacao', 'box', 'pronto'];
-
-    ativos.forEach(os => {
-        const s = os.status || 'patio'; counts[s]++;
-        let cor = s === 'pronto' ? 'border-success' : s === 'aprovacao' ? 'border-warning' : s === 'box' ? 'border-info' : s === 'orcamento' ? 'border-primary' : 'border-secondary';
-        const idx = ordem.indexOf(s); const nextS = idx < ordem.length-1 ? ordem[idx+1] : null; const prevS = idx > 0 ? ordem[idx-1] : null;
         
-        let btnBack = prevS ? `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm me-1" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${prevS}')" title="Voltar Fase"><i class="bi bi-arrow-left-circle text-white-50"></i></button>` : '';
-        let btnFwd = s === 'pronto' ? `<button class="btn btn-sm btn-success p-1 px-3 shadow fw-bold gestao-only" onclick="event.stopPropagation(); app.abrirFaturamentoDireto('${os.id}')"><i class="bi bi-cash-coin me-1"></i> FATURAR VEÍCULO</button>` : `<button class="btn btn-sm btn-dark p-1 px-2 border-secondary shadow-sm" onclick="event.stopPropagation(); app.mudarStatusRapido('${os.id}', '${nextS}')" title="Avançar Fase"><i class="bi bi-arrow-right-circle text-info"></i></button>`;
-
-        let tagsBox = '';
-        if (s === 'box' || s === 'pronto') {
-            const m = os.mecanicoAtribuido ? os.mecanicoAtribuido : 'Equipe Não Definida';
-            const b = os.boxAtribuido ? os.boxAtribuido : 'Box ?';
-            tagsBox = `<div class="mt-2 d-flex gap-1 flex-wrap"><span class="badge bg-dark border border-info text-info"><i class="bi bi-people"></i> ${m}</span><span class="badge bg-dark border border-warning text-warning"><i class="bi bi-geo-alt"></i> ${b}</span></div>`;
-        }
-
-        cols[s] += `<div class="os-card border-start border-4 ${cor}" onclick="app.abrirModalOS('edit', '${os.id}')"><div class="fast-actions">${btnBack}${btnFwd}</div><div class="d-flex justify-content-between mb-2"><span class="badge bg-dark border border-secondary text-white py-2 px-3 fw-bold tracking-wide">${os.placa}</span></div><h6 class="text-white fw-bold mb-1 w-75 text-truncate">${os.veiculo}</h6><small class="text-white-50"><i class="bi bi-person-fill"></i> ${os.cliente}</small>${tagsBox}</div>`;
-    });
-    ordem.forEach(id => { const col = document.getElementById('col_'+id); const cnt = document.getElementById('count_'+id); if(col) col.innerHTML = cols[id]; if(cnt) cnt.innerText = counts[id]; });
-};
-
-app.mudarStatusRapido = async function(id, novoStatus) {
-    if (novoStatus === 'box') {
-        app.iniciarAtribuicaoBox(id);
-        return; 
-    }
-    
-    const osRef = app.db.collection('ordens_servico').doc(id); const doc = await osRef.get();
-    let h = doc.data().historico || [];
-    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Moveu a O.S. para: ${novoStatus.toUpperCase()}` });
-    await osRef.update({ status: novoStatus, historico: h, ultimaAtualizacao: new Date().toISOString() });
-    
-    if (novoStatus === 'pronto') {
-        app.abrirModalNotificacaoWhatsApp(id, 'pronto');
-    }
+        await app.db.collection('ordens_servico').doc(id).update({ status: 'cancelada', ultimaAtualizacao: new Date().toISOString() });
+        app.showToast("O.S. abortada e enviada para a Lixeira de Auditoria.", "success");
+        bootstrap.Modal.getInstance(document.getElementById('modalOS')).hide();
+    } catch(e) { app.showToast("Erro ao apagar", "error"); }
 };
 
 // =====================================================================
-// FLUXOS DE ATRIBUIÇÃO DE MÚLTIPLOS MECÂNICOS
+// 8. ATRIBUIÇÃO DE BOX, FATURAMENTO E WHATSAPP
 // =====================================================================
-app.iniciarAtribuicaoBox = function(id) {
-    document.getElementById('atrib_os_id').value = id;
+app.prepararAtribuicaoBox = function(osId) {
+    document.getElementById('atrib_os_id').value = osId;
     
-    const listContainer = document.getElementById('atrib_mecanicos_list');
-    if (listContainer) {
-        let html = '';
-        app.bancoEquipe.filter(f => f.role === 'equipe').forEach((f, idx) => {
-            html += `<div class="form-check mb-2">
-                        <input class="form-check-input border-secondary" type="checkbox" value="${f.nome}" id="mec_chk_${idx}" name="mec_check">
-                        <label class="form-check-label text-white" for="mec_chk_${idx}">${f.nome}</label>
-                     </div>`;
-        });
-        listContainer.innerHTML = html || '<div class="text-white-50 small">Nenhum mecânico de produção encontrado. Cadastre no RH.</div>';
+    const div = document.getElementById('atrib_mecanicos_list');
+    if(app.equipe.length === 0) {
+        div.innerHTML = '<span class="text-danger fw-bold">Você não tem equipe cadastrada. Impossível atribuir box. Vá no menu RH.</span>';
+    } else {
+        div.innerHTML = app.equipe.map(f => `
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input border-warning" type="checkbox" id="chk_mec_${f.id}" value="${f.id}" data-nome="${f.nome}">
+                <label class="form-check-label text-white fw-bold ms-2" for="chk_mec_${f.id}">${f.nome} <span class="badge bg-dark border border-secondary text-info ms-2">${f.cargo}</span></label>
+            </div>
+        `).join('');
     }
     
+    bootstrap.Modal.getInstance(document.getElementById('modalOS')).hide();
     new bootstrap.Modal(document.getElementById('modalAtribuicaoBox')).show();
 };
 
 app.confirmarAtribuicaoBox = async function() {
-    const id = document.getElementById('atrib_os_id').value;
+    const osId = document.getElementById('atrib_os_id').value;
     const box = document.getElementById('atrib_box').value;
     
-    const checkboxes = document.querySelectorAll('input[name="mec_check"]:checked');
-    if (checkboxes.length === 0) { app.showToast("É obrigatório definir ao menos 1 mecânico para o Box.", "warning"); return; }
+    const mecSelecionados = [];
+    const mecNomes = [];
     
-    let mecanicosArray = [];
-    checkboxes.forEach(c => mecanicosArray.push(c.value));
-    const mecanicosStr = mecanicosArray.join(' + ');
-    
-    const osRef = app.db.collection('ordens_servico').doc(id);
-    const doc = await osRef.get();
-    let h = doc.data().historico || [];
-    
-    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Serviço Aprovado. Direcionado para o [${box}] sob responsabilidade da equipe: [${mecanicosStr}]. Status: BOX` });
-    
-    await osRef.update({ 
-        status: 'box', 
-        mecanicoAtribuido: mecanicosStr, 
-        boxAtribuido: box, 
-        historico: h, 
-        ultimaAtualizacao: new Date().toISOString() 
+    app.equipe.forEach(f => {
+        const chk = document.getElementById(`chk_mec_${f.id}`);
+        if(chk && chk.checked) {
+            mecSelecionados.push(f.id);
+            mecNomes.push(chk.getAttribute('data-nome'));
+        }
     });
     
-    app.showToast("Veículo encaminhado para execução com equipe atribuída!", "success");
-    bootstrap.Modal.getInstance(document.getElementById('modalAtribuicaoBox')).hide();
+    if(mecSelecionados.length === 0) { app.showToast("Selecione pelo menos um profissional para a execução.", "error"); return; }
+    
+    try {
+        await app.db.collection('ordens_servico').doc(osId).update({
+            status: 'box',
+            boxDestino: box,
+            equipeIds: mecSelecionados,
+            equipeNomes: mecNomes,
+            ultimaAtualizacao: new Date().toISOString()
+        });
+        
+        app.registrarAuditoria(osId, `Aprovou e transferiu para o [${box}]. Equipe designada: ${mecNomes.join(', ')}.`);
+        app.showToast("Veículo despachado para execução com sucesso!", "success");
+        bootstrap.Modal.getInstance(document.getElementById('modalAtribuicaoBox')).hide();
+    } catch(e) { app.showToast("Erro ao atribuir box.", "error"); }
 };
 
-app.abrirModalNotificacaoWhatsApp = function(id, tipo) {
-    document.getElementById('whats_os_id').value = id;
+app.abrirFaturamentoOS = function() {
+    const totText = document.getElementById('os_total_geral').innerText;
+    document.getElementById('fat_valor_total').innerText = totText;
+    document.getElementById('fat_metodo').value = 'Pix';
+    document.getElementById('fat_parcelas').value = '1';
+    
+    bootstrap.Modal.getInstance(document.getElementById('modalOS')).hide();
+    new bootstrap.Modal(document.getElementById('modalFaturamento')).show();
+};
+
+app.processarFaturamentoCompleto = async function() {
+    if(!app.osAtual || !app.osAtual.id) return;
+    
+    const osId = app.osAtual.id;
+    const valorTotalStr = document.getElementById('fat_valor_total').innerText.replace('R$ ', '');
+    const valorTotal = parseFloat(valorTotalStr) || 0;
+    const metodo = document.getElementById('fat_metodo').value;
+    const nParcelas = parseInt(document.getElementById('fat_parcelas').value) || 1;
+    
+    const pecas = app.osAtual.pecas || [];
+    const equipeIds = app.osAtual.equipeIds || [];
+    
+    if(valorTotal <= 0) { app.showToast("O.S sem valor não gera faturamento.", "warning"); return; }
+
+    try {
+        const batch = app.db.batch();
+        
+        // 1. INJEÇÃO NO DRE / FINANCEIRO
+        const descBase = `Receita O.S. [${app.osAtual.placa}] - Cliente: ${app.osAtual.cliente}`;
+        const valParcela = valorTotal / nParcelas;
+        
+        let dataVenc = new Date();
+        for(let i=1; i<=nParcelas; i++) {
+            const isPago = (i===1 && (metodo === 'Pix' || metodo === 'Dinheiro')); 
+            const finRef = app.db.collection('financeiro').doc();
+            batch.set(finRef, {
+                tenantId: app.t_id,
+                tipo: 'receita',
+                descricao: descBase,
+                valor: valParcela,
+                metodo: metodo,
+                parcela: `${i}/${nParcelas}`,
+                status: isPago ? 'pago' : 'pendente',
+                dataVencimento: dataVenc.toISOString().split('T')[0],
+                osIdOrigem: osId,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            dataVenc.setMonth(dataVenc.getMonth() + 1); // Joga 30 dias pra frente
+        }
+
+        // 2. BAIXA AUTOMÁTICA NO ESTOQUE (Só para itens do tipo 'peca' que vieram do estoque)
+        let custoTotalPecas = 0;
+        pecas.forEach(p => {
+            if(p.tipo === 'peca' && p.idEstoque) {
+                const estRef = app.db.collection('estoque').doc(p.idEstoque);
+                batch.update(estRef, { qtd: firebase.firestore.FieldValue.increment(-Math.abs(p.qtd)) });
+                custoTotalPecas += (p.custo * p.qtd);
+            }
+        });
+
+        // 3. CÁLCULO E INJEÇÃO DE COMISSÃO DA EQUIPE
+        if(equipeIds.length > 0) {
+            let totMoOS = 0; let totPecasVendaOS = 0;
+            pecas.forEach(p => { if(p.tipo === 'servico') totMoOS += (p.venda * p.qtd); else totPecasVendaOS += (p.venda * p.qtd); });
+            
+            const parteMoIndividual = totMoOS / equipeIds.length;
+            const partePecasIndividual = totPecasVendaOS / equipeIds.length;
+            
+            for (const mId of equipeIds) {
+                const docM = await app.db.collection('funcionarios').doc(mId).get();
+                if(docM.exists) {
+                    const dadosM = docM.data();
+                    const percMo = parseFloat(dadosM.comissao_mo) || 0;
+                    const percPeca = parseFloat(dadosM.comissao_pecas) || 0;
+                    
+                    const comissaoGanharMo = parteMoIndividual * (percMo / 100);
+                    const comissaoGanharPeca = partePecasIndividual * (percPeca / 100);
+                    const comissaoTotal = comissaoGanharMo + comissaoGanharPeca;
+                    
+                    if(comissaoTotal > 0) {
+                        const comRef = app.db.collection('funcionarios').doc(mId).collection('comissoes').doc();
+                        batch.set(comRef, {
+                            osId: osId,
+                            placa: app.osAtual.placa,
+                            data: new Date().toISOString(),
+                            valorTotalOS: valorTotal,
+                            comissaoGanha: comissaoTotal,
+                            status: 'pendente_pagamento_rh' // Fica na conta do mecânico pra receber depois
+                        });
+                    }
+                }
+            }
+        }
+
+        // 4. ENCERRAR A O.S E MOVER PARA O ARQUIVO MORTO
+        const osRef = app.db.collection('ordens_servico').doc(osId);
+        batch.update(osRef, {
+            status: 'entregue',
+            dataFaturamento: new Date().toISOString(),
+            infoPagamento: { metodo: metodo, parcelas: nParcelas, valorFaturado: valorTotal },
+            ultimaAtualizacao: new Date().toISOString(),
+            historico: firebase.firestore.FieldValue.arrayUnion({ data: new Date().toISOString(), acao: "O.S Faturada e Concluída.", usuario: app.user_nome })
+        });
+
+        await batch.commit();
+        
+        app.showToast("Sucesso! Estoque deduzido, Financeiro gerado e Comissões calculadas.", "success");
+        bootstrap.Modal.getInstance(document.getElementById('modalFaturamento')).show(); // Ops, hide
+        bootstrap.Modal.getInstance(document.getElementById('modalFaturamento')).hide();
+        
+    } catch(e) {
+        console.error(e);
+        app.showToast("Erro crítico durante o Faturamento.", "error");
+    }
+};
+
+app.renderizarArquivoMorto = function() {
+    const tbody = document.getElementById('tabelaArquivoCorpo');
+    if(!tbody) return;
+    
+    const entregues = app.bancoOSCompleto.filter(o => o.status === 'entregue').sort((a,b) => new Date(b.ultimaAtualizacao) - new Date(a.ultimaAtualizacao));
+    const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
+
+    if(entregues.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${isAdmin ? 6 : 5}" class="text-center text-white-50">Nenhum veículo entregue/faturado ainda.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = entregues.map(os => {
+        const dFat = os.dataFaturamento ? new Date(os.dataFaturamento).toLocaleDateString('pt-BR') : new Date(os.ultimaAtualizacao).toLocaleDateString('pt-BR');
+        const colFat = isAdmin ? `<td class="text-success fw-bold">R$ ${(os.total||0).toFixed(2)}</td>` : '';
+        return `
+            <tr>
+                <td><i class="bi bi-calendar-check text-success me-2"></i> ${dFat}</td>
+                <td class="fw-bold text-warning">${os.placa}</td>
+                <td>${os.veiculo}</td>
+                <td class="text-white-50"><i class="bi bi-person"></i> ${os.cliente}</td>
+                ${colFat}
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-info" onclick="app.abrirModalOS('editar', '${os.id}')"><i class="bi bi-eye"></i> Visualizar Laudo</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+};
+
+app.prepararNotificacaoWhatsApp = function(osId, tipo) {
+    const os = app.bancoOSCompleto.find(o => o.id === osId);
+    if(!os || !os.celular) {
+        app.showToast("Cliente sem celular cadastrado. Impossível notificar.", "warning");
+        return;
+    }
+    
+    document.getElementById('whats_os_id').value = osId;
     document.getElementById('whats_tipo_msg').value = tipo;
     
-    const os = app.bancoOSCompleto.find(x => x.id === id);
-    if(os) {
-        if(tipo === 'pronto') {
-            document.getElementById('whatsTituloModal').innerText = 'Veículo Pronto!';
-            document.getElementById('whatsTextoModal').innerText = `Deseja enviar uma mensagem automática para ${os.cliente} informando que o ${os.veiculo} está pronto para ser retirado?`;
-        }
-        new bootstrap.Modal(document.getElementById('modalNotificaWhatsApp')).show();
+    const titulo = document.getElementById('whatsTituloModal');
+    const texto = document.getElementById('whatsTextoModal');
+    
+    if(tipo === 'aprovacao') {
+        titulo.innerText = "Aprovação de Orçamento";
+        titulo.className = "text-warning fw-bold mb-3";
+        texto.innerText = `Deseja enviar o link seguro para o cliente [${os.cliente}] aprovar o orçamento da placa [${os.placa}] no valor de R$ ${(os.total||0).toFixed(2)}?`;
+    } else {
+        titulo.innerText = "Veículo Pronto!";
+        titulo.className = "text-success fw-bold mb-3";
+        texto.innerText = `O veículo [${os.placa}] de [${os.cliente}] já está na fase final. Deseja avisá-lo para retirar?`;
     }
+    
+    new bootstrap.Modal(document.getElementById('modalNotificaWhatsApp')).show();
+};
+
+app.enviarWhatsAppAprovacao = function() {
+    if(!app.osAtual) return;
+    app.prepararNotificacaoWhatsApp(app.osAtual.id, 'aprovacao');
 };
 
 app.dispararWhatsAppAtivo = function() {
     const id = document.getElementById('whats_os_id').value;
     const tipo = document.getElementById('whats_tipo_msg').value;
-    const os = app.bancoOSCompleto.find(x => x.id === id);
+    const os = app.bancoOSCompleto.find(o => o.id === id);
+    if(!os) return;
+
+    let num = os.celular.replace(/\D/g, '');
+    if(num.length === 10 || num.length === 11) num = '55' + num;
     
-    if (os && os.celular) {
-        let texto = '';
-        if (tipo === 'pronto') {
-            texto = `Olá ${os.cliente}, ótimas notícias da *${app.t_nome}*! 🚀\nO serviço no seu *${os.veiculo}* foi concluído com sucesso e ele já se encontra no pátio, finalizado e revisado.\nPor favor, confirme por aqui o melhor horário para agendarmos a sua retirada. Muito obrigado pela confiança!`;
-        }
-        window.open(`https://wa.me/55${os.celular.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`, '_blank');
-        
-        const h = os.historico || [];
-        h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `Disparou aviso de CONCLUSÃO via WhatsApp para o cliente.` });
-        app.db.collection('ordens_servico').doc(id).update({ historico: h });
-        
+    let msg = '';
+    // Link dinâmico gerado com base no host atual (para enviar o cliente para a garagem online correta)
+    const linkPortal = window.location.origin + window.location.pathname.replace('painel_oficina.html', 'clientes/projeto_oficina.html');
+
+    if(tipo === 'aprovacao') {
+        msg = `Olá *${os.cliente}*, tudo bem?\nA Oficina *${app.t_nome}* acabou de finalizar a avaliação do seu veículo placa *${os.placa}*.\n\nO diagnóstico e as fotos das peças já estão disponíveis no seu Painel Privado.\n\n*Acesse para ver os detalhes e autorizar o serviço:*\n🔗 ${linkPortal}\n\n*Aguardamos sua aprovação para iniciarmos os trabalhos no box!* 🛠️`;
     } else {
-        app.showToast("Este cliente não tem um celular válido cadastrado.", "error");
+        msg = `✅ Olá *${os.cliente}*, excelente notícia!\nO serviço no seu veículo placa *${os.placa}* foi concluído com sucesso pela equipe da *${app.t_nome}*.\n\nEle já encontra-se liberado e pronto para retirada.\nQualquer dúvida, estamos à disposição aqui no chat ou pelo Portal!\n🔗 ${linkPortal}`;
     }
+
+    const url = `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+    
+    app.showToast("WhatsApp Web Aberto.", "info");
     bootstrap.Modal.getInstance(document.getElementById('modalNotificaWhatsApp')).hide();
 };
 
 // =====================================================================
-// 7. ABERTURA E EDIÇÃO DO PRONTUÁRIO O.S. 
+// 9. GESTÃO DE ESTOQUE E ENTRADA DE NOTA FISCAL XML
 // =====================================================================
-app.verificarStatusLink = function() {
-    const a = document.getElementById('alertaLinkCliente'); if(!a) return;
-    if (document.getElementById('os_status') && document.getElementById('os_status').value === 'aprovacao' && document.getElementById('os_id').value) a.classList.remove('d-none'); else a.classList.add('d-none');
+app.abrirModalNF = function() {
+    document.getElementById('formNF').reset();
+    document.getElementById('corpoItensNF').innerHTML = '';
+    app.verificarPgtoCompraNF();
+    new bootstrap.Modal(document.getElementById('modalNF')).show();
 };
 
-app.abrirModalOS = function(mode = 'nova', id = '') {
-    const frm = document.getElementById('formOS'); if(frm) frm.reset();
-    if(document.getElementById('listaPecasCorpo')) document.getElementById('listaPecasCorpo').innerHTML = ''; 
-    app.fotosOSAtual = []; app.historicoOSAtual = [];
-    if(document.getElementById('header_placa')) document.getElementById('header_placa').innerText = '';
-    if(document.getElementById('listaHistorico')) document.getElementById('listaHistorico').innerHTML = '';
-    
-    const btnFat = document.getElementById('btnFaturar'); if(btnFat) btnFat.classList.add('d-none');
-    const btnPdf = document.getElementById('btnGerarPDF'); if(btnPdf) btnPdf.classList.add('d-none');
-    const btnDel = document.getElementById('btnDeletarOS'); if(btnDel) btnDel.classList.add('d-none');
-    ['chk_combustivel', 'chk_arranhado', 'chk_bateria', 'chk_pneus'].forEach(i => { const chk = document.getElementById(i); if(chk) chk.checked = false; });
+app.verificarPgtoCompraNF = function() {
+    const met = document.getElementById('nf_metodo_pagamento').value;
+    const divP = document.getElementById('nf_div_parcelas');
+    if(met.includes('Parcelado')) { divP.style.display = 'block'; }
+    else { divP.style.display = 'none'; document.getElementById('nf_parcelas').value = '1x'; }
+};
 
-    if (mode === 'edit') {
-        const os = app.bancoOSCompleto.find(x => x.id === id);
-        if (os) {
-            if(document.getElementById('os_id')) document.getElementById('os_id').value = os.id;
-            if(document.getElementById('os_placa')) document.getElementById('os_placa').value = os.placa || '';
-            if(document.getElementById('header_placa')) document.getElementById('header_placa').innerText = `[${os.placa}]`;
-            if(document.getElementById('os_veiculo')) document.getElementById('os_veiculo').value = os.veiculo || '';
-            if(document.getElementById('os_cliente')) document.getElementById('os_cliente').value = os.cliente || '';
-            if(document.getElementById('os_cliente_cpf')) document.getElementById('os_cliente_cpf').value = os.clienteCpf || '';
-            if(document.getElementById('os_celular')) document.getElementById('os_celular').value = os.celular || '';
-            if(document.getElementById('os_status')) document.getElementById('os_status').value = os.status || 'patio';
-            if(document.getElementById('os_relato_cliente')) document.getElementById('os_relato_cliente').value = os.relatoCliente || '';
-            if(document.getElementById('os_diagnostico')) document.getElementById('os_diagnostico').value = os.diagnostico || '';
-            if(os.chk_combustivel && document.getElementById('chk_combustivel')) document.getElementById('chk_combustivel').checked = true;
-            if(os.chk_arranhado && document.getElementById('chk_arranhado')) document.getElementById('chk_arranhado').checked = true;
-            if(os.chk_bateria && document.getElementById('chk_bateria')) document.getElementById('chk_bateria').checked = true;
-            if(os.chk_pneus && document.getElementById('chk_pneus')) document.getElementById('chk_pneus').checked = true;
+app.adicionarLinhaNF = function(item = null) {
+    const tbody = document.getElementById('corpoItensNF');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" class="form-control bg-dark text-warning fw-bold form-control-sm border-secondary nf-sku" value="${item ? item.sku : ''}" placeholder="Cód/SKU" required></td>
+        <td><input type="text" class="form-control bg-dark text-white form-control-sm border-secondary nf-desc" value="${item ? item.desc : ''}" required></td>
+        <td><input type="text" class="form-control bg-dark text-white form-control-sm border-secondary nf-ncm" value="${item ? item.ncm : ''}"></td>
+        <td><input type="text" class="form-control bg-dark text-white form-control-sm border-secondary nf-cfop" value="${item ? item.cfop : ''}"></td>
+        <td><input type="number" class="form-control bg-dark text-white fw-bold form-control-sm border-secondary nf-qtd text-center" value="${item ? item.qtd : 1}" step="0.1" required></td>
+        <td><input type="number" step="0.01" class="form-control bg-dark text-danger fw-bold form-control-sm border-secondary nf-custo" value="${item ? item.custo : 0}" required></td>
+        <td><input type="number" step="0.01" class="form-control bg-dark text-success fw-bold form-control-sm border-secondary nf-venda" value="${item ? item.venda : 0}" required></td>
+        <td><button type="button" class="btn btn-sm btn-danger rounded-circle" onclick="this.parentElement.parentElement.remove()"><i class="bi bi-trash"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+};
+
+app.processarXML = function(event) {
+    const file = event.target.files[0];
+    if(!file) return;
+    app.showToast("Mágica iniciada: Lendo XML e cruzando dados...", "info");
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(e.target.result, "text/xml");
             
-            if (os.fotos) { app.fotosOSAtual = os.fotos; app.renderizarGaleria(); }
-            if (os.historico) { app.historicoOSAtual = os.historico; app.renderizarHistorico(); }
-            if (os.pecas && Array.isArray(os.pecas)) { os.pecas.forEach(p => app.adicionarLinhaPeca(p.desc, p.ncm||'', p.qtd, p.custo, p.venda, p.idEstoque, p.isMaoObra)); }
+            const fornecedor = xmlDoc.getElementsByTagName("xNome")[0]?.childNodes[0]?.nodeValue || 'Fornecedor XML';
+            const numNota = xmlDoc.getElementsByTagName("nNF")[0]?.childNodes[0]?.nodeValue || '';
+            const dataEmissaoRaw = xmlDoc.getElementsByTagName("dhEmi")[0]?.childNodes[0]?.nodeValue || '';
             
-            if(btnPdf) btnPdf.classList.remove('d-none');
-            if (os.status === 'pronto' && (app.t_role === 'admin' || app.t_role === 'gerente') && btnFat) btnFat.classList.remove('d-none');
-            if (app.t_role === 'admin' && btnDel) btnDel.classList.remove('d-none');
+            document.getElementById('nf_fornecedor').value = fornecedor;
+            document.getElementById('nf_numero').value = numNota;
+            if(dataEmissaoRaw) document.getElementById('nf_data').value = dataEmissaoRaw.split('T')[0];
+            
+            const detNodes = xmlDoc.getElementsByTagName("det");
+            document.getElementById('corpoItensNF').innerHTML = ''; // Limpa itens manuais
+            
+            for(let i=0; i<detNodes.length; i++) {
+                const prod = detNodes[i].getElementsByTagName("prod")[0];
+                const item = {
+                    sku: prod.getElementsByTagName("cProd")[0]?.childNodes[0]?.nodeValue || '',
+                    desc: prod.getElementsByTagName("xProd")[0]?.childNodes[0]?.nodeValue || '',
+                    ncm: prod.getElementsByTagName("NCM")[0]?.childNodes[0]?.nodeValue || '',
+                    cfop: prod.getElementsByTagName("CFOP")[0]?.childNodes[0]?.nodeValue || '',
+                    qtd: parseFloat(prod.getElementsByTagName("qCom")[0]?.childNodes[0]?.nodeValue) || 0,
+                    custo: parseFloat(prod.getElementsByTagName("vUnCom")[0]?.childNodes[0]?.nodeValue) || 0,
+                    venda: (parseFloat(prod.getElementsByTagName("vUnCom")[0]?.childNodes[0]?.nodeValue) || 0) * 1.5 // Margem 50% chute
+                };
+                app.adicionarLinhaNF(item);
+            }
+            app.showToast(`Importação concluída. ${detNodes.length} itens extraídos. Revise os preços de venda (PVP).`, "success");
+        } catch(err) {
+            console.error(err);
+            app.showToast("Falha na interpretação do arquivo XML. Estrutura inválida.", "error");
         }
-    } else { app.adicionarMaoDeObra(); }
-    app.verificarStatusLink(); const mod = document.getElementById('modalOS'); if(mod) new bootstrap.Modal(mod).show();
-};
-
-app.adicionarDoEstoque = function() {
-    const sel = document.getElementById('selectProdutoEstoque'); if(!sel || !sel.value) return; const opt = sel.options[sel.selectedIndex];
-    app.adicionarLinhaPeca(opt.dataset.desc, opt.dataset.ncm, 1, parseFloat(opt.dataset.custo), parseFloat(opt.dataset.venda), sel.value, false); sel.value = '';
-};
-
-app.adicionarMaoDeObra = function() { app.adicionarLinhaPeca("Mão de Obra / Serviço", "-", 1, 0, 0, null, true); };
-
-app.adicionarLinhaPeca = function(desc, ncm, qtd, custo, venda, idEstoque, isMaoObra) {
-    const tr = document.createElement('tr'); const mo = isMaoObra ? `data-maoobra="true"` : ''; const est = idEstoque ? `data-idestoque="${idEstoque}" readonly` : '';
-    tr.innerHTML = `<td><input type="text" class="form-control form-control-sm bg-dark text-white border-secondary peca-desc p-2" value="${desc}" ${est} ${mo}></td>
-        <td><span class="text-white-50 small d-block">NCM: ${ncm||'-'}</span></td>
-        <td><input type="number" class="form-control form-control-sm bg-dark text-white border-secondary peca-qtd p-2" value="${qtd}" min="1" onchange="app.calcularTotalOS()"></td>
-        <td class="gestao-only"><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-danger border-secondary peca-custo p-2" value="${custo}" onchange="app.calcularTotalOS()"></td>
-        <td><input type="number" step="0.01" class="form-control form-control-sm bg-dark text-success border-secondary peca-venda p-2 fw-bold" value="${venda}" onchange="app.calcularTotalOS()"></td>
-        <td><input type="text" class="form-control form-control-sm bg-black text-white border-0 peca-total fw-bold p-2" readonly value="${(qtd*venda).toFixed(2)}"></td>
-        <td class="text-center" data-html2canvas-ignore><button type="button" class="btn btn-sm btn-outline-danger border-0 mt-1" onclick="this.closest('tr').remove(); app.calcularTotalOS()"><i class="bi bi-trash"></i></button></td>`;
-    const tb = document.getElementById('listaPecasCorpo'); if(tb) tb.appendChild(tr); app.calcularTotalOS();
-};
-
-app.calcularTotalOS = function() {
-    let t = 0; let tc = 0; let tMO = 0; let tPecas = 0;
-    document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => {
-        const descInput = tr.querySelector('.peca-desc'); const isMaoObra = descInput ? descInput.dataset.maoobra === "true" : false;
-        const q = parseFloat(tr.querySelector('.peca-qtd').value)||0; const v = parseFloat(tr.querySelector('.peca-venda').value)||0; const c = parseFloat(tr.querySelector('.peca-custo').value)||0;
-        const totElem = tr.querySelector('.peca-total'); if(totElem) totElem.value = (q*v).toFixed(2);
-        t += (q*v); tc += (q*c); if(isMaoObra) tMO += (q*v); else tPecas += (q*v);
-    });
-    const divGeral = document.getElementById('os_total_geral'); if(divGeral) divGeral.innerText = `R$ ${t.toFixed(2).replace('.',',')}`;
-    return { total: t, custo: tc, maoObra: tMO, pecas: tPecas };
-};
-
-app.salvarOS = async function() {
-    const idElem = document.getElementById('os_id'); const id = idElem ? idElem.value : '';
-    let pecasArray = []; const metricasTotais = app.calcularTotalOS(); 
-    const cpfField = document.getElementById('os_cliente_cpf'); const cpfOS = cpfField ? cpfField.value : '';
-    const cliElem = document.getElementById('os_cliente'); const clienteOS = cliElem ? cliElem.value.trim() : '';
-    const telElem = document.getElementById('os_celular'); const telOS = telElem ? telElem.value.trim() : '';
-
-    let cId = '';
-    if(clienteOS && !app.bancoCrm.find(c => c.nome.toLowerCase() === clienteOS.toLowerCase())) {
-        const d = await app.db.collection('clientes_base').add({ tenantId: app.t_id, nome: clienteOS, telefone: telOS, documento: cpfOS, anotacoes: "Criado via O.S." }); cId = d.id;
-    } else { const cExist = app.bancoCrm.find(c => c.nome.toLowerCase() === clienteOS.toLowerCase()); if(cExist) cId = cExist.id; }
-
-    document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => {
-        const descInput = tr.querySelector('.peca-desc'); const desc = descInput ? descInput.value.trim() : '';
-        const idEstoque = descInput ? descInput.dataset.idestoque || null : null; const isMaoObra = descInput ? descInput.dataset.maoobra === "true" : false;
-        const q = parseFloat(tr.querySelector('.peca-qtd').value)||1; const c = parseFloat(tr.querySelector('.peca-custo').value)||0; const v = parseFloat(tr.querySelector('.peca-venda').value)||0;
-        if (desc !== '') { pecasArray.push({ desc, qtd:q, custo:c, venda:v, idEstoque, isMaoObra }); }
-    });
-    
-    const novoStatus = document.getElementById('os_status') ? document.getElementById('os_status').value : 'patio';
-    
-    if(novoStatus === 'box' && id) {
-         const oldData = app.bancoOSCompleto.find(o => o.id === id);
-         if(oldData && oldData.status !== 'box' && (!oldData.mecanicoAtribuido || !oldData.boxAtribuido)) {
-             app.iniciarAtribuicaoBox(id);
-             return;
-         }
-    }
-
-    app.historicoOSAtual.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: id ? `Editou o orçamento/evidências. Status: ${novoStatus.toUpperCase()}` : "Abriu a Ficha (Pátio)." });
-    
-    const payload = {
-        tenantId: app.t_id, placa: document.getElementById('os_placa') ? document.getElementById('os_placa').value.toUpperCase() : '', veiculo: document.getElementById('os_veiculo') ? document.getElementById('os_veiculo').value : '', cliente: clienteOS, clienteId: cId, celular: telOS, clienteCpf: cpfOS, status: novoStatus, relatoCliente: document.getElementById('os_relato_cliente') ? document.getElementById('os_relato_cliente').value : '', diagnostico: document.getElementById('os_diagnostico') ? document.getElementById('os_diagnostico').value : '', chk_combustivel: document.getElementById('chk_combustivel') ? document.getElementById('chk_combustivel').checked : false, chk_arranhado: document.getElementById('chk_arranhado') ? document.getElementById('chk_arranhado').checked : false, chk_bateria: document.getElementById('chk_bateria') ? document.getElementById('chk_bateria').checked : false, chk_pneus: document.getElementById('chk_pneus') ? document.getElementById('chk_pneus').checked : false, pecas: pecasArray, total: metricasTotais.total, custoTotal: metricasTotais.custo, maoObraTotal: metricasTotais.maoObra, pecasTotal: metricasTotais.pecas, fotos: app.fotosOSAtual, historico: app.historicoOSAtual, ultimaAtualizacao: new Date().toISOString()
     };
-    
-    if (novoStatus === 'entregue') { app.showToast("ATENÇÃO: Use o botão Verde de Faturar para Baixar Estoque.", "warning"); return; }
-    if (id) await app.db.collection('ordens_servico').doc(id).update(payload); else await app.db.collection('ordens_servico').add(payload);
-    
-    app.showToast("Prontuário Salvo.", "success"); const mod = document.getElementById('modalOS'); if(mod) bootstrap.Modal.getInstance(mod).hide();
+    reader.readAsText(file);
 };
 
-// =====================================================================
-// 8. FATURAMENTO (BAIXA DE ESTOQUE E RATEIO DE COMISSÕES PARA RH)
-// =====================================================================
-app.abrirFaturamentoDireto = function(id) {
-    app.osParaFaturar = app.bancoOSCompleto.find(o => o.id === id);
-    const vTotal = document.getElementById('fat_valor_total');
-    if(vTotal && app.osParaFaturar) vTotal.innerText = `R$ ${(app.osParaFaturar.total||0).toFixed(2).replace('.',',')}`;
-    const mod = document.getElementById('modalFaturamento'); if(mod) new bootstrap.Modal(mod).show();
-};
-
-app.abrirFaturamentoOS = async function() {
-    await app.salvarOS();
-    const idElem = document.getElementById('os_id');
-    if(idElem && idElem.value) app.abrirFaturamentoDireto(idElem.value);
-};
-
-app.processarFaturamentoCompleto = async function() {
-    if(!app.osParaFaturar) return;
-    const fpElem = document.getElementById('fat_metodo'); const fp = fpElem ? fpElem.value : 'Dinheiro';
-    const parcElem = document.getElementById('fat_parcelas'); const parcelasText = parcElem ? parcElem.value : '1';
-    
-    const totalVenda = app.osParaFaturar.total || 0; const batch = app.db.batch();
-    let nP = 1; if(fp.includes('Boleto') || fp.includes('Cartao') || fp.includes('Parcelado') || fp.includes('Crediario')) { nP = parseInt(parcelasText) || 1; }
-    const vP = totalVenda / nP; const stsPgto = (fp.includes('Boleto') || fp.includes('Crediario')) ? 'pendente' : 'pago';
-    const dtBase = new Date().toISOString().split('T')[0];
-
-    for(let i=0; i<nP; i++) { 
-        let dV = new Date(dtBase); if(nP>1 || stsPgto==='pendente') dV.setDate(dV.getDate() + (i*30)); 
-        batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: 'receita', desc: nP>1 ? `O.S: [${app.osParaFaturar.placa}] - Parc ${i+1}/${nP}` : `O.S: [${app.osParaFaturar.placa}] - Cliente: ${app.osParaFaturar.cliente}`, valor: vP, parcelaAtual: i+1, totalParcelas: nP, metodo: fp, vencimento: dV.toISOString().split('T')[0], status: stsPgto }); 
-    }
-
-    if(app.osParaFaturar.pecas && !app.osParaFaturar.baixaEstoqueFeita) {
-        for (const p of app.osParaFaturar.pecas) {
-            if (p.idEstoque) { const estRef = app.db.collection('estoque').doc(p.idEstoque); const estDoc = await estRef.get(); if(estDoc.exists) batch.update(estRef, { qtd: Math.max(0, estDoc.data().qtd - p.qtd) }); }
-        }
-    }
-
-    // CALCULO DO RH (RATEIO CHEVRON): Divide as comissões proporcionalmente entre os mecânicos do Box
-    let comissoesDetalhadas = [];
-    let somaComissaoGlobal = 0;
-
-    if (app.osParaFaturar.mecanicoAtribuido) {
-        // Recalcula maoObraTotal e pecasTotal a partir do array de peças
-        // (garante que OS antigas sem esses campos também calculem corretamente)
-        let maoObraCalc = app.osParaFaturar.maoObraTotal || 0;
-        let pecasCalc = app.osParaFaturar.pecasTotal || 0;
-
-        if((maoObraCalc === 0 && pecasCalc === 0) && app.osParaFaturar.pecas && app.osParaFaturar.pecas.length > 0) {
-            app.osParaFaturar.pecas.forEach(p => {
-                const subtotal = (p.qtd || 1) * (p.venda || 0);
-                if(p.isMaoObra) maoObraCalc += subtotal;
-                else pecasCalc += subtotal;
-            });
-            // Se tudo for mão de obra (sem distinção salva), distribui o total
-            if(maoObraCalc === 0 && pecasCalc === 0) {
-                maoObraCalc = app.osParaFaturar.total || 0;
-            }
-        }
-
-        let mecanicosArray = app.osParaFaturar.mecanicoAtribuido.split(' + ');
-        mecanicosArray.forEach(nomeMec => {
-            let func = app.bancoEquipe.find(f => f.nome === nomeMec.trim());
-            if(func) {
-                let baseMO = maoObraCalc / mecanicosArray.length;
-                let basePc = pecasCalc / mecanicosArray.length;
-
-                let valMO = baseMO * (parseFloat(func.comissao || 0) / 100);
-                let valPc = basePc * (parseFloat(func.comissao_pecas || 0) / 100);
-                let totalMec = valMO + valPc;
-
-                comissoesDetalhadas.push({ nome: func.nome, valor: parseFloat(totalMec.toFixed(2)) });
-                somaComissaoGlobal += totalMec;
-            }
-        });
-    }
-    
-    let h = app.osParaFaturar.historico || [];
-    h.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: `FATURAMENTO CONCLUÍDO: ${nP}x (${fp}). Rateio de comissões ativado.` });
-    
-    batch.update(app.db.collection('ordens_servico').doc(app.osParaFaturar.id), { 
-        status: 'entregue', 
-        baixaEstoqueFeita: true, 
-        comissaoProcessada: somaComissaoGlobal, 
-        comissoesDetalhadas: comissoesDetalhadas, 
-        historico: h, 
-        ultimaAtualizacao: new Date().toISOString() 
-    });
-    
-    await batch.commit(); 
-    app.registrarAuditoriaGlobal("Faturamento O.S.", `Faturou a placa ${app.osParaFaturar.placa}. R$ ${totalVenda.toFixed(2)}`);
-    app.showToast("CHECKOUT CONCLUÍDO! Receitas geradas e Comissões do RH registradas.", "success");
-    
-    const modFat = document.getElementById('modalFaturamento'); if(modFat) bootstrap.Modal.getInstance(modFat).hide();
-    const modOS = document.getElementById('modalOS'); if(modOS) bootstrap.Modal.getInstance(modOS).hide();
-};
-
-// =====================================================================
-// 9. DRE, FLUXO DE CAIXA E HISTÓRICO PERMANENTE
-// =====================================================================
-app.abrirModalFinanceiro = function(mode='nova', tipo='', id='') {
-    const frm = document.getElementById('formFinanceiro'); if(frm) frm.reset();
-    if(document.getElementById('fin_id')) document.getElementById('fin_id').value = '';
-    
-    if(mode === 'edit' && !tipo) { const f = app.bancoFin.find(x => x.id === id); if(f) tipo = f.tipo; }
-    
-    if(document.getElementById('fin_tipo')) document.getElementById('fin_tipo').value = tipo;
-    const finTitulo = document.getElementById('fin_titulo'); if(finTitulo) finTitulo.innerHTML = tipo === 'receita' ? '<i class="bi bi-plus-circle text-success me-2"></i> Receita Avulsa' : '<i class="bi bi-dash-circle text-danger me-2"></i> Lançar Despesa / NF';
-    if(document.getElementById('fin_data')) document.getElementById('fin_data').value = new Date().toISOString().split('T')[0];
-    
-    const divStatus = document.getElementById('divStatusEdit'); const divParcelas = document.getElementById('divParcelas');
-    
-    if(mode === 'edit') {
-        const f = app.bancoFin.find(x => x.id === id);
-        if(f) {
-            if(document.getElementById('fin_id')) document.getElementById('fin_id').value = f.id;
-            if(document.getElementById('fin_desc')) document.getElementById('fin_desc').value = f.desc || '';
-            if(document.getElementById('fin_valor')) document.getElementById('fin_valor').value = f.valor || 0;
-            if(document.getElementById('fin_data')) document.getElementById('fin_data').value = f.vencimento ? f.vencimento.split('T')[0] : '';
-            if(document.getElementById('fin_metodo')) document.getElementById('fin_metodo').value = f.metodo || 'Dinheiro';
-            if(divStatus) { divStatus.style.display = 'block'; if(document.getElementById('fin_status')) document.getElementById('fin_status').value = f.status || 'pendente'; }
-            if(divParcelas) divParcelas.style.display = 'none';
-        }
-    } else {
-        if(divStatus) divStatus.style.display = 'none';
-        if(divParcelas) divParcelas.style.display = 'block';
-        if(tipo === 'receita' && document.getElementById('fin_parcelas')) document.getElementById('fin_parcelas').value = '1';
-    }
-    
-    const mod = document.getElementById('modalFin'); if(mod) new bootstrap.Modal(mod).show();
-};
-
-app.verificarPgtoFinManual = function() {
-    const f = document.getElementById('fin_metodo').value; const d = document.getElementById('divParcelas');
-    if(d) { if(f.includes('Parcelado') || f.includes('Boleto')) d.style.display = 'block'; else { d.style.display = 'none'; document.getElementById('fin_parcelas').value = '1'; } }
-};
-
-app.salvarLancamentoFinanceiro = async function(e) {
+app.salvarEntradaEstoque = async function(e) {
     e.preventDefault();
-    const idField = document.getElementById('fin_id'); const id = idField ? idField.value : '';
-    const tipo = document.getElementById('fin_tipo') ? document.getElementById('fin_tipo').value : ''; 
-    const desc = document.getElementById('fin_desc') ? document.getElementById('fin_desc').value : '';
-    const valorTotal = document.getElementById('fin_valor') ? parseFloat(document.getElementById('fin_valor').value) : 0; 
-    const dataInicial = document.getElementById('fin_data') ? new Date(document.getElementById('fin_data').value) : new Date();
-    const fp = document.getElementById('fin_metodo') ? document.getElementById('fin_metodo').value : ''; 
+    const fornecedor = document.getElementById('nf_fornecedor').value;
+    const nota = document.getElementById('nf_numero').value;
+    const dataNota = document.getElementById('nf_data').value;
+    const gerarFin = document.getElementById('nf_gerar_financeiro').checked;
     
-    if(id) {
-        const m = prompt("ATENÇÃO: Modificando DRE. Digite a JUSTIFICATIVA (Auditoria Obrigatória):");
-        if(!m || m.trim() === '') { app.showToast("Operação Abortada. A justificativa de caixa é obrigatória.", "error"); return; }
-
-        const sts = document.getElementById('fin_status') ? document.getElementById('fin_status').value : 'pendente';
-        await app.db.collection('financeiro').doc(id).update({ desc: desc, valor: valorTotal, vencimento: dataInicial.toISOString().split('T')[0], metodo: fp, status: sts });
-        app.showToast(`Documento Atualizado. Status: ${sts.toUpperCase()}`, "success");
-        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Editou o título [${desc}]. Status: ${sts.toUpperCase()}. Justificativa: ${m}`);
-    } else {
-        const parcelasText = document.getElementById('fin_parcelas') ? document.getElementById('fin_parcelas').value : '1';
-        const batch = app.db.batch();
-        let nP = 1; if(fp.includes('Boleto') || fp.includes('Cartão') || fp.includes('Parcelado')) nP = parseInt(parcelasText) || 1;
+    const linhas = document.querySelectorAll('#corpoItensNF tr');
+    if(linhas.length === 0) { app.showToast("Não há produtos listados para entrada.", "warning"); return; }
+    
+    let totalCustoEntrada = 0;
+    const batch = app.db.batch();
+    
+    linhas.forEach(tr => {
+        const sku = tr.querySelector('.nf-sku').value;
+        const desc = tr.querySelector('.nf-desc').value;
+        const ncm = tr.querySelector('.nf-ncm').value;
+        const cfop = tr.querySelector('.nf-cfop').value;
+        const qtd = parseFloat(tr.querySelector('.nf-qtd').value) || 0;
+        const custo = parseFloat(tr.querySelector('.nf-custo').value) || 0;
+        const venda = parseFloat(tr.querySelector('.nf-venda').value) || 0;
         
-        const vP = valorTotal / nP; 
-        const stsPgto = (fp.includes('Boleto') || fp.includes('Pendente') || fp.includes('Crédito') || fp.includes('Parcelado')) ? 'pendente' : 'pago';
-
-        for(let i=0; i<nP; i++) {
-            let v = new Date(dataInicial); if(nP>1 || stsPgto==='pendente') v.setMonth(v.getMonth() + i);
-            batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: tipo, desc: nP>1 ? `${desc} - Parc ${i+1}/${nP}`: desc, valor: vP, parcelaAtual: i+1, totalParcelas: nP, metodo: fp, vencimento: v.toISOString().split('T')[0], status: stsPgto });
+        totalCustoEntrada += (custo * qtd);
+        
+        // Verifica se o SKU já existe para atualizar saldo, ou cria novo
+        const itemExistente = app.bancoEstoque.find(i => i.sku === sku);
+        if(itemExistente) {
+            const ref = app.db.collection('estoque').doc(itemExistente.id);
+            batch.update(ref, {
+                qtd: firebase.firestore.FieldValue.increment(qtd),
+                custo: custo, venda: venda, ultimaEntrada: dataNota, ncm: ncm, cfop: cfop
+            });
+        } else {
+            const ref = app.db.collection('estoque').doc();
+            batch.set(ref, {
+                tenantId: app.t_id,
+                sku: sku, descricao: desc, ncm: ncm, cfop: cfop,
+                qtd: qtd, custo: custo, venda: venda,
+                dataCadastro: new Date().toISOString(),
+                ultimaEntrada: dataNota
+            });
         }
-        await batch.commit(); 
-        app.showToast(`Lançamento processado no DRE.`, "success");
-        app.registrarAuditoriaGlobal("Financeiro (DRE)", `Inseriu novo lançamento: ${desc} no valor de R$ ${valorTotal.toFixed(2)}`);
+    });
+    
+    if(gerarFin && totalCustoEntrada > 0) {
+        const metodo = document.getElementById('nf_metodo_pagamento').value;
+        let pNum = 1;
+        if(metodo.includes('Parcelado')) { pNum = parseInt(document.getElementById('nf_parcelas').value.replace('x','')) || 1; }
+        
+        const valorParcela = totalCustoEntrada / pNum;
+        let dataVenc = new Date(dataNota + 'T12:00:00');
+        
+        for(let i=1; i<=pNum; i++) {
+            const isPago = (i===1 && (metodo === 'Pix' || metodo === 'Dinheiro'));
+            const finRef = app.db.collection('financeiro').doc();
+            batch.set(finRef, {
+                tenantId: app.t_id,
+                tipo: 'despesa',
+                descricao: `Pagamento Fornecedor: ${fornecedor} (NF: ${nota||'Avulsa'})`,
+                valor: valorParcela,
+                metodo: metodo,
+                parcela: `${i}/${pNum}`,
+                status: isPago ? 'pago' : 'pendente',
+                dataVencimento: dataVenc.toISOString().split('T')[0],
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            dataVenc.setMonth(dataVenc.getMonth() + 1);
+        }
     }
     
-    const mod = document.getElementById('modalFin'); if(mod) bootstrap.Modal.getInstance(mod).hide(); e.target.reset();
-};
-
-app.iniciarEscutaFinanceiro = function() {
-    app.db.collection('financeiro').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoFin = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        app.filtrarFinanceiro(true);
-    });
-};
-
-app.filtrarFinanceiro = function(silent = false) {
-    const dtIn = document.getElementById('filtroFinInicio') ? document.getElementById('filtroFinInicio').value : '';
-    const dtFim = document.getElementById('filtroFinFim') ? document.getElementById('filtroFinFim').value : '';
-    
-    app.filtroFinDataInicio = dtIn; app.filtroFinDataFim = dtFim;
-    
-    let base = [...app.bancoFin];
-    if(dtIn && dtFim) {
-        const d1 = new Date(dtIn); const d2 = new Date(dtFim);
-        base = base.filter(f => { const dV = new Date(f.vencimento); return dV >= d1 && dV <= d2; });
-    }
-    app.bancoFinFiltrado = base;
-    app.renderizarFinanceiroGeral();
-    if(!silent) app.showToast("Filtros Temporais aplicados no Fluxo de Caixa.", "success");
-};
-
-app.renderizarFinanceiroGeral = function() {
-    if(!document.getElementById('tela_financeiro')) return;
-    
-    let totRec = 0, totPag = 0;
-    const tPagar = document.getElementById('tabelaPagarCorpo'); const tReceber = document.getElementById('tabelaReceberCorpo');
-    let hPagar = '', hReceber = '';
-    
-    app.bancoFinFiltrado.sort((a,b) => new Date(a.vencimento) - new Date(b.vencimento)).forEach(f => {
-        const isR = f.tipo === 'receita';
-        if(isR && f.status === 'pago') totRec += f.valor; 
-        if(!isR && f.status === 'pago') totPag += f.valor;
-        
-        const cor = isR ? 'text-success' : 'text-danger';
-        const st = f.status === 'pago' ? '<span class="badge bg-success px-2 py-1"><i class="bi bi-check2-all"></i> Quitado</span>' : '<span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-hourglass-split"></i> A Vencer / Pendente</span>';
-        const btnEdit = `<button class="btn btn-sm btn-outline-info shadow-sm me-1" onclick="app.abrirModalFinanceiro('edit', '${f.tipo}', '${f.id}')"><i class="bi bi-pencil"></i> Editar</button>`;
-        
-        const html = `<tr><td class="text-white-50 fw-bold"><i class="bi bi-calendar-event me-2"></i> ${f.vencimento ? new Date(f.vencimento).toLocaleDateString('pt-BR') : ''}</td><td class="text-white fw-bold">${f.desc}</td><td><span class="badge bg-dark border border-secondary px-3 py-1 text-white-50">${f.parcelaAtual}/${f.totalParcelas}</span></td><td class="text-white-50 small">${f.metodo || 'Dinheiro'}</td><td class="${cor} fw-bold fs-6">R$ ${f.valor.toFixed(2).replace('.',',')}</td><td>${st}</td><td class="gestao-only text-end">${btnEdit} <button class="btn btn-sm btn-link text-danger admin-only" onclick="app.db.collection('financeiro').doc('${f.id}').delete()"><i class="bi bi-trash"></i></button></td></tr>`;
-        if(isR) hReceber += html; else hPagar += html;
-    });
-
-    if(tPagar) tPagar.innerHTML = hPagar || '<tr><td colspan="7" class="text-center text-white-50 py-5"><i class="bi bi-check-circle text-success fs-3 d-block mb-2"></i> Caixa Respirando. Nenhuma dívida pendente.</td></tr>';
-    if(tReceber) tReceber.innerHTML = hReceber || '<tr><td colspan="7" class="text-center text-white-50 py-5">Não há previsões neste filtro.</td></tr>';
-
-    let totCom = 0;
-    app.bancoOSCompleto.filter(o=>o.status==='entregue').forEach(o => {
-        if(app.filtroFinDataInicio && app.filtroFinDataFim) {
-            const dV = new Date(o.ultimaAtualizacao); const d1 = new Date(app.filtroFinDataInicio); const d2 = new Date(app.filtroFinDataFim);
-            if(dV >= d1 && dV <= d2) totCom += (o.comissaoProcessada||0);
-        } else { totCom += (o.comissaoProcessada||0); }
-    });
-    
-    if(document.getElementById('dreReceitas')) document.getElementById('dreReceitas').innerText = `R$ ${totRec.toFixed(2).replace('.',',')}`;
-    if(document.getElementById('dreDespesas')) document.getElementById('dreDespesas').innerText = `R$ ${totPag.toFixed(2).replace('.',',')}`;
-    if(document.getElementById('dreComissoes')) document.getElementById('dreComissoes').innerText = `R$ ${totCom.toFixed(2).replace('.',',')}`;
-    if(document.getElementById('dreLucro')) document.getElementById('dreLucro').innerText = `R$ ${(totRec - totPag - totCom).toFixed(2).replace('.',',')}`;
-};
-
-app.exportarRelatorioFinanceiro = function() {
     try {
-        const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); let y = 15;
-        doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.text(app.t_nome.toUpperCase(), 105, y, { align: "center" }); y += 10;
-        doc.setFontSize(12); doc.text(`RELATÓRIO GERENCIAL - FLUXO DE CAIXA E TÍTULOS`, 105, y, { align: "center" }); y += 10;
+        await batch.commit();
+        app.showToast("Estoque e Financeiro injetados com sucesso!", "success");
+        bootstrap.Modal.getInstance(document.getElementById('modalNF')).hide();
+    } catch(err) {
+        console.error(err);
+        app.showToast("Erro ao gravar lote de estoque.", "error");
+    }
+};
+
+app.renderizarEstoque = function() {
+    const tbody = document.getElementById('tabelaEstoqueCorpo');
+    if(!tbody) return;
+    
+    const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
+    
+    if(app.bancoEstoque.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${isAdmin ? 8 : 6}" class="text-center text-white-50">Estoque Vazio. Importe notas ou cadastre manual.</td></tr>`;
+        return;
+    }
+    
+    tbody.innerHTML = app.bancoEstoque.map(p => {
+        const corQtd = p.qtd <= 2 ? 'text-danger fw-bold' : 'text-white fw-bold';
+        const isAdminCols = isAdmin ? `
+            <td class="text-danger fw-bold">R$ ${(p.custo||0).toFixed(2)}</td>
+            <td class="text-success fw-bold">R$ ${(p.venda||0).toFixed(2)}</td>
+            <td class="text-end"><button class="btn btn-sm btn-outline-danger border-0" onclick="app.excluirItemEstoque('${p.id}')"><i class="bi bi-trash"></i></button></td>
+        ` : `<td class="text-success fw-bold">R$ ${(p.venda||0).toFixed(2)}</td>`;
         
-        let pIn = app.filtroFinDataInicio ? new Date(app.filtroFinDataInicio).toLocaleDateString('pt-BR') : 'Início Geral';
-        let pFim = app.filtroFinDataFim ? new Date(app.filtroFinDataFim).toLocaleDateString('pt-BR') : 'Atual';
-        doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text(`Período Auditado: ${pIn} até ${pFim}`, 15, y); y += 15;
-
-        doc.setFont("helvetica", "bold"); doc.text("1. RECEBIMENTOS (Contas a Receber Faturadas)", 15, y); y += 5;
-        let bR = []; app.bancoFinFiltrado.filter(x=>x.tipo==='receita').forEach(x => { bR.push([x.vencimento.split('-').reverse().join('/'), x.desc, x.metodo, `R$ ${x.valor.toFixed(2)}`, x.status.toUpperCase()]); });
-        if(bR.length > 0) { doc.autoTable({ startY: y, head: [['Data Base', 'Cliente/Referência', 'Modalidade', 'Vlr.', 'Status']], body: bR, theme: 'grid' }); y = doc.lastAutoTable.finalY + 15; } else { doc.text("- Nenhuma entrada no período.", 15, y+5); y += 15; }
-
-        doc.setFont("helvetica", "bold"); doc.text("2. DESPESAS (Contas a Pagar / Fornecedores)", 15, y); y += 5;
-        let bP = []; app.bancoFinFiltrado.filter(x=>x.tipo==='despesa').forEach(x => { bP.push([x.vencimento.split('-').reverse().join('/'), x.desc, x.metodo, `R$ ${x.valor.toFixed(2)}`, x.status.toUpperCase()]); });
-        if(bP.length > 0) { doc.autoTable({ startY: y, head: [['Data Base', 'Fornecedor/Motivo', 'Modalidade', 'Vlr.', 'Status']], body: bP, theme: 'grid' }); y = doc.lastAutoTable.finalY + 15; } else { doc.text("- Nenhuma despesa no período.", 15, y+5); y += 15; }
-
-        doc.save(`Extrato_${app.t_nome.replace(' ', '_')}.pdf`);
-        app.showToast("Relatório PDF emitido.", "success");
-    } catch(e) { console.error(e); app.showToast("Erro na geração do PDF.", "error"); }
-};
-
-// =====================================================================
-// 10. GESTÃO DE RH / VALES E EQUIPE (PAINEL GESTOR)
-// =====================================================================
-app.iniciarEscutaEquipe = function() {
-    app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoEquipe = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        app.renderizarEquipeRH();
-    });
-};
-
-app.renderizarEquipeRH = function() {
-    const tbody = document.getElementById('tabelaEquipe'); if(!tbody) return;
-    if(app.bancoEquipe.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-white-50 py-5 fs-5">Sem equipe cadastrada na nuvem.</td></tr>'; return; }
-
-    tbody.innerHTML = app.bancoEquipe.map(f => {
-        const nAcesso = f.role === 'gerente'
-            ? '<span class="badge bg-warning text-dark">Gerente/Vendedor</span>'
-            : '<span class="badge bg-secondary text-white">Mecânico / Box</span>';
-
-        // Soma comissões: busca por nome em comissoesDetalhadas (OS faturadas com rateio)
-        // OU recalcula proporcionalmente para OS antigas sem rateio
-        let totalCom = 0;
-        app.bancoOSCompleto.filter(o => o.status === 'entregue').forEach(o => {
-            if(o.comissoesDetalhadas && Array.isArray(o.comissoesDetalhadas)) {
-                // OS com rateio salvo: usa direto
-                const parte = o.comissoesDetalhadas.find(c => c.nome === f.nome);
-                if(parte) totalCom += (parte.valor || 0);
-            } else if(o.mecanicoAtribuido) {
-                // OS antiga sem rateio: recalcula agora
-                const mecsArray = o.mecanicoAtribuido.split(' + ').map(m => m.trim());
-                if(mecsArray.includes(f.nome)) {
-                    let moBase = (o.maoObraTotal || 0);
-                    let pcBase = (o.pecasTotal || 0);
-                    // Se campos não existem, tenta recalcular do array de peças
-                    if(moBase === 0 && pcBase === 0 && o.pecas && o.pecas.length > 0) {
-                        o.pecas.forEach(p => {
-                            const sub = (p.qtd||1)*(p.venda||0);
-                            if(p.isMaoObra) moBase += sub; else pcBase += sub;
-                        });
-                        if(moBase === 0 && pcBase === 0) moBase = (o.total || 0);
-                    }
-                    const baseMO = moBase / mecsArray.length;
-                    const basePc = pcBase / mecsArray.length;
-                    const valMO = baseMO * (parseFloat(f.comissao || 0) / 100);
-                    const valPc = basePc * (parseFloat(f.comissao_pecas || 0) / 100);
-                    totalCom += valMO + valPc;
-                }
-            }
-        });
-
-        // Vales: busca por id E por nome (compatibilidade)
-        let totalVales = 0;
-        app.bancoVales.forEach(v => {
-            if(v.idFuncionario === f.id || v.nomeFuncionario === f.nome) {
-                totalVales += (v.valor || 0);
-            }
-        });
-
-        const saldoReal = totalCom - totalVales;
-        const corSaldo = saldoReal >= 0 ? 'text-info' : 'text-danger';
-
-
-        return `<tr>
-            <td class="fw-bold text-white fs-6"><i class="bi bi-person-circle text-success me-2"></i> ${f.nome}</td>
-            <td>${nAcesso}</td>
-            <td class="text-warning fw-bold">${f.comissao||0}% MO / ${f.comissao_pecas||0}% Pç</td>
-            <td class="${corSaldo} fw-bold fs-5">R$ ${saldoReal.toFixed(2).replace('.',',')}</td>
-            <td><span class="bg-dark border border-secondary px-3 py-1 rounded text-info">${f.usuario}</span> <small class="text-white-50 ms-2">[${f.senha}]</small></td>
-            <td class="admin-only text-end">
-                <button class="btn btn-sm btn-outline-info shadow-sm px-3 me-1" onclick="app.verExtratoCom('${f.id}','${f.nome}')"><i class="bi bi-eye"></i> Extrato</button>
-                <button class="btn btn-sm btn-outline-warning shadow-sm px-3 me-2" onclick="app.abrirModalValeRH('${f.id}','${f.nome}')"><i class="bi bi-cash-stack"></i> Vale</button>
-                <button class="btn btn-sm btn-outline-danger shadow-sm px-3" onclick="app.apagarFuncionario('${f.id}')"><i class="bi bi-slash-circle"></i></button>
-            </td>
+        return `
+        <tr>
+            <td class="text-white-50 small"><i class="bi bi-calendar"></i> ${p.ultimaEntrada ? new Date(p.ultimaEntrada).toLocaleDateString('pt-BR') : '-'}</td>
+            <td class="text-warning font-monospace fw-bold">${p.sku}</td>
+            <td class="text-white-50">${p.ncm||'-'} / ${p.cfop||'-'}</td>
+            <td class="text-white fw-bold">${p.descricao}</td>
+            <td class="${corQtd} fs-6">${p.qtd}</td>
+            ${isAdminCols}
         </tr>`;
     }).join('');
 };
 
-// Extrato financeiro individual do funcionário
-app.verExtratoCom = function(idFunc, nomeFunc) {
-    const func = app.bancoEquipe.find(f => f.id === idFunc);
-    if(!func) return;
-
-    let linhasOS = '';
-    let totalCom = 0;
-
-    app.bancoOSCompleto.filter(o => o.status === 'entregue').forEach(o => {
-        let valor = 0;
-        if(o.comissoesDetalhadas && Array.isArray(o.comissoesDetalhadas)) {
-            const parte = o.comissoesDetalhadas.find(c => c.nome === nomeFunc);
-            if(parte) valor = parte.valor || 0;
-        } else if(o.mecanicoAtribuido) {
-            const mecsArray = o.mecanicoAtribuido.split(' + ').map(m => m.trim());
-            if(mecsArray.includes(nomeFunc)) {
-                let moBase = (o.maoObraTotal || 0);
-                let pcBase = (o.pecasTotal || 0);
-                if(moBase === 0 && pcBase === 0 && o.pecas && o.pecas.length > 0) {
-                    o.pecas.forEach(p => {
-                        const sub = (p.qtd||1)*(p.venda||0);
-                        if(p.isMaoObra) moBase += sub; else pcBase += sub;
-                    });
-                    if(moBase === 0 && pcBase === 0) moBase = (o.total || 0);
-                }
-                const baseMO = moBase / mecsArray.length;
-                const basePc = pcBase / mecsArray.length;
-                valor = (baseMO * (parseFloat(func.comissao||0)/100)) + (basePc * (parseFloat(func.comissao_pecas||0)/100));
-            }
-        }
-        if(valor > 0) {
-            totalCom += valor;
-            const dt = o.ultimaAtualizacao ? new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR') : '-';
-            linhasOS += '<tr><td class="text-white-50 small">' + dt + '</td><td><span class="badge bg-dark border border-secondary">' + (o.placa||'-') + '</span> ' + (o.cliente||'') + '</td><td class="text-success fw-bold">+ R$ ' + valor.toFixed(2).replace('.',',') + '</td></tr>';
-        }
-    });
-
-    let linhasVales = '';
-    let totalVales = 0;
-    app.bancoVales.filter(v => v.idFuncionario === idFunc || v.nomeFuncionario === nomeFunc).forEach(v => {
-        totalVales += (v.valor||0);
-        const dt = v.dataRealizacao ? new Date(v.dataRealizacao).toLocaleDateString('pt-BR') : '-';
-        linhasVales += '<tr><td class="text-white-50 small">' + dt + '</td><td>' + (v.motivo||'-') + '</td><td class="text-danger fw-bold">- R$ ' + (v.valor||0).toFixed(2).replace('.',',') + '</td></tr>';
-    });
-
-    const saldo = totalCom - totalVales;
-    const corSaldo = saldo >= 0 ? 'text-success' : 'text-danger';
-
-    const html = '<div class="p-3">' +
-        '<h5 class="text-white fw-bold mb-1"><i class="bi bi-person-circle text-success me-2"></i>' + nomeFunc + '</h5>' +
-        '<p class="text-white-50 small mb-3">MO: ' + (func.comissao||0) + '% | Peças: ' + (func.comissao_pecas||0) + '%</p>' +
-        '<h6 class="text-success mb-2"><i class="bi bi-plus-circle me-1"></i> Comissões por O.S.</h6>' +
-        '<div class="table-responsive mb-3"><table class="table table-dark table-sm border-secondary">' +
-        '<thead><tr><th>Data</th><th>O.S.</th><th>Valor</th></tr></thead><tbody>' +
-        (linhasOS || '<tr><td colspan="3" class="text-white-50 text-center">Nenhuma O.S. faturada</td></tr>') +
-        '</tbody></table></div>' +
-        '<h6 class="text-warning mb-2"><i class="bi bi-dash-circle me-1"></i> Vales / Adiantamentos</h6>' +
-        '<div class="table-responsive mb-3"><table class="table table-dark table-sm border-secondary">' +
-        '<thead><tr><th>Data</th><th>Motivo</th><th>Valor</th></tr></thead><tbody>' +
-        (linhasVales || '<tr><td colspan="3" class="text-white-50 text-center">Sem vales lançados</td></tr>') +
-        '</tbody></table></div>' +
-        '<div class="d-flex justify-content-between align-items-center bg-black p-3 rounded border border-secondary">' +
-        '<span class="text-white fw-bold">SALDO A PAGAR</span>' +
-        '<span class="fs-4 fw-bold ' + corSaldo + '">R$ ' + saldo.toFixed(2).replace('.',',') + '</span>' +
-        '</div></div>';
-
-    // Mostra num modal genérico ou cria um temporário
-    const mod = document.getElementById('modalExtratoFunc');
-    if(mod) {
-        const body = mod.querySelector('.modal-body');
-        if(body) body.innerHTML = html;
-        new bootstrap.Modal(mod).show();
-    } else {
-        // Cria modal temporário
-        const tmp = document.createElement('div');
-        tmp.innerHTML = '<div class="modal fade" id="modalExtratoFunc" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content bg-dark border-secondary text-white"><div class="modal-header border-secondary"><h5 class="modal-title text-info">Extrato Financeiro</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body">' + html + '</div></div></div></div>';
-        document.body.appendChild(tmp.firstElementChild);
-        new bootstrap.Modal(document.getElementById('modalExtratoFunc')).show();
+app.excluirItemEstoque = async function(id) {
+    if(confirm("Deseja apagar este item do estoque definitivamente?")) {
+        await app.db.collection('estoque').doc(id).delete();
+        app.showToast("Item apagado.", "success");
     }
 };
 
+// =====================================================================
+// 10. FINANCEIRO (DRE GERENCIAL)
+// =====================================================================
+app.abrirModalFinanceiro = function(tipoAcao, tipoLanc) {
+    document.getElementById('formFinanceiro').reset();
+    document.getElementById('fin_id').value = '';
+    document.getElementById('fin_tipo').value = tipoLanc;
+    
+    const titulo = document.getElementById('fin_titulo');
+    if(tipoLanc === 'despesa') {
+        titulo.innerHTML = '<i class="bi bi-dash-circle text-danger me-2"></i> Lançar Despesa de Caixa (Contas a Pagar)';
+        document.getElementById('modalFinContent').className = 'modal-content bg-dark border-danger';
+    } else {
+        titulo.innerHTML = '<i class="bi bi-plus-circle text-success me-2"></i> Lançar Receita Avulsa (Contas a Receber)';
+        document.getElementById('modalFinContent').className = 'modal-content bg-dark border-success';
+    }
+    
+    document.getElementById('fin_data').value = new Date().toISOString().split('T')[0];
+    document.getElementById('divStatusEdit').style.display = 'none';
+    app.verificarPgtoFinManual();
+    new bootstrap.Modal(document.getElementById('modalFin')).show();
+};
+
+app.verificarPgtoFinManual = function() {
+    const met = document.getElementById('fin_metodo').value;
+    const div = document.getElementById('divParcelas');
+    if(met.includes('Parcelado')) div.style.display = 'block';
+    else { div.style.display = 'none'; document.getElementById('fin_parcelas').value = '1'; }
+};
+
+app.salvarLancamentoFinanceiro = async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('fin_id').value;
+    const tipo = document.getElementById('fin_tipo').value;
+    const valorTotal = parseFloat(document.getElementById('fin_valor').value);
+    const metodo = document.getElementById('fin_metodo').value;
+    const dt = document.getElementById('fin_data').value;
+    
+    if(id) {
+        // Modo Edição (Apenas atualizar Status/Metodo do Título)
+        await app.db.collection('financeiro').doc(id).update({
+            status: document.getElementById('fin_status').value,
+            metodo: metodo,
+            descricao: document.getElementById('fin_desc').value,
+            valor: valorTotal,
+            dataVencimento: dt
+        });
+        app.showToast("Título atualizado com sucesso.", "success");
+        bootstrap.Modal.getInstance(document.getElementById('modalFin')).hide();
+        return;
+    }
+    
+    // Inserção Nova (Múltiplos ou Único)
+    let nParc = 1;
+    if(metodo.includes('Parcelado')) nParc = parseInt(document.getElementById('fin_parcelas').value) || 1;
+    
+    const valParcela = valorTotal / nParc;
+    let dtCalc = new Date(dt + 'T12:00:00');
+    const batch = app.db.batch();
+    
+    for(let i=1; i<=nParc; i++) {
+        const isPago = (i===1 && (metodo === 'Pix' || metodo === 'Dinheiro'));
+        const fRef = app.db.collection('financeiro').doc();
+        batch.set(fRef, {
+            tenantId: app.t_id,
+            tipo: tipo,
+            descricao: document.getElementById('fin_desc').value,
+            valor: valParcela,
+            metodo: metodo,
+            parcela: `${i}/${nParc}`,
+            status: isPago ? 'pago' : 'pendente',
+            dataVencimento: dtCalc.toISOString().split('T')[0],
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        dtCalc.setMonth(dtCalc.getMonth() + 1);
+    }
+    
+    await batch.commit();
+    app.showToast(`Lançamento (${tipo}) realizado no DRE com sucesso.`, "success");
+    bootstrap.Modal.getInstance(document.getElementById('modalFin')).hide();
+};
+
+app.editarTituloFinanceiro = function(id) {
+    const tit = app.bancoFinanceiro.find(f => f.id === id);
+    if(!tit) return;
+    
+    document.getElementById('fin_id').value = tit.id;
+    document.getElementById('fin_tipo').value = tit.tipo;
+    document.getElementById('fin_desc').value = tit.descricao;
+    document.getElementById('fin_valor').value = tit.valor;
+    document.getElementById('fin_data').value = tit.dataVencimento;
+    document.getElementById('fin_metodo').value = tit.metodo;
+    document.getElementById('fin_status').value = tit.status;
+    
+    document.getElementById('divStatusEdit').style.display = 'block';
+    document.getElementById('divParcelas').style.display = 'none'; // Edição é parcela unitária
+    
+    const titulo = document.getElementById('fin_titulo');
+    if(tit.tipo === 'despesa') {
+        titulo.innerHTML = '<i class="bi bi-pencil-square text-danger me-2"></i> Editar Título a Pagar';
+        document.getElementById('modalFinContent').className = 'modal-content bg-dark border-danger';
+    } else {
+        titulo.innerHTML = '<i class="bi bi-pencil-square text-success me-2"></i> Editar Título a Receber';
+        document.getElementById('modalFinContent').className = 'modal-content bg-dark border-success';
+    }
+    
+    new bootstrap.Modal(document.getElementById('modalFin')).show();
+};
+
+app.filtrarFinanceiro = function() {
+    const dtIn = document.getElementById('filtroFinInicio')?.value;
+    const dtFim = document.getElementById('filtroFinFim')?.value;
+    
+    let dadosFiltrados = app.bancoFinanceiro;
+    
+    if(dtIn && dtFim) {
+        const i = new Date(dtIn + 'T00:00:00'); const f = new Date(dtFim + 'T23:59:59');
+        dadosFiltrados = dadosFiltrados.filter(fin => {
+            const dtFin = new Date(fin.dataVencimento + 'T12:00:00');
+            return dtFin >= i && dtFin <= f;
+        });
+    }
+
+    let totReceitas = 0; let totDespesas = 0; let totComissoes = 0;
+    
+    const tbPag = document.getElementById('tabelaPagarCorpo');
+    const tbRec = document.getElementById('tabelaReceberCorpo');
+    if(!tbPag || !tbRec) return;
+    
+    let htmlP = ''; let htmlR = '';
+    
+    dadosFiltrados.sort((a,b) => new Date(a.dataVencimento) - new Date(b.dataVencimento)).forEach(f => {
+        const st = f.status === 'pago' ? '<span class="badge bg-success">QUITADO</span>' : '<span class="badge bg-warning text-dark">PENDENTE</span>';
+        const dFormat = new Date(f.dataVencimento + 'T12:00:00').toLocaleDateString('pt-BR');
+        
+        // Se for uma despesa relacionada a comissões (Lançada pelo Novo Módulo de RH)
+        if(f.tipo === 'despesa' && (f.descricao.includes('Comissão') || f.descricao.includes('Salário') || f.descricao.includes('Vale RH') || f.descricao.includes('Pagamento RH'))) {
+            totComissoes += f.valor;
+        }
+
+        const btnEd = `<td class="text-end"><button class="btn btn-sm btn-outline-info shadow-sm fw-bold" onclick="app.editarTituloFinanceiro('${f.id}')">Gerenciar</button></td>`;
+        
+        const tr = `<tr>
+            <td>${dFormat}</td>
+            <td class="fw-bold">${f.descricao}</td>
+            <td class="text-white-50">${f.parcela || '1/1'}</td>
+            <td class="text-white-50">${f.metodo}</td>
+            <td class="fw-bold ${f.tipo==='receita'?'text-success':'text-danger'}">R$ ${f.valor.toFixed(2)}</td>
+            <td>${st}</td>
+            ${btnEd}
+        </tr>`;
+        
+        if(f.tipo === 'receita') { htmlR += tr; totReceitas += f.valor; }
+        else { htmlP += tr; totDespesas += f.valor; }
+    });
+    
+    tbRec.innerHTML = htmlR || '<tr><td colspan="7" class="text-center text-white-50">Nenhuma receita no período.</td></tr>';
+    tbPag.innerHTML = htmlP || '<tr><td colspan="7" class="text-center text-white-50">Nenhuma despesa no período.</td></tr>';
+    
+    // Atualiza os Cards do DRE
+    const lucro = totReceitas - totDespesas; // As comissões já estão dentro das despesas se lançadas pelo RH
+    
+    document.getElementById('dreReceitas').innerText = `R$ ${totReceitas.toFixed(2)}`;
+    document.getElementById('dreDespesas').innerText = `R$ ${totDespesas.toFixed(2)}`;
+    document.getElementById('dreComissoes').innerText = `R$ ${totComissoes.toFixed(2)}`;
+    document.getElementById('dreLucro').innerText = `R$ ${lucro.toFixed(2)}`;
+    
+    // Muda cor do lucro se negativo
+    document.getElementById('dreLucro').className = lucro < 0 ? 'text-danger mb-0 fw-bold' : 'text-info mb-0 fw-bold';
+};
+
+app.exportarRelatorioFinanceiro = function() {
+    app.showToast("Função de Exportação Excel ativada nas versões Premium.", "info");
+};
+
+// =====================================================================
+// 11. CHATS (GLOBAL COM CLIENTES E INTERNO EQUIPE)
+// =====================================================================
+app.renderizarListaChatClientes = function() {
+    const list = document.getElementById('chatListaClientesCRM');
+    if(!list) return;
+    
+    list.innerHTML = app.bancoClientes.map(c => {
+        return `<button class="list-group-item list-group-item-action bg-transparent text-white border-bottom border-secondary p-3 d-flex justify-content-between align-items-center" onclick="app.abrirChatCliente('${c.id}', '${c.nome}')">
+            <div><i class="bi bi-person-circle text-info me-2 fs-5"></i><span class="fw-bold">${c.nome}</span><br><small class="text-white-50 font-monospace">${c.telefone}</small></div>
+            <i class="bi bi-chevron-right text-white-50"></i>
+        </button>`;
+    }).join('');
+};
+
+app.abrirChatCliente = function(cId, cNome) {
+    app.chatClienteAtual = { id: cId, nome: cNome };
+    document.getElementById('chatNomeCliente').innerHTML = `<i class="bi bi-person-check-fill text-warning me-2"></i> Conversando com: <strong>${cNome}</strong>`;
+    document.getElementById('chatAreaInputGlobal').style.display = 'flex';
+    
+    app.db.collection('mensagens').where('tenantId', '==', app.t_id).where('clienteId', '==', cId).orderBy('timestamp', 'asc').onSnapshot(snap => {
+        const cx = document.getElementById('chatAreaMsgGlobal');
+        if(snap.empty) { cx.innerHTML = '<div class="text-center text-white-50 my-auto">Nenhuma mensagem com este cliente. Mande um \"Olá\".</div>'; return; }
+        
+        cx.innerHTML = snap.docs.map(doc => {
+            const m = doc.data();
+            // Oficina lendo msg do cliente
+            if(m.sender === 'cliente' && !m.lidaAdmin) { app.db.collection('mensagens').doc(doc.id).update({lidaAdmin:true}); }
+            
+            let cnt = m.text;
+            const css = m.sender === 'admin' ? 'admin' : 'cliente';
+            const dataHora = m.timestamp ? new Date(m.timestamp.toDate()).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '';
+            
+            if(m.fileUrl) {
+                if(m.fileType === 'video' || m.fileUrl.includes('.mp4')) cnt += `<br><video src="${m.fileUrl}" controls class="mw-100 rounded mt-2 shadow" style="max-height:200px;"></video>`;
+                else if(m.fileType === 'audio' || m.fileUrl.includes('.webm') || m.fileUrl.includes('.mp3')) cnt += `<br><audio src="${m.fileUrl}" controls class="mw-100 mt-2 shadow"></audio>`;
+                else if(m.fileUrl.includes('.pdf')) cnt += `<br><a href="${m.fileUrl}" target="_blank" class="btn btn-sm btn-light mt-2 text-dark"><i class="bi bi-file-pdf text-danger"></i> Abrir Arquivo</a>`;
+                else cnt += `<br><img src="${m.fileUrl}" class="mw-100 rounded mt-2 shadow" style="cursor:pointer;" onclick="window.open('${m.fileUrl}')">`;
+            }
+            return `<div class="message ${css}">${cnt}<div class="text-end" style="font-size:0.65rem; opacity:0.6; margin-top:5px;">${dataHora} ${m.sender === 'admin' && m.lidaCliente ? '<i class="bi bi-check2-all"></i>' : ''}</div></div>`;
+        }).join('');
+        cx.scrollTop = cx.scrollHeight;
+    });
+};
+
+app.enviarMensagemChatGlobal = async function() {
+    const inp = document.getElementById('inputChatGlobal');
+    if(!inp.value.trim() || !app.chatClienteAtual) return;
+    await app.db.collection('mensagens').add({ tenantId: app.t_id, clienteId: app.chatClienteAtual.id, sender: 'admin', text: inp.value.trim(), lidaCliente: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+    inp.value = '';
+};
+document.getElementById("inputChatGlobal").addEventListener("keyup", function(event) { if (event.key === "Enter") app.enviarMensagemChatGlobal(); });
+
+app.enviarAnexoChatGlobal = async function() {
+    const input = document.getElementById('chatFileInputGlobal'); 
+    if(!input.files[0] || !app.chatClienteAtual) return;
+    
+    app.showToast("Enviando anexo para o cliente. Aguarde...", "info");
+    try {
+        const fd = new FormData(); fd.append('file', input.files[0]); fd.append('upload_preset', app.CLOUDINARY_UPLOAD_PRESET);
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${app.CLOUDINARY_CLOUD_NAME}/auto/upload`, {method:'POST', body:fd});
+        const data = await res.json();
+        if(data.secure_url) {
+            await app.db.collection('mensagens').add({ tenantId: app.t_id, clienteId: app.chatClienteAtual.id, sender: 'admin', text: "📎 Arquivo / Mídia:", fileUrl: data.secure_url, fileType: data.resource_type, lidaCliente: false, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            input.value = ''; app.showToast("Anexo enviado no chat!", "success");
+        }
+    } catch(e) { app.showToast("Erro ao enviar anexo via chat.", "error"); }
+};
+
+app.enviarMensagemInterna = async function() {
+    const inp = document.getElementById('inputChatInterno');
+    if(!inp.value.trim()) return;
+    await app.db.collection('chat_interno').add({ tenantId: app.t_id, nome: app.user_nome, role: app.t_role, text: inp.value.trim(), timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+    inp.value = '';
+};
+document.getElementById("inputChatInterno").addEventListener("keyup", function(event) { if (event.key === "Enter") app.enviarMensagemInterna(); });
+
+// =====================================================================
+// 12. GESTÃO DE RH, COMISSÕES, VALES E INTEGRAÇÃO DRE (O NOVO FLUXO)
+// =====================================================================
 app.abrirModalEquipe = function() {
-    const frm = document.getElementById('formEquipe'); if(frm) frm.reset();
-    const mod = document.getElementById('modalEquipe'); if(mod) new bootstrap.Modal(mod).show();
+    document.getElementById('formEquipe').reset();
+    document.getElementById('f_id').value = '';
+    new bootstrap.Modal(document.getElementById('modalEquipe')).show();
 };
 
 app.salvarFuncionario = async function(e) {
     e.preventDefault();
-    await app.db.collection('funcionarios').add({ 
-        tenantId: app.t_id, nome: document.getElementById('f_nome').value, role: document.getElementById('f_cargo').value, 
-        comissao: parseFloat(document.getElementById('f_comissao_mo').value), comissao_pecas: parseFloat(document.getElementById('f_comissao_pecas').value),
-        usuario: document.getElementById('f_user').value, senha: document.getElementById('f_pass').value 
-    });
-    app.showToast("Acesso corporativo Seguro criado.", "success"); 
-    app.registrarAuditoriaGlobal("Gestão RH", `Criou credencial para: ${document.getElementById('f_nome').value}`);
-    e.target.reset(); const mod = document.getElementById('modalEquipe'); if(mod) bootstrap.Modal.getInstance(mod).hide();
+    const dados = {
+        tenantId: app.t_id,
+        nome: document.getElementById('f_nome').value,
+        cargo: document.getElementById('f_cargo').options[document.getElementById('f_cargo').selectedIndex].text,
+        role: document.getElementById('f_cargo').value,
+        comissao_mo: parseFloat(document.getElementById('f_comissao_mo').value),
+        comissao_pecas: parseFloat(document.getElementById('f_comissao_pecas').value),
+        usuario: document.getElementById('f_user').value,
+        senha: document.getElementById('f_pass').value,
+        status: 'Ativo'
+    };
+    
+    try {
+        await app.db.collection('funcionarios').add(dados);
+        app.showToast("Profissional cadastrado na equipe.", "success");
+        bootstrap.Modal.getInstance(document.getElementById('modalEquipe')).hide();
+    } catch(err) { app.showToast("Erro ao salvar funcionário.", "error"); }
 };
 
-app.apagarFuncionario = async function(id) { 
-    if(confirm("Deseja bloquear permanentemente o acesso deste usuário?")) { 
-        await app.db.collection('funcionarios').doc(id).delete(); 
-        app.showToast("Acesso invalidado.", "success"); 
-        app.registrarAuditoriaGlobal("Gestão RH", `Deletou o acesso de um funcionário.`);
-    } 
+app.carregarEquipe = function() {
+    app.db.collection('funcionarios').where('tenantId', '==', app.t_id).onSnapshot(async snap => {
+        app.equipe = snap.docs.map(d => ({id:d.id, ...d.data()}));
+        
+        const tbody = document.getElementById('tabelaEquipe');
+        if(!tbody) return;
+        
+        const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
+        
+        if(app.equipe.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${isAdmin ? 6 : 5}" class="text-center text-white-50">Você ainda não cadastrou equipe de produção.</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        let somaMinhasComissoes = 0; // Para uso do Painel do Mecânico (Dashboard Jarvis)
+
+        for(const f of app.equipe) {
+            // Calcula as comissões pendentes
+            let saldo = 0;
+            const comSnap = await app.db.collection('funcionarios').doc(f.id).collection('comissoes').where('status','==','pendente_pagamento_rh').get();
+            comSnap.forEach(d => saldo += d.data().comissaoGanha);
+            
+            // Calcula os vales que ainda não foram abatidos de nenhum pagamento
+            let totalValesPendentes = 0;
+            const extratoSnap = await app.db.collection('funcionarios').doc(f.id).collection('extrato').where('statusVales','==','pendente_abate').get();
+            extratoSnap.forEach(d => totalValesPendentes += d.data().valor);
+            
+            const saldoLiquidoAReceber = saldo - totalValesPendentes;
+
+            // Se for o mecânico logado, atualiza o KPI dele no painel
+            if(app.t_role === 'equipe' && sessionStorage.getItem('f_id') === f.id) {
+                somaMinhasComissoes = saldoLiquidoAReceber;
+                const kpi = document.getElementById('kpiMinhaComissao');
+                if(kpi) kpi.innerText = `R$ ${somaMinhasComissoes.toFixed(2)}`;
+            }
+
+            const corSaldo = saldoLiquidoAReceber > 0 ? 'text-info fw-bold' : (saldoLiquidoAReceber < 0 ? 'text-danger fw-bold' : 'text-white-50');
+            const btnsRH = isAdmin ? `
+                <td class="text-end text-nowrap">
+                    <button class="btn btn-sm btn-warning fw-bold shadow-sm me-1" onclick="app.abrirModalValeRH('${f.id}', '${f.nome}')" title="Lançar Vale"><i class="bi bi-cash-stack"></i> Vales</button>
+                    <button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="app.abrirModalPagamentoRH('${f.id}', '${f.nome}', ${saldoLiquidoAReceber})" title="Quitar e Zerar"><i class="bi bi-check-circle-fill"></i> Liquidar</button>
+                </td>
+            ` : '';
+
+            html += `<tr>
+                <td class="fw-bold text-white"><i class="bi bi-person-fill text-success me-2"></i> ${f.nome}</td>
+                <td><span class="badge bg-dark border border-secondary text-white-50">${f.cargo}</span></td>
+                <td class="text-warning">${f.comissao_mo}% M.O. <br> ${f.comissao_pecas}% Peças</td>
+                <td class="${corSaldo} fs-6">R$ ${saldoLiquidoAReceber.toFixed(2)}</td>
+                <td class="font-monospace text-white-50 small"><i class="bi bi-key"></i> ${f.usuario}</td>
+                ${btnsRH}
+            </tr>`;
+        }
+        tbody.innerHTML = html;
+    });
 };
 
 app.abrirModalValeRH = function(idFunc, nomeFunc) {
+    document.getElementById('formValeRH').reset();
     document.getElementById('vale_id_func').value = idFunc;
     document.getElementById('vale_nome_func').value = nomeFunc;
     document.getElementById('lblNomeValeFunc').innerText = nomeFunc;
-    document.getElementById('formValeRH').reset();
     new bootstrap.Modal(document.getElementById('modalValeRH')).show();
 };
 
@@ -1313,249 +1570,131 @@ app.confirmarValeRH = async function(e) {
     const nomeFunc = document.getElementById('vale_nome_func').value;
     const valor = parseFloat(document.getElementById('vale_valor').value);
     const motivo = document.getElementById('vale_motivo').value;
-    
-    if (valor <= 0) { app.showToast("Valor inválido.", "error"); return; }
-    
-    const batch = app.db.batch();
-    const dataH = new Date().toISOString();
-    
-    // 1. Registra o vale no RH
-    batch.set(app.db.collection('vales_rh').doc(), { tenantId: app.t_id, idFuncionario: idFunc, nomeFuncionario: nomeFunc, valor: valor, motivo: motivo, dataRealizacao: dataH, responsavel: app.user_nome });
-    
-    // 2. Lança como Despesa Imediata no Financeiro (Caixa da Empresa pagando o vale)
-    batch.set(app.db.collection('financeiro').doc(), { tenantId: app.t_id, tipo: 'despesa', desc: `[VALE/RH] ${nomeFunc} - ${motivo}`, valor: valor, parcelaAtual: 1, totalParcelas: 1, metodo: 'Dinheiro', vencimento: dataH.split('T')[0], status: 'pago' });
-    
-    await batch.commit();
-    app.registrarAuditoriaGlobal("RH & Financeiro", `Lançou vale de R$ ${valor.toFixed(2)} para ${nomeFunc}.`);
-    app.showToast("Vale deduzido com sucesso e lançado no DRE.", "success");
-    bootstrap.Modal.getInstance(document.getElementById('modalValeRH')).hide();
-};
 
-app.renderizarTabelaArquivo = function() {
-    let entregues = app.bancoOSCompleto.filter(os => os.status === 'entregue').sort((a,b) => new Date(b.ultimaAtualizacao) - new Date(a.ultimaAtualizacao));
-    const busca = document.getElementById('buscaGeral'); const t = busca ? busca.value.toLowerCase().trim() : '';
-    if (t) entregues = entregues.filter(o => (o.placa&&o.placa.toLowerCase().includes(t)) || (o.cliente&&o.cliente.toLowerCase().includes(t)));
-    
-    const tbody = document.getElementById('tabelaArquivoCorpo');
-    if(tbody) tbody.innerHTML = entregues.map(os => `<tr><td class="text-white-50 small"><i class="bi bi-calendar-check text-success me-2"></i> ${new Date(os.ultimaAtualizacao).toLocaleDateString('pt-BR')}</td><td><span class="badge bg-dark border px-3 py-2 fs-6 shadow-sm">${os.placa}</span></td><td class="text-white fw-bold">${os.veiculo}</td><td class="text-white-50">${os.cliente}</td><td class="gestao-only text-success fw-bold">R$ ${(os.total||0).toFixed(2).replace('.',',')}</td><td class="text-center"><button class="btn btn-outline-info shadow-sm fw-bold px-4" onclick="app.abrirModalOS('edit', '${os.id}')"><i class="bi bi-folder-symlink-fill me-2"></i> Prontuário</button></td></tr>`).join('');
-};
+    if(valor <= 0) return;
 
-app.iniciarEscutaLixeira = function() {
-    app.db.collection('lixeira_auditoria').where('tenantId', '==', app.t_id).onSnapshot(snap => {
-        app.bancoAuditoria = snap.docs.map(d => d.data());
-        app.bancoAuditoria.sort((a,b) => new Date(b.apagadoEm) - new Date(a.apagadoEm));
-        const tb = document.getElementById('tabelaLixeiraCorpo');
-        if(tb) {
-            tb.innerHTML = app.bancoAuditoria.map(l => `<tr><td class="text-white-50 small">${new Date(l.apagadoEm).toLocaleString('pt-BR')}</td><td class="text-white fw-bold">${l.placaOriginal}</td><td><i class="bi bi-person-badge text-danger"></i> ${l.apagadoPor}</td><td class="text-warning">${l.motivo}</td></tr>`).join('');
-        }
-        
-        const lixeiraHeader = document.querySelector('#tela_arquivo .text-danger.fw-bold');
-        if(lixeiraHeader && !document.getElementById('btnExportarAuditoria')) {
-            lixeiraHeader.innerHTML += ` <button id="btnExportarAuditoria" class="btn btn-sm btn-outline-danger shadow-sm ms-3" onclick="app.exportarAuditoriaPDF()"><i class="bi bi-file-pdf"></i> Exportar Auditoria</button>`;
-        }
-    });
-};
-
-app.exportarAuditoriaPDF = function() {
     try {
-        const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); let y = 15;
-        doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.text(app.t_nome.toUpperCase(), 105, y, { align: "center" }); y += 10;
-        doc.setFontSize(12); doc.text(`RELATÓRIO DE AUDITORIA E RASTREIO`, 105, y, { align: "center" }); y += 15;
+        const batch = app.db.batch();
         
-        let bodyTable = [];
-        app.bancoAuditoria.forEach(l => { bodyTable.push([new Date(l.apagadoEm).toLocaleString('pt-BR'), l.placaOriginal, l.apagadoPor, l.motivo]); });
-        
-        if(bodyTable.length > 0) { doc.autoTable({ startY: y, head: [['Data/Hora', 'Módulo/Placa', 'Usuário', 'Ação / Justificativa']], body: bodyTable, theme: 'grid' }); } 
-        else { doc.text("- Lixeira de auditoria vazia.", 15, y); }
-
-        doc.save(`Auditoria_${app.t_nome.replace(' ', '_')}.pdf`);
-        app.showToast("Log de Auditoria exportado em PDF.", "success");
-    } catch(e) { console.error(e); app.showToast("Erro na geração do PDF de Auditoria.", "error"); }
-};
-
-app.apagarOS = async function() {
-    if(app.t_role !== 'admin') { app.showToast("Cancelamento Bloqueado. Exige perfil de Dono.", "error"); return; }
-    
-    const m = prompt("ATENÇÃO: A Ficha Técnica será extirpada. \nDigite a JUSTIFICATIVA REAL:");
-    if(!m || m.trim() === '') { app.showToast("Operação Abortada.", "error"); return; }
-    
-    const idField = document.getElementById('os_id'); const id = idField ? idField.value : '';
-    if(!id) return;
-
-    const osCancelada = app.bancoOSCompleto.find(x => x.id === id);
-    if(osCancelada) {
-        await app.registrarAuditoriaGlobal(`O.S Cancelada: ${osCancelada.placa}`, `Motivo: ${m}`);
-        await app.db.collection('ordens_servico').doc(id).delete();
-        app.showToast("O.S. Removida e gravada na Trilha Oculta (Lixeira).", "success");
-    }
-    const mod = document.getElementById('modalOS'); if(mod) bootstrap.Modal.getInstance(mod).hide();
-};
-
-// =====================================================================
-// 11. CLOUDINARY E EXPORTAÇÃO LAUDO PDF (COM EVIDÊNCIAS DE AUDITORIA)
-// =====================================================================
-app.configurarCloudinary = function() {
-    if (!app.CLOUDINARY_CLOUD_NAME || !app.CLOUDINARY_UPLOAD_PRESET) return;
-    try {
-        var w = cloudinary.createUploadWidget({ cloudName: app.CLOUDINARY_CLOUD_NAME, uploadPreset: app.CLOUDINARY_UPLOAD_PRESET, sources: ['local', 'camera'], language: 'pt' }, (err, res) => {
-            if (!err && res && res.event === "success") { app.fotosOSAtual.push(res.info.secure_url); app.historicoOSAtual.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: "Realizou injeção de Imagem / Evidência no Cloud." }); app.renderizarGaleria(); }
+        // 1. Gera extrato na conta do funcionário (como vale pendente de ser deduzido no fechamento final)
+        const funcRef = app.db.collection('funcionarios').doc(idFunc).collection('extrato').doc();
+        batch.set(funcRef, {
+            tipo: 'vale',
+            valor: valor,
+            data: new Date().toISOString(),
+            desc: motivo,
+            statusVales: 'pendente_abate' // Será "resolvido" quando o gerente clicar em "Liquidar" o salário dele
         });
-        const btn = document.getElementById("btnUploadCloudinary"); if(btn) btn.addEventListener("click", () => w.open(), false);
-    } catch(e) { console.error("Cloudinary Engine Failed: ", e); }
-};
 
-app.renderizarGaleria = function() {
-    const gal = document.getElementById('galeriaFotosOS');
-    if(gal) gal.innerHTML = app.fotosOSAtual.map((url, i) => `<div class="position-relative shadow-sm" style="width: 140px; height: 140px;"><img src="${url}" crossorigin="anonymous" class="img-thumbnail bg-dark border-secondary w-100 h-100 object-fit-cover rounded-3"><button type="button" data-html2canvas-ignore class="btn btn-sm btn-danger position-absolute top-0 end-0 m-2 p-0 px-2 rounded-circle" onclick="app.removerFoto(${i})"><i class="bi bi-x"></i></button></div>`).join('');
-};
-
-app.removerFoto = function(index) { app.fotosOSAtual.splice(index, 1); app.historicoOSAtual.push({ data: new Date().toISOString(), usuario: app.user_nome, acao: "Excluiu Prova Fotográfica da Base." }); app.renderizarGaleria(); };
-
-app.renderizarHistorico = function() { 
-    const hist = document.getElementById('listaHistorico');
-    if(hist) {
-        hist.innerHTML = app.historicoOSAtual.length === 0 ? '<p class="text-white-50 px-3">O prontuário deste veículo ainda está imaculado (Zero Edições).</p>' : [...app.historicoOSAtual].sort((a,b) => new Date(b.data) - new Date(a.data)).map(h => `
-        <li class="timeline-item">
-            <div class="timeline-item-header"><strong class="text-white">${h.usuario}</strong><span class="text-info small fw-bold">${new Date(h.data).toLocaleString('pt-BR')}</span></div>
-            <div class="timeline-item-body text-warning shadow-sm">${h.acao}</div>
-        </li>`).join(''); 
-    }
-};
-
-async function carregarImagemBase64(url) {
-    const res = await fetch(url); const blob = await res.blob();
-    return new Promise((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result); reader.readAsDataURL(blob); });
-}
-
-app.exportarPDFMenechelli = async function() {
-    const btn = document.getElementById('btnGerarPDF'); if(!btn) return;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Renderizando Laudo...'; btn.disabled = true; 
-    const placaElem = document.getElementById('os_placa'); const placa = placaElem ? placaElem.value : 'S-PLACA';
-    
-    try {
-        const { jsPDF } = window.jspdf; const doc = new jsPDF('p', 'mm', 'a4'); const pageWidth = doc.internal.pageSize.getWidth(); let y = 15;
-        
-        doc.setFillColor(30, 41, 59); doc.rect(0, 0, pageWidth, 40, 'F'); doc.setTextColor(255, 255, 255);
-        doc.setFont("helvetica", "bold"); doc.setFontSize(26); doc.text(app.t_nome.toUpperCase(), pageWidth/2, 22, { align: "center" });
-        doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text(`LAUDO DE INTEGRIDADE, SERVIÇO E ORÇAMENTO`, pageWidth/2, 30, { align: "center" }); 
-        y = 50; doc.setTextColor(0, 0, 0);
-
-        doc.setDrawColor(200, 200, 200); doc.rect(15, y, pageWidth-30, 25);
-        doc.setFont("helvetica", "bold"); doc.setFontSize(10);
-        doc.text(`Proprietário:`, 20, y+8); doc.setFont("helvetica", "normal"); doc.text(document.getElementById('os_cliente') ? document.getElementById('os_cliente').value : '', 50, y+8);
-        doc.setFont("helvetica", "bold"); doc.text(`Contato:`, 130, y+8); doc.setFont("helvetica", "normal"); doc.text(document.getElementById('os_celular') ? document.getElementById('os_celular').value : '', 150, y+8);
-        doc.setFont("helvetica", "bold"); doc.text(`Identificação (Placa):`, 20, y+18); doc.setFont("helvetica", "normal"); doc.text(placa, 60, y+18);
-        doc.setFont("helvetica", "bold"); doc.text(`Veículo:`, 130, y+18); doc.setFont("helvetica", "normal"); doc.text(document.getElementById('os_veiculo') ? document.getElementById('os_veiculo').value : '', 148, y+18); y += 35;
-        
-        doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`QUEIXA NA RECEPÇÃO (CLIENTE)`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10;
-        doc.setFont("helvetica", "normal"); doc.setFontSize(10); 
-        const relatoVal = document.getElementById('os_relato_cliente') ? document.getElementById('os_relato_cliente').value : 'Não reportada.';
-        const txtQ = doc.splitTextToSize(relatoVal, pageWidth - 30); doc.text(txtQ, 15, y); y += (txtQ.length * 6) + 10;
-        
-        doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`DIAGNÓSTICO PROFISSIONAL (OFICINA)`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10;
-        doc.setFont("helvetica", "normal"); doc.setFontSize(10); 
-        const diagVal = document.getElementById('os_diagnostico') ? document.getElementById('os_diagnostico').value : 'Inspeção padrão de revisão técnica.';
-        const txtL = doc.splitTextToSize(diagVal, pageWidth - 30); doc.text(txtL, 15, y); y += (txtL.length * 6) + 10;
-
-        let tableBody = [];
-        document.querySelectorAll('#listaPecasCorpo tr').forEach(tr => { 
-            const d = tr.querySelector('.peca-desc') ? tr.querySelector('.peca-desc').value : '';
-            const q = tr.querySelector('.peca-qtd') ? tr.querySelector('.peca-qtd').value : '0';
-            const vu = tr.querySelector('.peca-venda') ? tr.querySelector('.peca-venda').value : '0';
-            const vt = tr.querySelector('.peca-total') ? tr.querySelector('.peca-total').value : '0';
-            tableBody.push([d, q, `R$ ${vu}`, `R$ ${vt}`]); 
+        // 2. O PULO DO GATO (Exigência): Lança a saída de dinheiro imediatamente no DRE (Caixa da Empresa)
+        const finRef = app.db.collection('financeiro').doc();
+        batch.set(finRef, {
+            tenantId: app.t_id,
+            tipo: 'despesa',
+            descricao: `Vale/Adiantamento (RH) - ${nomeFunc} | Motivo: ${motivo}`,
+            valor: valor,
+            dataVencimento: new Date().toISOString().split('T')[0],
+            metodo: 'Dinheiro', // Vale em oficina 99% das vezes sai do caixa físico
+            parcela: '1/1',
+            status: 'pago',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
-        doc.autoTable({ startY: y, head: [['Serviço ou Peça Genuína Acoplada', 'Qtd', 'Vlr. Unitário', 'Subtotal da Linha']], body: tableBody, theme: 'grid', headStyles: { fillColor: [30, 41, 59] }, margin: { left: 15, right: 15 }}); y = doc.lastAutoTable.finalY + 15;
 
-        if (app.fotosOSAtual.length > 0) {
-            if (y > 220) { doc.addPage(); y = 20; }
-            doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`EVIDÊNCIAS FOTOGRÁFICAS DA MANUTENÇÃO`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10;
-            
-            let imgX = 15; let imgY = y; const imgSize = 45; const margin = 8;
-            for (let i = 0; i < app.fotosOSAtual.length; i++) {
-                try {
-                    const b64 = await carregarImagemBase64(app.fotosOSAtual[i]);
-                    if (imgX + imgSize > pageWidth - 15) { imgX = 15; imgY += imgSize + margin; }
-                    if (imgY + imgSize > 280) { doc.addPage(); imgY = 20; imgX = 15; }
-                    doc.addImage(b64, 'JPEG', imgX, imgY, imgSize, imgSize);
-                    imgX += imgSize + margin;
-                } catch (e) { console.error("Erro na imagem Base64 do PDF", e); }
-            }
-            y = imgY + imgSize + 15;
-        }
+        await batch.commit();
+        app.showToast(`Vale de R$ ${valor.toFixed(2)} lançado com sucesso e integrado ao DRE.`, "success");
+        bootstrap.Modal.getInstance(document.getElementById('modalValeRH')).hide();
+        // A escuta em tempo real do carregarEquipe vai recalcular o saldo líquido instantaneamente.
+    } catch(err) {
+        console.error(err);
+        app.showToast("Falha ao lançar vale na folha.", "error");
+    }
+};
 
-        if (app.historicoOSAtual.length > 0) {
-            if (y > 220) { doc.addPage(); y = 20; }
-            doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(`TRILHA DE AUDITORIA E RESPONSABILIDADE (TIMELINE)`, 15, y); doc.line(15, y+2, pageWidth-15, y+2); y += 10;
-            doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-            app.historicoOSAtual.slice().sort((a,b) => new Date(a.data) - new Date(b.data)).forEach(h => {
-                const dataF = new Date(h.data).toLocaleString('pt-BR');
-                const txtH = doc.splitTextToSize(`[${dataF}] ${h.usuario}: ${h.acao}`, pageWidth - 30);
-                if (y + (txtH.length * 5) > 280) { doc.addPage(); y = 20; }
-                doc.text(txtH, 15, y); y += (txtH.length * 5) + 3;
-            });
-            y += 10;
-        }
+app.abrirModalPagamentoRH = function(idFunc, nomeFunc, saldoLiquido) {
+    if(saldoLiquido <= 0) {
+        app.showToast(`O colaborador ${nomeFunc} não possui saldo a receber ou está negativo.`, "warning");
+        return;
+    }
+    
+    document.getElementById('pag_id_func').value = idFunc;
+    document.getElementById('pag_nome_func').value = nomeFunc;
+    document.getElementById('pag_valor_real').value = saldoLiquido;
+    document.getElementById('lblNomePagFunc').innerText = nomeFunc;
+    document.getElementById('pag_valor_exibicao').innerText = `R$ ${saldoLiquido.toFixed(2)}`;
+    
+    new bootstrap.Modal(document.getElementById('modalPagamentoRH')).show();
+};
 
-        if (y > 250) { doc.addPage(); y = 20; }
-        if(app.t_role === 'admin' || app.t_role === 'gerente') {
-            doc.setFillColor(240, 240, 240); doc.rect(pageWidth - 85, y, 70, 15, 'F');
-            doc.setFont("helvetica", "bold"); doc.setFontSize(12); 
-            doc.text(`LIQUIDAÇÃO FINAL:`, pageWidth - 80, y + 10);
-            const totalOSElem = document.getElementById('os_total_geral'); const totalOS = totalOSElem ? totalOSElem.innerText : 'R$ 0,00';
-            doc.setTextColor(0, 128, 0); doc.text(totalOS, pageWidth - 35, y + 10);
-        }
+app.confirmarPagamentoRH = async function(e) {
+    e.preventDefault();
+    const idFunc = document.getElementById('pag_id_func').value;
+    const nomeFunc = document.getElementById('pag_nome_func').value;
+    const valorPagar = parseFloat(document.getElementById('pag_valor_real').value);
+    const metodo = document.getElementById('pag_metodo').value;
 
-        doc.save(`OS_Auditada_${placa}_${new Date().getTime()}.pdf`);
-        app.showToast("Laudo Oficial Auditado (PDF) Gerado e Exportado.", "success");
+    try {
+        const batch = app.db.batch();
 
-    } catch (erro) {
-        console.error("Erro Crítico PDF Builder:", erro);
-        app.showToast("Ocorreu um erro no processador PDF da Nuvem.", "error");
-    } finally {
-        btn.innerHTML = '<i class="bi bi-file-pdf-fill me-1"></i> Exportar Laudo e Auditoria'; btn.disabled = false;
+        // 1. Zera todas as comissões pendentes (Muda o status para "pago_rh")
+        const comSnap = await app.db.collection('funcionarios').doc(idFunc).collection('comissoes').where('status','==','pendente_pagamento_rh').get();
+        comSnap.forEach(docComissao => {
+            batch.update(docComissao.ref, { status: 'pago_rh', dataPagamento: new Date().toISOString() });
+        });
+
+        // 2. Abate todos os vales pendentes (Muda o status para "abatido")
+        const valesSnap = await app.db.collection('funcionarios').doc(idFunc).collection('extrato').where('statusVales','==','pendente_abate').get();
+        valesSnap.forEach(docVale => {
+            batch.update(docVale.ref, { statusVales: 'abatido', dataFechamento: new Date().toISOString() });
+        });
+
+        // 3. Gera um extrato de "Liquidação / Zeramento" na conta do funcionário para o recibo dele
+        const extratoPagRef = app.db.collection('funcionarios').doc(idFunc).collection('extrato').doc();
+        batch.set(extratoPagRef, {
+            tipo: 'pagamento_salario',
+            valor: valorPagar,
+            data: new Date().toISOString(),
+            metodo: metodo,
+            desc: 'Liquidação Final de Folha (Comissões deduzindo Vales)'
+        });
+
+        // 4. INTEGRAÇÃO COM DRE: Registra a despesa de folha de pagamento na Oficina
+        const finRef = app.db.collection('financeiro').doc();
+        batch.set(finRef, {
+            tenantId: app.t_id,
+            tipo: 'despesa',
+            descricao: `Pagamento Salário/Comissões (RH) - ${nomeFunc}`,
+            valor: valorPagar,
+            dataVencimento: new Date().toISOString().split('T')[0],
+            metodo: metodo,
+            parcela: '1/1',
+            status: 'pago',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        await batch.commit();
+        app.showToast(`Pagamento de Folha finalizado e DRE atualizado!`, "success");
+        bootstrap.Modal.getInstance(document.getElementById('modalPagamentoRH')).hide();
+    } catch(err) {
+        console.error(err);
+        app.showToast("Falha estrutural ao realizar o fechamento do funcionário.", "error");
     }
 };
 
 // =====================================================================
-// 12. CÉREBRO DA I.A. GEMINI 2.5 FLASH (COM COMPRESSÃO ANTI-OVERFLOW)
+// 13. CÉREBRO DA I.A. (LOCALSTORAGE PARA CHAVE + MOTOR RAG SEGURO)
 // =====================================================================
-app.minhaGeminiKey = null;
-app.iaTrabalhando = false;
+app.iaTrabalhando = false; // Trava Global Anti-Spam (Evita Cota 429)
+
+app.salvarKeyLocal = function() {
+    const key = document.getElementById('localGeminiKey').value.trim();
+    if(!key) { app.showToast("Cole uma Chave API válida do Google AI Studio.", "warning"); return; }
+    localStorage.setItem('gemini_local_' + app.t_id, key);
+    app.showToast("Chave da IA salva de forma segura apenas neste navegador!", "success");
+    // Limpa o input por segurança visual (mas já tá salva localmente)
+    setTimeout(() => { document.getElementById('localGeminiKey').value = '**************************'; }, 1000);
+};
 
 app.iniciarEscutaIA = function() {
-    if(app.t_id) {
-        const extrairKey = function(d) {
-            return (d.apiKeys && d.apiKeys.gemini && d.apiKeys.gemini.trim())
-                || (d.geminiKey && d.geminiKey.trim())
-                || (d.gemini && d.gemini.trim())
-                || null;
-        };
-
-        // t_id é o ID do doc em 'oficinas' — lê daqui primeiro
-        app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => {
-            if(doc.exists) {
-                const key = extrairKey(doc.data());
-                if(key) {
-                    app.minhaGeminiKey = key;
-                    console.log('✅ Gemini key carregada de [oficinas]');
-                }
-            }
-        });
-
-        // Tenta também em 'tenants' pelo mesmo t_id (caso superadmin tenha 
-        // criado o tenant com o mesmo ID — improvável mas cobre o caso)
-        app.db.collection('tenants').doc(app.t_id).onSnapshot(doc => {
-            if(doc.exists) {
-                const key = extrairKey(doc.data());
-                if(key) {
-                    app.minhaGeminiKey = key;
-                    console.log('✅ Gemini key carregada de [tenants]');
-                }
-            }
-        });
-    }
-
     app.db.collection('conhecimento_ia').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoIA = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         app.renderizarListaIA();
@@ -1585,172 +1724,192 @@ app.processarArquivoParaIA = function(event) {
     const file = event.target.files[0]; if(!file) return;
     const statusLabel = document.getElementById('iaFileStatus');
     if(statusLabel) { statusLabel.className = "text-warning fw-bold d-block text-center"; statusLabel.innerText = "Lendo matriz física do arquivo e traduzindo para RAG..."; }
+    
     const reader = new FileReader();
     reader.onload = async function(e) {
         const text = e.target.result; const txtLimpo = text.substring(0, 10000);
-        await app.salvarConhecimentoIA('[ARQUIVO IMPORTADO: ' + file.name + ']\n\n' + txtLimpo);
+        await app.salvarConhecimentoIA(`[ARQUIVO IMPORTADO: ${file.name}]\n\n${txtLimpo}`);
         if(statusLabel) { statusLabel.className = "text-success fw-bold d-block text-center"; statusLabel.innerText = "Aquisição concluída!"; setTimeout(() => { statusLabel.innerText = ""; }, 5000); }
     };
-    reader.readAsText(file);
+    reader.readAsText(file); 
 };
 
-// Retorna a chave Gemini — tenta Firestore primeiro, depois sessionStorage
-app.obterGeminiKey = function() {
-    // 1. Tenta a chave carregada do Firestore pelo listener
-    if(app.minhaGeminiKey && app.minhaGeminiKey !== 'null' && app.minhaGeminiKey !== 'undefined' && app.minhaGeminiKey.trim() !== '') {
-        return app.minhaGeminiKey.trim();
-    }
-    // 2. Fallback: chave gravada no sessionStorage no momento do login
-    const keySession = sessionStorage.getItem('t_gemini');
-    if(keySession && keySession !== 'null' && keySession !== 'undefined' && keySession.trim() !== '') {
-        return keySession.trim();
-    }
-    return null;
-};
-
-// Tenta múltiplos modelos Gemini em ordem de preferência
-app.chamarGemini = async function(promptCompleto) {
-    const key = app.obterGeminiKey();
-
-    if(!key) {
-        console.error('❌ Gemini Key NÃO encontrada');
-        app.showToast('Chave do Gemini não configurada. Acesse o Superadmin e salve a key.', 'error');
-        return 'Erro: API Key do Gemini não configurada.';
+// CONECTOR BLINDADO COM LEITURA EXCLUSIVA DO LOCALSTORAGE + AUTO-FALLBACK
+app.chamarGemini = async function(prompt, sysInstruction) {
+    // Agora ele ignora o banco e puxa EXCLUSIVAMENTE do LocalStorage da Oficina
+    const key = localStorage.getItem('gemini_local_' + app.t_id);
+    
+    if(!key || key.includes('*')) { 
+        app.showToast("Vá no menu Treinamento IA (RAG) e ative a sua chave da API.", "error"); 
+        return "Erro: Google Gemini API Key ausente no navegador desta oficina."; 
     }
 
-    // Modelos Gemini confirmados e disponíveis no endpoint v1beta
-    const tentativas = [
-        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key },
-        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key },
-        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' + key }
-    ];
+    const payloadOptions = {
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            systemInstruction: { parts: [{ text: sysInstruction }] },
+            generationConfig: { temperature: 0.1 }
+        })
+    };
 
-    for(const tentativa of tentativas) {
-        try {
-            console.log('🧠 Tentando:', tentativa.url.split('/models/')[1].split(':')[0]);
-            const res = await fetch(tentativa.url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: promptCompleto }] }],
-                    generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
-                })
-            });
-
-            const data = await res.json();
-
-            if(!res.ok) {
-                const errMsg = data.error?.message || '';
-                // Quota excedida — informa o usuário e para
-                if(res.status === 429) {
-                    app.showToast('Cota da API Gemini excedida. Aguarde alguns minutos.', 'error');
-                    return 'Erro: Cota da API Gemini excedida. Aguarde alguns minutos e tente novamente.';
-                }
-                console.warn('⚠️ HTTP ' + res.status + ':', errMsg);
-                continue;
-            }
-
-            // Safety block
-            if(data.candidates?.[0]?.finishReason === 'SAFETY') {
-                return 'A IA bloqueou esta resposta por políticas de segurança. Reformule a pergunta.';
-            }
-
-            const texto = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if(texto) {
-                console.log('✅ Sucesso!');
-                return texto;
-            }
-
-            console.warn('⚠️ Resposta sem texto:', data);
-
-        } catch(e) {
-            console.warn('⚠️ Erro de rede:', e.message);
+    try {
+        let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, payloadOptions);
+        
+        if (!res.ok) {
+            console.warn("Rota 2.5-flash bloqueada. Acionando fallback...");
+            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, payloadOptions);
         }
-    }
 
-    app.showToast('Falha ao conectar com o Gemini. Verifique a chave no Superadmin.', 'error');
-    return 'Erro: Não foi possível conectar ao Gemini. Verifique a API Key.';
+        const data = await res.json(); 
+        if(data.error) throw new Error(data.error.message);
+        return data.candidates[0].content.parts[0].text;
+    } catch(e) { 
+        console.error(e);
+        return "A I.A. bloqueou a requisição. Aguarde um minuto ou verifique se colou a chave corretamente. Erro: " + e.message; 
+    }
 };
 
 app.perguntarJarvis = async function() {
-    if(app.iaTrabalhando) return;
+    if(app.iaTrabalhando) return; 
+    
+    const inp = document.getElementById('jarvisInput'); const resDiv = document.getElementById('jarvisResposta');
+    if(!inp || !inp.value) return; 
+    
+    app.iaTrabalhando = true; 
+    resDiv.classList.remove('d-none'); 
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> J.A.R.V.I.S está analisando...';
 
-    const inp = document.getElementById('jarvisInput');
-    const resDiv = document.getElementById('jarvisResposta');
-
-    if(!inp || !inp.value.trim()) return;
-
-    app.iaTrabalhando = true;
-    resDiv.classList.remove('d-none');
-    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Processando...';
-
-    try {
-        const manuaisPuros = app.bancoIA
-            .map(ia => ia.texto)
-            .join('\n')
-            .substring(0, 5000);
-
-        const promptUnificado =
-            'Você é o Consultor Técnico thIAguinho da oficina "' + app.t_nome + '".\n\n' +
-            (manuaisPuros ? 'BASE DE CONHECIMENTO:\n' + manuaisPuros + '\n\n' : '') +
-            'Se não souber, diga que não sabe.\n\n' +
-            'PERGUNTA: "' + inp.value.trim() + '"';
-
-        const resposta = await app.chamarGemini(promptUnificado);
-        resDiv.innerHTML = resposta.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-
-    } catch(e) {
-        console.error(e);
-        resDiv.innerHTML = '<span class="text-danger">Erro ao processar pergunta: ' + e.message + '</span>';
-    }
-
+    const ctx = { 
+        manuais: app.bancoIA.map(ia => ia.texto), 
+        patio: app.bancoOSCompleto.filter(o=>o.status !== 'entregue').map(o => ({placa: o.placa, def: o.relatoCliente, st: o.status})) 
+    };
+    
+    const sys = `Você é o J.A.R.V.I.S, o consultor virtual da oficina "${app.t_nome}".\nDADOS DA OFICINA: ${JSON.stringify(ctx)}\nRegra absoluta: Responda de forma direta e COMPROVE as fontes se basear em algum manual. Não invente dados.`;
+    
+    const resposta = await app.chamarGemini(inp.value, sys);
+    resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
+    
     inp.value = '';
+    app.iaTrabalhando = false; 
+};
+
+app.jarvisAnalisarRevisoes = async function() {
+    if(app.iaTrabalhando) {
+        app.showToast("Aguarde a IA terminar a tarefa atual.", "warning");
+        return;
+    }
+    
+    const div = document.getElementById('jarvisCRMInsights'); if(!div) return;
+    
+    app.iaTrabalhando = true;
+    div.innerHTML = '<span class="spinner-border text-warning spinner-border-sm me-2"></span> Escaneando Histórico...';
+    
+    const historicoMorto = app.bancoOSCompleto.filter(o => o.status === 'entregue');
+    if(historicoMorto.length === 0) { 
+        div.innerHTML = '<span class="text-white-50">Não há registros suficientes.</span>'; 
+        app.iaTrabalhando = false;
+        return; 
+    }
+    
+    const ctx = { 
+        historico: historicoMorto.slice(-50).map(o => ({ dt: new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR'), cli: o.cliente, pl: o.placa })) 
+    };
+
+    const sys = `Gestor de Remarketing da oficina ${app.t_nome}.\nBASE:\n${JSON.stringify(ctx)}\nTarefa: Encontre clientes para telefonarmos HOJE oferecendo revisão. Devolva em HTML <li> com o motivo técnico.`;
+    
+    const resposta = await app.chamarGemini("Analise o histórico e me dê os clientes para remarketing.", sys);
+    div.innerHTML = resposta;
     app.iaTrabalhando = false;
 };
 
 // =====================================================================
-// 13. RADAR DE CLIENTES (JARVIS CRM INSIGHTS)
+// 14. EXPORTAÇÃO PDF (MÓDULO MENECHELLI)
 // =====================================================================
-app.jarvisAnalisarRevisoes = async function() {
-    const div = document.getElementById('jarvisCRMInsights');
-    if(!div) return;
+app.exportarPDFMenechelli = async function() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'pt', 'a4');
+    
+    app.showToast("Gerando PDF Oficial da Oficina... Aguarde.", "info");
 
-    div.innerHTML = '<span class="spinner-border spinner-border-sm text-warning me-2"></span> Radar ativado, analisando padrões...';
+    const btnG = document.getElementById('btnGerarPDF'); btnG.innerHTML = 'Gerando...'; btnG.disabled = true;
 
-    try {
-        const totalOS = app.bancoOSCompleto.length;
-        const entregues = app.bancoOSCompleto.filter(o => o.status === 'entregue');
-        const emAberto = app.bancoOSCompleto.filter(o => o.status !== 'entregue');
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, 595, 80, 'F');
+    doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(255, 255, 255);
+    doc.text(app.t_nome.toUpperCase(), 40, 45);
+    doc.setFontSize(10); doc.setTextColor(200, 200, 200);
+    doc.text("DOCUMENTO OFICIAL DE PRONTUÁRIO", 40, 65);
+    doc.setFontSize(14); doc.setTextColor(255, 255, 255);
+    doc.text(`O.S: ${app.osAtual.placa.toUpperCase()}`, 555, 50, { align: "right" });
 
-        const agora = new Date();
-        const clientesSemRetorno = [];
-        const clientesVistos = new Set();
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(0, 0, 0);
+    doc.text("DADOS DO CLIENTE E VEÍCULO", 40, 110);
+    doc.setLineWidth(1); doc.line(40, 115, 555, 115);
 
-        entregues.forEach(os => {
-            if(clientesVistos.has(os.cliente)) return;
-            clientesVistos.add(os.cliente);
-            const dias = Math.floor((agora - new Date(os.ultimaAtualizacao)) / (1000 * 60 * 60 * 24));
-            if(dias > 60) clientesSemRetorno.push({ nome: os.cliente, dias: dias, veiculo: os.veiculo });
-        });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    doc.text(`Cliente: ${app.osAtual.cliente}`, 40, 135);
+    doc.text(`Contato: ${app.osAtual.celular || 'N/I'}`, 350, 135);
+    doc.text(`Veículo: ${app.osAtual.veiculo}`, 40, 155);
+    doc.text(`Placa: ${app.osAtual.placa.toUpperCase()}`, 350, 155);
 
-        const resumo =
-            'Total de O.S.: ' + totalOS + '\n' +
-            'Em aberto/execução: ' + emAberto.length + '\n' +
-            'Concluídas/entregues: ' + entregues.length + '\n' +
-            'Clientes sem retorno há +60 dias: ' + clientesSemRetorno.length + '\n' +
-            clientesSemRetorno.slice(0, 8).map(c => '  - ' + c.nome + ' (' + c.veiculo + ', ' + c.dias + ' dias atrás)').join('\n');
-
-        const prompt =
-            'Você é o assistente de CRM automotivo da oficina "' + app.t_nome + '".\n\n' +
-            'Com base nos dados abaixo, dê insights curtos e práticos: quais clientes contatar, o que priorizar, alertas operacionais. ' +
-            'Seja direto, use listas. Máximo 200 palavras.\n\n' +
-            'DADOS:\n' + resumo;
-
-        const resposta = await app.chamarGemini(prompt);
-        div.innerHTML = resposta.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-
-    } catch(e) {
-        console.error(e);
-        div.innerHTML = '<span class="text-danger">Erro ao rodar o Radar: ' + e.message + '</span>';
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+    doc.text("RECLAMAÇÃO / CHECKLIST DE ENTRADA", 40, 190);
+    doc.setLineWidth(1); doc.line(40, 195, 555, 195);
+    
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    doc.text(`Queixa: ${app.osAtual.relatoCliente || 'Não informada.'}`, 40, 215, { maxWidth: 500 });
+    
+    let chkY = 235;
+    if(app.osAtual.checklist) {
+        doc.text(`[ ${app.osAtual.checklist.combustivel ? 'X' : ' '} ] Luz Reserva Acesa`, 40, chkY);
+        doc.text(`[ ${app.osAtual.checklist.arranhado ? 'X' : ' '} ] Carroceria Arranhada`, 200, chkY);
+        doc.text(`[ ${app.osAtual.checklist.bateria ? 'X' : ' '} ] Bateria Arriada`, 360, chkY);
     }
+
+    let nextY = 265;
+    if(app.osAtual.diagnostico) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+        doc.text("DIAGNÓSTICO TÉCNICO", 40, nextY);
+        doc.line(40, nextY+5, 555, nextY+5);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+        doc.text(app.osAtual.diagnostico, 40, nextY+25, { maxWidth: 515 });
+        nextY += 70;
+    }
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+    doc.text("ORÇAMENTO / RELAÇÃO DE PEÇAS", 40, nextY);
+    
+    if(app.osAtual.pecas && app.osAtual.pecas.length > 0) {
+        const tableData = app.osAtual.pecas.map(p => [p.desc, p.qtd.toString(), `R$ ${p.venda.toFixed(2)}`, `R$ ${(p.qtd*p.venda).toFixed(2)}`]);
+        doc.autoTable({
+            startY: nextY + 15,
+            head: [['Descrição do Item/Serviço', 'Qtd', 'Venda Un.', 'Subtotal']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59] },
+            styles: { fontSize: 9 }
+        });
+        nextY = doc.lastAutoTable.finalY + 30;
+    } else {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+        doc.text("Nenhuma peça ou serviço orçado ainda.", 40, nextY + 20);
+        nextY += 40;
+    }
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(0, 150, 0);
+    doc.text(`TOTAL GERAL: R$ ${(app.osAtual.total || 0).toFixed(2)}`, 555, nextY, { align: "right" });
+
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100, 100, 100);
+    doc.text("Reconheço e aprovo a execução dos serviços acima descritos.", 40, nextY + 60);
+    doc.line(40, nextY + 110, 250, nextY + 110);
+    doc.text(`Assinatura Cliente: ${app.osAtual.cliente}`, 40, nextY + 125);
+
+    doc.line(300, nextY + 110, 555, nextY + 110);
+    doc.text(`Assinatura Oficina: ${app.t_nome}`, 300, nextY + 125);
+
+    doc.save(`Orçamento_${app.osAtual.placa}_${app.osAtual.cliente.replace(/ /g, '_')}.pdf`);
+    
+    btnG.innerHTML = '<i class="bi bi-file-pdf-fill me-1"></i> Exportar Laudo e Auditoria'; btnG.disabled = false;
 };
