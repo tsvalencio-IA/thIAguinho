@@ -417,21 +417,8 @@
             };
 
             try {
-                if (id) { 
-                    await db.collection('tenants').doc(id).update(payload);
-                    // Sincroniza apiKeys para 'oficinas' (onde t_id bate no login)
-                    try {
-                        const ofSnap = await db.collection('oficinas').where('usuario', '==', payload.usuario).get();
-                        if(!ofSnap.empty) {
-                            await db.collection('oficinas').doc(ofSnap.docs[0].id).update({ apiKeys: payload.apiKeys });
-                        }
-                    } catch(e) { console.warn('Sync oficinas:', e); }
-                    showToast("Arquitetura e módulos atualizados na nuvem.", "success"); 
-                } else { 
-                    payload.criadoEm = new Date().toISOString(); 
-                    await db.collection('tenants').add(payload); 
-                    showToast("Implantação de novo cliente concluída!", "success"); 
-                }
+                if (id) { await db.collection('tenants').doc(id).update(payload); showToast("Arquitetura e módulos atualizados na nuvem.", "success"); } 
+                else { payload.criadoEm = new Date().toISOString(); await db.collection('tenants').add(payload); showToast("Implantação de novo cliente concluída!", "success"); }
                 modalTenantInstance.hide();
             } catch (err) { showToast("Erro no banco: " + err.message, "error"); }
         }
