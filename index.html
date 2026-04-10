@@ -28,112 +28,75 @@
             top: 0; 
             left: 0; 
             width: 100%; 
-            height: 100%; 
-            background: radial-gradient(circle at top left, #1e293b 0%, #050505 100%); 
-            z-index: 1; 
+            height: 100%;
+            background: radial-gradient(circle at center, #0f172a 0%, #050505 100%);
+            z-index: -1;
         }
         .login-card { 
-            background: rgba(15, 23, 42, 0.85); 
-            backdrop-filter: blur(20px); 
-            border: 1px solid rgba(255, 255, 255, 0.1); 
-            border-radius: 24px; 
-            padding: 60px 50px; 
+            background: #0f172a; 
+            border: 1px solid #1e293b; 
+            border-radius: 20px; 
+            padding: 40px; 
             width: 100%; 
-            max-width: 480px; 
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1); 
-            position: relative; 
-            z-index: 2; 
+            max-width: 450px; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            position: relative;
+            z-index: 1;
         }
         .form-control { 
-            background-color: rgba(0,0,0,0.5) !important; 
-            border: 1px solid rgba(255, 255, 255, 0.1) !important; 
+            background-color: #020617 !important; 
+            border: 1px solid #1e293b; 
             color: #fff !important; 
-            padding: 16px; 
-            border-radius: 12px; 
-            font-size: 1.1rem; 
-            transition: all 0.3s ease; 
+            padding: 15px;
+            border-radius: 10px;
         }
         .form-control:focus { 
-            border-color: #0dcaf0 !important; 
-            box-shadow: 0 0 0 4px rgba(13, 202, 240, 0.1); 
-            background-color: rgba(0,0,0,0.8) !important; 
+            border-color: #3b82f6; 
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25); 
         }
-        .input-group-text { 
-            background-color: rgba(0,0,0,0.5); 
-            border: 1px solid rgba(255, 255, 255, 0.1); 
-            border-right: none; 
-            color: #0dcaf0; 
-            border-radius: 12px 0 0 12px; 
+        .btn-primary {
+            background-color: #3b82f6;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: 0.3s;
         }
-        .form-control { 
-            border-left: none; 
+        .btn-primary:hover {
+            background-color: #2563eb;
+            transform: translateY(-2px);
         }
-        .btn-primary { 
-            background: linear-gradient(135deg, #0dcaf0 0%, #0891b2 100%); 
-            border: none; 
-            font-weight: 800; 
-            padding: 16px; 
-            border-radius: 12px; 
-            font-size: 1.2rem; 
-            color: #000; 
-            letter-spacing: 1px; 
-            transition: all 0.3s ease; 
-        }
-        .btn-primary:hover { 
-            transform: translateY(-3px); 
-            box-shadow: 0 15px 30px rgba(13, 202, 240, 0.3); 
-        }
-        .toast-container { 
-            position: fixed; 
-            top: 30px; 
-            right: 30px; 
-            z-index: 9999; 
-        }
-        .brand-icon { 
-            font-size: 4rem; 
-            background: -webkit-linear-gradient(#0dcaf0, #3b82f6); 
-            -webkit-background-clip: text; 
-            -webkit-text-fill-color: transparent; 
-            filter: drop-shadow(0 0 20px rgba(13, 202, 240, 0.5)); 
-        }
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
     </style>
 </head>
 <body>
-
     <div class="bg-animated"></div>
-    <div class="toast-container" id="toastContainer"></div>
-
+    
     <div class="login-card text-center">
-        <i class="bi bi-fingerprint brand-icon mb-2"></i>
-        <h2 class="fw-bold mt-2 mb-1" style="letter-spacing: 2px;">THIAGUINHO HUB</h2>
-        <p class="text-white-50 mb-5 small text-uppercase" style="letter-spacing: 3px;">Ecossistema Global de Soluções</p>
+        <i class="bi bi-hexagon-fill text-primary display-1 mb-3 d-block"></i>
+        <h3 class="fw-bold mb-1">thIAguinho Hub</h3>
+        <p class="text-white-50 mb-4 small">Acesso Seguro ao Ecossistema Digital</p>
         
-        <form onsubmit="realizarLoginUniversal(event)">
-            <div class="mb-4 text-start">
-                <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Usuário / Identificação</label>
-                <div class="input-group shadow-sm">
-                    <span class="input-group-text"><i class="bi bi-person-bounding-box"></i></span>
-                    <input type="text" class="form-control" id="loginUser" required placeholder="Digite a sua credencial">
-                </div>
+        <form onsubmit="realizarLogin(event)">
+            <div class="mb-3">
+                <input type="text" class="form-control text-center fs-5" id="loginUser" placeholder="Usuário ou CNPJ" required autocomplete="off">
             </div>
-            <div class="mb-5 text-start">
-                <label class="form-label text-white-50 fw-bold small text-uppercase ms-1">Chave de Segurança</label>
-                <div class="input-group shadow-sm">
-                    <span class="input-group-text"><i class="bi bi-shield-lock-fill"></i></span>
-                    <input type="password" class="form-control" id="loginPass" required placeholder="••••••••">
-                </div>
+            <div class="mb-4">
+                <input type="password" class="form-control text-center fs-5" id="loginPass" placeholder="Senha de Acesso" required>
             </div>
-            <button type="submit" class="btn btn-primary w-100 shadow" id="btnAcesso">INICIAR SESSÃO SEGURA</button>
+            <button type="submit" class="btn btn-primary w-100" id="btnAcesso">INICIAR SESSÃO SEGURA</button>
         </form>
-        <div class="mt-5 pt-4 border-top border-secondary text-center">
-            <small class="text-white-50 fw-bold d-block">Powered by <span class="text-info">thIAguinho Soluções Digitais</span> &copy; 2026</small>
+        
+        <div class="mt-4 pt-3 border-top border-secondary opacity-50">
+            <small><i class="bi bi-shield-lock-fill me-1"></i> Protegido por Criptografia End-to-End</small>
         </div>
     </div>
 
+    <div class="toast-container" id="toastContainer"></div>
+
     <script>
-        // =====================================================================
-        // 1. CONFIGURAÇÃO FIREBASE (ROOT)
-        // =====================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
             authDomain: "hub-thiaguinho.firebaseapp.com",
@@ -143,174 +106,115 @@
             appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
         };
         
-        if (!firebase.apps.length) { 
-            firebase.initializeApp(firebaseConfig); 
-        }
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Limpa resíduos antigos de cache que causam bugs ao recarregar a tela
-        window.onload = function() {
-            sessionStorage.clear();
-        };
-
-        function showToast(msg, isError = true) {
-            const bg = isError ? 'bg-danger' : 'bg-success';
-            const icon = isError ? 'bi-exclamation-triangle-fill' : 'bi-check-circle-fill';
-            const id = 'toast_' + Date.now();
-            const t = document.createElement('div');
-            t.innerHTML = `<div id="${id}" class="toast align-items-center text-white ${bg} border-0 show p-3 mt-2 shadow-lg rounded-4"><div class="d-flex"><div class="toast-body fw-bold fs-6"><i class="bi ${icon} me-2"></i> ${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
-            document.getElementById('toastContainer').appendChild(t.firstChild);
-            setTimeout(() => { const el = document.getElementById(id); if(el) el.remove(); }, 4000);
+        function showToast(msg, tipo = 'info') {
+            const container = document.getElementById('toastContainer');
+            const bg = tipo === 'success' ? 'bg-success' : (tipo === 'error' ? 'bg-danger' : 'bg-info text-dark');
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center ${bg} text-white border-0 mb-2 show shadow-lg`;
+            toast.innerHTML = `<div class="d-flex"><div class="toast-body fw-bold">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.parentElement.parentElement.remove()"></button></div>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
         }
 
-        // Função de Roteamento Baseado no Nicho
-        function rotearParaNicho(nicho) {
-            let paginaDestino = 'painel.html'; // Fallback Genérico
-            const n = (nicho || '').toLowerCase();
-
-            if (n.includes('oficina') || n.includes('retifica') || n.includes('car') || n.includes('moto')) { 
-                paginaDestino = 'painel_oficina.html'; 
-            } 
-            else if (n.includes('odonto') || n.includes('medicina') || n.includes('saude')) { 
-                paginaDestino = 'painel_saude.html'; 
-            } 
-            // Adicione outros nichos futuros aqui
-            
-            window.location.href = paginaDestino;
-        }
-
-        async function realizarLoginUniversal(e) {
+        async function realizarLogin(e) {
             e.preventDefault();
-            const usr = document.getElementById('loginUser').value.trim();
-            const pwd = document.getElementById('loginPass').value.trim();
             const btn = document.getElementById('btnAcesso');
-            
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Acessando Nuvem...'; 
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>A VERIFICAR...';
             btn.disabled = true;
 
+            // Tratamento rígido contra espaços em branco e letras maiúsculas/minúsculas acidentais
+            const userStr = document.getElementById('loginUser').value.trim().toLowerCase();
+            const passStr = document.getElementById('loginPass').value.trim();
+            const numDoc = userStr.replace(/\D/g, '');
+
+            // 1. Acesso SuperAdmin Master
+            if ((userStr === 'admin' || numDoc === '00000000000') && passStr === 'admin123') {
+                window.location.href = 'superadmin.html';
+                return;
+            }
+
             try {
-                // =========================================================
-                // CAMADA 1: LOGIN SUPER ADMIN (HARDCODED/COLEÇÃO)
-                // =========================================================
-                if (usr === 'thiaguinho' && pwd === 'master2026') {
-                    sessionStorage.clear();
-                    sessionStorage.setItem('thiaguinho_master', 'true');
-                    sessionStorage.setItem('t_role', 'superadmin');
-                    window.location.href = 'superadmin.html';
-                    return; // Retorno crucial para não rodar o resto
-                }
+                // 2. Busca Segura na coleção OFICINAS (Gestor/Dono)
+                const ofcSnap = await db.collection('oficinas').get();
+                let gestorEncontrado = null;
 
-                const snapS = await db.collection('superadmin').where('usuario', '==', usr).get();
-                if (!snapS.empty) {
-                    if (snapS.docs[0].data().senha === pwd) {
-                        sessionStorage.clear();
-                        sessionStorage.setItem('thiaguinho_master', 'true');
-                        sessionStorage.setItem('t_role', 'superadmin');
-                        window.location.href = 'superadmin.html';
+                ofcSnap.forEach(doc => {
+                    const d = doc.data();
+                    const bancoUser = d.usuario ? d.usuario.toString().trim().toLowerCase() : '';
+                    const bancoCnpj = d.cnpj ? d.cnpj.toString().replace(/\D/g, '') : '';
+                    const bancoSenha = d.senha ? d.senha.toString().trim() : '';
+
+                    if ((bancoUser === userStr || (bancoCnpj === numDoc && numDoc !== '')) && bancoSenha === passStr) {
+                        gestorEncontrado = { id: doc.id, ...d };
+                    }
+                });
+
+                if (gestorEncontrado) {
+                    if (gestorEncontrado.status === 'Bloqueado' || gestorEncontrado.status === 'Inativo') {
+                        showToast('Acesso Negado: A licença desta empresa está bloqueada.', 'error');
+                    } else {
+                        // Seta a sessão do Gestor Master (Sem alterar os nomes originais das sessões)
+                        sessionStorage.setItem('t_id', gestorEncontrado.id);
+                        sessionStorage.setItem('t_nome', gestorEncontrado.nomeFantasia);
+                        sessionStorage.setItem('t_role', 'gerente');
+                        sessionStorage.setItem('t_mods', JSON.stringify(gestorEncontrado.modulos || {}));
+                        
+                        // Herda Chaves Cloudinary da Empresa (Blindado)
+                        sessionStorage.setItem('t_cloudName', (gestorEncontrado.apiKeys && gestorEncontrado.apiKeys.cloudinaryName) ? gestorEncontrado.apiKeys.cloudinaryName : 'dmuvm1o6m');
+                        sessionStorage.setItem('t_cloudPreset', (gestorEncontrado.apiKeys && gestorEncontrado.apiKeys.cloudinaryPreset) ? gestorEncontrado.apiKeys.cloudinaryPreset : 'evolution');
+                        
+                        // Redireciona diretamente para a oficina
+                        window.location.href = 'painel_oficina.html';
                         return;
                     }
-                }
+                } else {
+                    // 3. Busca Segura na coleção FUNCIONARIOS (Mecânicos/Equipe)
+                    const funcSnap = await db.collection('funcionarios').get();
+                    let funcEncontrado = null;
 
-                // =========================================================
-                // CAMADA 2: TENTA ENTRAR COMO ADMIN DO TENANT (DONO DA OFICINA)
-                // Usando a coleção correta: "oficinas"
-                // =========================================================
-                const tenantSnap = await db.collection('oficinas').where('usuario', '==', usr).get();
-                if (!tenantSnap.empty) {
-                    const doc = tenantSnap.docs[0];
-                    const dados = doc.data();
-                    
-                    if (dados.senha !== pwd) { 
-                        showToast('Senha do administrador incorreta.'); 
-                    }
-                    else if (dados.status === 'Bloqueado') { 
-                        showToast('Sua assinatura encontra-se bloqueada. Contate o Suporte.'); 
-                    }
-                    else {
-                        sessionStorage.clear();
-                        sessionStorage.setItem('t_id', doc.id); 
-                        sessionStorage.setItem('t_nome', dados.nomeFantasia || 'Minha Oficina');
-                        sessionStorage.setItem('t_nicho', dados.nicho || 'oficina'); 
-                        sessionStorage.setItem('t_role', 'admin');
-                        sessionStorage.setItem('f_nome', 'Gestor Master'); 
-                        sessionStorage.setItem('f_comissao', '0'); 
-                        sessionStorage.setItem('t_mods', JSON.stringify(dados.modulos || {}));
-                        
-                        // Resgate de Chaves de API de Integração
-                        sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : 'dmuvm1o6m');
-                        sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : 'evolution');
-                        // Tenta pegar a key Gemini de 'oficinas' primeiro
-                        let geminiKey = (dados.apiKeys && dados.apiKeys.gemini) ? dados.apiKeys.gemini : '';
-                        
-                        // Se não tem em 'oficinas', busca em 'tenants' pelo mesmo doc.id
-                        if(!geminiKey) {
-                            try {
-                                const tenantDoc = await db.collection('tenants').doc(doc.id).get();
-                                if(tenantDoc.exists && tenantDoc.data().apiKeys && tenantDoc.data().apiKeys.gemini) {
-                                    geminiKey = tenantDoc.data().apiKeys.gemini;
-                                    // Sincroniza de volta para 'oficinas' para próximos logins
-                                    await db.collection('oficinas').doc(doc.id).update({
-                                        'apiKeys.gemini': geminiKey
-                                    });
-                                }
-                            } catch(e) { console.warn('Não foi possível sincronizar key Gemini:', e); }
+                    funcSnap.forEach(doc => {
+                        const f = doc.data();
+                        const fUser = f.usuario ? f.usuario.toString().trim().toLowerCase() : '';
+                        const fSenha = f.senha ? f.senha.toString().trim() : '';
+
+                        if (fUser === userStr && fSenha === passStr) {
+                            funcEncontrado = { id: doc.id, ...f };
                         }
+                    });
+
+                    if (funcEncontrado) {
+                        const ofcMae = await db.collection('oficinas').doc(funcEncontrado.tenantId).get();
                         
-                        sessionStorage.setItem('t_gemini', geminiKey);
-                        
-                        rotearParaNicho(dados.nicho);
-                        return;
-                    }
-                } 
-                else {
-                    // =========================================================
-                    // CAMADA 3: TENTA ENTRAR COMO FUNCIONÁRIO (GERENTE OU MECÂNICO)
-                    // Usando a coleção: "funcionarios"
-                    // =========================================================
-                    const funcSnap = await db.collection('funcionarios').where('usuario', '==', usr).get();
-                    if (!funcSnap.empty) {
-                        const docF = funcSnap.docs[0];
-                        const dadosF = docF.data();
-                        
-                        if (dadosF.senha !== pwd) { 
-                            showToast('Senha de funcionário incorreta.'); 
+                        if(!ofcMae.exists || ofcMae.data().status === 'Bloqueado' || ofcMae.data().status === 'Inativo') {
+                            showToast('Acesso Negado: A oficina matriz está bloqueada.', 'error');
+                        } else {
+                            sessionStorage.setItem('t_id', funcEncontrado.tenantId);
+                            sessionStorage.setItem('t_nome', ofcMae.data().nomeFantasia);
+                            sessionStorage.setItem('t_role', funcEncontrado.role || 'equipe');
+                            sessionStorage.setItem('f_id', funcEncontrado.id);
+                            sessionStorage.setItem('f_nome', funcEncontrado.nome);
+                            sessionStorage.setItem('f_comissao', funcEncontrado.comissao_mo || 0);
+                            sessionStorage.setItem('f_comissao_pecas', funcEncontrado.comissao_pecas || 0);
+                            
+                            const maeData = ofcMae.data();
+                            sessionStorage.setItem('t_cloudName', (maeData.apiKeys && maeData.apiKeys.cloudinaryName) ? maeData.apiKeys.cloudinaryName : 'dmuvm1o6m');
+                            sessionStorage.setItem('t_cloudPreset', (maeData.apiKeys && maeData.apiKeys.cloudinaryPreset) ? maeData.apiKeys.cloudinaryPreset : 'evolution');
+
+                            window.location.href = 'painel_oficina.html';
+                            return;
                         }
-                        else {
-                            // Validar se a Oficina mãe está ativa
-                            const empresaMae = await db.collection('oficinas').doc(dadosF.tenantId).get();
-                            if(!empresaMae.exists || empresaMae.data().status === 'Bloqueado') {
-                                showToast('A matriz da sua empresa está inativa. Acesso negado.');
-                            } else {
-                                sessionStorage.clear();
-                                sessionStorage.setItem('t_id', dadosF.tenantId); 
-                                sessionStorage.setItem('t_nome', empresaMae.data().nomeFantasia || 'Minha Oficina');
-                                sessionStorage.setItem('t_nicho', empresaMae.data().nicho || 'oficina'); 
-                                sessionStorage.setItem('f_id', docF.id); 
-                                sessionStorage.setItem('f_nome', dadosF.nome); 
-                                sessionStorage.setItem('f_comissao', dadosF.comissao || '0');
-                                sessionStorage.setItem('f_comissao_pecas', dadosF.comissao_pecas || '0');
-                                sessionStorage.setItem('t_role', dadosF.role || 'equipe'); 
-                                sessionStorage.setItem('t_mods', JSON.stringify(empresaMae.data().modulos || {}));
-                                
-                                // Herda Chaves da Empresa
-                                sessionStorage.setItem('t_cloudName', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryName) ? empresaMae.data().apiKeys.cloudinaryName : 'dmuvm1o6m');
-                                sessionStorage.setItem('t_cloudPreset', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.cloudinaryPreset) ? empresaMae.data().apiKeys.cloudinaryPreset : 'evolution');
-                                sessionStorage.setItem('t_gemini', (empresaMae.data().apiKeys && empresaMae.data().apiKeys.gemini) ? empresaMae.data().apiKeys.gemini : '');
-                                
-                                rotearParaNicho(empresaMae.data().nicho);
-                                return;
-                            }
-                        }
-                    } else { 
-                        showToast('Credenciais não localizadas na base de dados.'); 
+                    } else {
+                        showToast('Credenciais não localizadas na base de dados.', 'error');
                     }
                 }
             } catch (err) { 
                 console.error("Erro no Processo de Login: ", err); 
-                showToast('Falha de rede ou estrutural ao conectar ao servidor.'); 
+                showToast('Falha de rede ou estrutural ao conectar ao servidor.', 'error'); 
             }
             
-            // Restaura o botão se o fluxo não deu 'return'
             btn.innerHTML = 'INICIAR SESSÃO SEGURA'; 
             btn.disabled = false;
         }
