@@ -1,223 +1,93 @@
-<!DOCTYPE html>
-<html lang="pt-BR" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>thIAguinho Hub - Acesso ao Ecossistema Digital</title>
-    
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-    
-    <style>
-        body { 
-            background-color: #050505; 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            min-height: 100vh; 
-            margin: 0; 
-            color: #fff; 
-            overflow: hidden; 
-        }
-        .bg-animated { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%;
-            background: radial-gradient(circle at center, #0f172a 0%, #050505 100%);
-            z-index: -1;
-        }
-        .login-card { 
-            background: #0f172a; 
-            border: 1px solid #1e293b; 
-            border-radius: 20px; 
-            padding: 40px; 
-            width: 100%; 
-            max-width: 450px; 
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-            position: relative;
-            z-index: 1;
-        }
-        .form-control { 
-            background-color: #020617 !important; 
-            border: 1px solid #1e293b; 
-            color: #fff !important; 
-            padding: 15px;
-            border-radius: 10px;
-        }
-        .form-control:focus { 
-            border-color: #3b82f6; 
-            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25); 
-        }
-        .btn-primary {
-            background-color: #3b82f6;
-            border: none;
-            padding: 15px;
-            border-radius: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: 0.3s;
-        }
-        .btn-primary:hover {
-            background-color: #2563eb;
-            transform: translateY(-2px);
-        }
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
-    </style>
-</head>
-<body>
-    <div class="bg-animated"></div>
-    
-    <div class="login-card text-center">
-        <i class="bi bi-hexagon-fill text-primary display-1 mb-3 d-block"></i>
-        <h3 class="fw-bold mb-1">thIAguinho Hub</h3>
-        <p class="text-white-50 mb-4 small">Acesso Seguro ao Ecossistema Digital</p>
-        
-        <form onsubmit="realizarLogin(event)">
-            <div class="mb-3">
-                <input type="text" class="form-control text-center fs-5" id="loginUser" placeholder="Usuário ou CNPJ" required autocomplete="off">
-            </div>
-            <div class="mb-4">
-                <input type="password" class="form-control text-center fs-5" id="loginPass" placeholder="Senha de Acesso" required>
-            </div>
-            <button type="submit" class="btn btn-primary w-100" id="btnAcesso">INICIAR SESSÃO SEGURA</button>
-        </form>
-        
-        <div class="mt-4 pt-3 border-top border-secondary opacity-50">
-            <small><i class="bi bi-shield-lock-fill me-1"></i> Protegido por Criptografia End-to-End</small>
-        </div>
-    </div>
-
-    <div class="toast-container" id="toastContainer"></div>
-
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyBqIuCsHHuy_f-mBWV4JBkbyOorXpqQvqg",
-            authDomain: "hub-thiaguinho.firebaseapp.com",
-            projectId: "hub-thiaguinho",
-            storageBucket: "hub-thiaguinho.firebasestorage.app",
-            messagingSenderId: "453508098543",
-            appId: "1:453508098543:web:305f4d48edd9be40bd6e1a"
-        };
-        
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
-        function showToast(msg, tipo = 'info') {
-            const container = document.getElementById('toastContainer');
-            const bg = tipo === 'success' ? 'bg-success' : (tipo === 'error' ? 'bg-danger' : 'bg-info text-dark');
-            const toast = document.createElement('div');
-            toast.className = `toast align-items-center ${bg} text-white border-0 mb-2 show shadow-lg`;
-            toast.innerHTML = `<div class="d-flex"><div class="toast-body fw-bold">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.parentElement.parentElement.remove()"></button></div>`;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 4000);
-        }
-
-        async function realizarLogin(e) {
+async function realizarLogin(e) {
             e.preventDefault();
-            const btn = document.getElementById('btnAcesso');
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>A VERIFICAR...';
+            const btn = document.querySelector('button[type="submit"]');
+            const textoOriginalBtn = btn.innerText;
+            btn.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span>Conectando...';
             btn.disabled = true;
 
-            // Tratamento rígido contra espaços em branco e letras maiúsculas/minúsculas acidentais
-            const userStr = document.getElementById('loginUser').value.trim().toLowerCase();
-            const passStr = document.getElementById('loginPass').value.trim();
-            const numDoc = userStr.replace(/\D/g, '');
+            // Pega os inputs (Adaptado para pegar os IDs mais comuns que usamos)
+            const inputLogin = document.getElementById('loginUser') || document.getElementById('loginDoc');
+            const inputSenha = document.getElementById('loginPass') || document.getElementById('loginPwd');
+            
+            // O .trim() mata os espaços em branco acidentais
+            const rawUser = inputLogin.value.trim(); 
+            const rawPass = inputSenha.value.trim();
+            const soNumeros = rawUser.replace(/\D/g, ''); 
 
-            // 1. Acesso SuperAdmin Master
-            if ((userStr === 'admin' || numDoc === '00000000000') && passStr === 'admin123') {
+            // 1. TENTA ACESSO SUPERADMIN MASTER
+            if ((rawUser === 'admin' || soNumeros === '00000000000') && rawPass === 'admin123') {
                 window.location.href = 'superadmin.html';
                 return;
             }
 
             try {
-                // 2. Busca Segura na coleção OFICINAS (Gestor/Dono)
-                const ofcSnap = await db.collection('oficinas').get();
-                let gestorEncontrado = null;
+                // 2. TENTA ACESSO COMO DONO DA OFICINA (GESTOR)
+                // Busca Dupla Inteligente: Procura por Usuário, se não achar, procura por CNPJ
+                let ofcSnap = await db.collection('oficinas').where('usuario', '==', rawUser).where('senha', '==', rawPass).get();
 
-                ofcSnap.forEach(doc => {
-                    const d = doc.data();
-                    const bancoUser = d.usuario ? d.usuario.toString().trim().toLowerCase() : '';
-                    const bancoCnpj = d.cnpj ? d.cnpj.toString().replace(/\D/g, '') : '';
-                    const bancoSenha = d.senha ? d.senha.toString().trim() : '';
+                if (ofcSnap.empty && soNumeros !== '') {
+                    ofcSnap = await db.collection('oficinas').where('cnpj', '==', soNumeros).where('senha', '==', rawPass).get();
+                }
 
-                    if ((bancoUser === userStr || (bancoCnpj === numDoc && numDoc !== '')) && bancoSenha === passStr) {
-                        gestorEncontrado = { id: doc.id, ...d };
-                    }
-                });
-
-                if (gestorEncontrado) {
-                    if (gestorEncontrado.status === 'Bloqueado' || gestorEncontrado.status === 'Inativo') {
-                        showToast('Acesso Negado: A licença desta empresa está bloqueada.', 'error');
+                if (!ofcSnap.empty) {
+                    const ofc = ofcSnap.docs[0].data();
+                    
+                    if (ofc.status === 'Bloqueado' || ofc.status === 'Inativo') {
+                        alert('Acesso Negado: A licença desta oficina encontra-se bloqueada.');
                     } else {
-                        // Seta a sessão do Gestor Master (Sem alterar os nomes originais das sessões)
-                        sessionStorage.setItem('t_id', gestorEncontrado.id);
-                        sessionStorage.setItem('t_nome', gestorEncontrado.nomeFantasia);
+                        // Grava a sessão do Gestor
+                        sessionStorage.setItem('t_id', ofcSnap.docs[0].id);
+                        sessionStorage.setItem('t_nome', ofc.nomeFantasia);
                         sessionStorage.setItem('t_role', 'gerente');
-                        sessionStorage.setItem('t_mods', JSON.stringify(gestorEncontrado.modulos || {}));
                         
-                        // Herda Chaves Cloudinary da Empresa (Blindado)
-                        sessionStorage.setItem('t_cloudName', (gestorEncontrado.apiKeys && gestorEncontrado.apiKeys.cloudinaryName) ? gestorEncontrado.apiKeys.cloudinaryName : 'dmuvm1o6m');
-                        sessionStorage.setItem('t_cloudPreset', (gestorEncontrado.apiKeys && gestorEncontrado.apiKeys.cloudinaryPreset) ? gestorEncontrado.apiKeys.cloudinaryPreset : 'evolution');
+                        // Herda chaves do Cloudinary se existirem no banco (Fallback de segurança)
+                        sessionStorage.setItem('t_cloudName', (ofc.apiKeys && ofc.apiKeys.cloudinaryName) ? ofc.apiKeys.cloudinaryName : 'dmuvm1o6m');
+                        sessionStorage.setItem('t_cloudPreset', (ofc.apiKeys && ofc.apiKeys.cloudinaryPreset) ? ofc.apiKeys.cloudinaryPreset : 'evolution');
                         
-                        // Redireciona diretamente para a oficina
-                        window.location.href = 'painel_oficina.html';
-                        return;
+                        // Redireciona para o Painel da Oficina!
+                        window.location.href = 'painel_oficina.html'; 
+                        return; // Para a execução aqui
                     }
-                } else {
-                    // 3. Busca Segura na coleção FUNCIONARIOS (Mecânicos/Equipe)
-                    const funcSnap = await db.collection('funcionarios').get();
-                    let funcEncontrado = null;
+                } 
+                else {
+                    // 3. TENTA ACESSO COMO EQUIPE (MECÂNICO)
+                    const funcSnap = await db.collection('funcionarios').where('usuario', '==', rawUser).where('senha', '==', rawPass).get();
+                    
+                    if (!funcSnap.empty) {
+                        const func = funcSnap.docs[0].data();
+                        const funcId = funcSnap.docs[0].id;
 
-                    funcSnap.forEach(doc => {
-                        const f = doc.data();
-                        const fUser = f.usuario ? f.usuario.toString().trim().toLowerCase() : '';
-                        const fSenha = f.senha ? f.senha.toString().trim() : '';
-
-                        if (fUser === userStr && fSenha === passStr) {
-                            funcEncontrado = { id: doc.id, ...f };
-                        }
-                    });
-
-                    if (funcEncontrado) {
-                        const ofcMae = await db.collection('oficinas').doc(funcEncontrado.tenantId).get();
+                        // Verifica se a oficina "mãe" dele não está bloqueada por falta de pagamento
+                        const maeSnap = await db.collection('oficinas').doc(func.tenantId).get();
                         
-                        if(!ofcMae.exists || ofcMae.data().status === 'Bloqueado' || ofcMae.data().status === 'Inativo') {
-                            showToast('Acesso Negado: A oficina matriz está bloqueada.', 'error');
+                        if (!maeSnap.exists || maeSnap.data().status === 'Bloqueado' || maeSnap.data().status === 'Inativo') {
+                            alert('Acesso Negado: A oficina matriz está bloqueada no sistema.');
                         } else {
-                            sessionStorage.setItem('t_id', funcEncontrado.tenantId);
-                            sessionStorage.setItem('t_nome', ofcMae.data().nomeFantasia);
-                            sessionStorage.setItem('t_role', funcEncontrado.role || 'equipe');
-                            sessionStorage.setItem('f_id', funcEncontrado.id);
-                            sessionStorage.setItem('f_nome', funcEncontrado.nome);
-                            sessionStorage.setItem('f_comissao', funcEncontrado.comissao_mo || 0);
-                            sessionStorage.setItem('f_comissao_pecas', funcEncontrado.comissao_pecas || 0);
-                            
-                            const maeData = ofcMae.data();
-                            sessionStorage.setItem('t_cloudName', (maeData.apiKeys && maeData.apiKeys.cloudinaryName) ? maeData.apiKeys.cloudinaryName : 'dmuvm1o6m');
-                            sessionStorage.setItem('t_cloudPreset', (maeData.apiKeys && maeData.apiKeys.cloudinaryPreset) ? maeData.apiKeys.cloudinaryPreset : 'evolution');
+                            // Grava a sessão do Mecânico
+                            sessionStorage.setItem('t_id', func.tenantId);
+                            sessionStorage.setItem('t_nome', maeSnap.data().nomeFantasia);
+                            sessionStorage.setItem('t_role', func.role || 'equipe'); // RBAC vai esconder o DRE
+                            sessionStorage.setItem('f_id', funcId);
+                            sessionStorage.setItem('f_nome', func.nome);
+                            sessionStorage.setItem('f_comissao', func.comissao_mo || 0);
+                            sessionStorage.setItem('f_comissao_pecas', func.comissao_pecas || 0);
 
+                            // Mecânico também vai pro painel, a arquitetura oculta as abas proibidas
                             window.location.href = 'painel_oficina.html';
-                            return;
+                            return; 
                         }
                     } else {
-                        showToast('Credenciais não localizadas na base de dados.', 'error');
+                        // Se não achou Gestor nem Mecânico
+                        alert('Credenciais não localizadas na base de dados. Verifique o usuário e a senha.');
                     }
                 }
-            } catch (err) { 
-                console.error("Erro no Processo de Login: ", err); 
-                showToast('Falha de rede ou estrutural ao conectar ao servidor.', 'error'); 
+
+            } catch (err) {
+                console.error("Erro na consulta do Login: ", err);
+                alert('Erro estrutural ao conectar com a nuvem (Firebase).');
             }
-            
-            btn.innerHTML = 'INICIAR SESSÃO SEGURA'; 
+
+            // Se der erro, restaura o botão
+            btn.innerHTML = textoOriginalBtn; 
             btn.disabled = false;
         }
-    </script>
-</body>
-</html>
