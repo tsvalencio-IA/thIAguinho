@@ -1143,17 +1143,19 @@ app.renderizarEquipeRH = function() {
         const saldoReal = totalCom - totalVales;
         const corSaldo = saldoReal >= 0 ? 'text-info' : 'text-danger';
 
-        return '<tr>' +
-            '<td class="fw-bold text-white fs-6"><i class="bi bi-person-circle text-success me-2"></i> ' + f.nome + '</td>' +
-            '<td>' + nAcesso + '</td>' +
-            '<td class="text-warning fw-bold">' + (f.comissao||0) + '% MO / ' + (f.comissao_pecas||0) + '% Pç</td>' +
-            '<td class="' + corSaldo + ' fw-bold fs-5">R$ ' + saldoReal.toFixed(2).replace('.',',') + '</td>' +
-            '<td><span class="bg-dark border border-secondary px-3 py-1 rounded text-info">' + f.usuario + '</span> <small class="text-white-50 ms-2">[' + f.senha + ']</small></td>' +
-            '<td class="admin-only text-end">' +
-            '<button class="btn btn-sm btn-outline-info shadow-sm px-3 me-1" onclick="app.verExtratoCom('' + f.id + '','' + f.nome + '')"><i class="bi bi-eye"></i> Extrato</button>' +
-            '<button class="btn btn-sm btn-outline-warning shadow-sm px-3 me-2" onclick="app.abrirModalValeRH('' + f.id + '','' + f.nome + '')"><i class="bi bi-cash-stack"></i> Vale</button>' +
-            '<button class="btn btn-sm btn-outline-danger shadow-sm px-3" onclick="app.apagarFuncionario('' + f.id + '')"><i class="bi bi-slash-circle"></i></button>' +
-            '</td></tr>';
+
+        return `<tr>
+            <td class="fw-bold text-white fs-6"><i class="bi bi-person-circle text-success me-2"></i> ${f.nome}</td>
+            <td>${nAcesso}</td>
+            <td class="text-warning fw-bold">${f.comissao||0}% MO / ${f.comissao_pecas||0}% Pç</td>
+            <td class="${corSaldo} fw-bold fs-5">R$ ${saldoReal.toFixed(2).replace('.',',')}</td>
+            <td><span class="bg-dark border border-secondary px-3 py-1 rounded text-info">${f.usuario}</span> <small class="text-white-50 ms-2">[${f.senha}]</small></td>
+            <td class="admin-only text-end">
+                <button class="btn btn-sm btn-outline-info shadow-sm px-3 me-1" onclick="app.verExtratoCom('${f.id}','${f.nome}')"><i class="bi bi-eye"></i> Extrato</button>
+                <button class="btn btn-sm btn-outline-warning shadow-sm px-3 me-2" onclick="app.abrirModalValeRH('${f.id}','${f.nome}')"><i class="bi bi-cash-stack"></i> Vale</button>
+                <button class="btn btn-sm btn-outline-danger shadow-sm px-3" onclick="app.apagarFuncionario('${f.id}')"><i class="bi bi-slash-circle"></i></button>
+            </td>
+        </tr>`;
     }).join('');
 };
 
