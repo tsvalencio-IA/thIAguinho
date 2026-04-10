@@ -89,11 +89,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const linkInicio = document.querySelector('.nav-sidebar .nav-link');
     if(linkInicio) app.mostrarTela('tela_jarvis', 'thIAguinho Inteligência Automotiva', linkInicio);
     
+    // FIX-03: Recarrega comissao_pecas do banco se não veio no sessionStorage
+    if(app.t_role === 'equipe' && sessionStorage.getItem('f_id')) {
+        app.db.collection('funcionarios').doc(sessionStorage.getItem('f_id')).get().then(doc => {
+            if(doc.exists) {
+                const d = doc.data();
+                app.user_comissao_pecas = parseFloat(d.comissao_pecas || 0);
+                app.user_comissao_mo = parseFloat(d.comissao || 0);
+                sessionStorage.setItem('f_comissao_pecas', app.user_comissao_pecas);
+                sessionStorage.setItem('f_comissao', app.user_comissao_mo);
+                const lblCom = document.getElementById('lblComissaoUser');
+                if(lblCom) lblCom.innerText = `Mecânico (MO: ${app.user_comissao_mo}% | Pç: ${app.user_comissao_pecas}%)`;
+            }
+        });
+    }
+
     app.iniciarEscutaOS();
     app.iniciarEscutaCrm();
     app.iniciarEscutaMensagens();
     app.iniciarEscutaMensagensInternas();
-    app.iniciarEscutaEquipeInternaParaBox(); 
+    app.iniciarEscutaEquipeInternaParaBox();
     app.iniciarEscutaIA();
     
     if(app.t_role === 'admin' || app.t_role === 'gerente') {
@@ -105,6 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
         app.iniciarEscutaLixeira();
     }
     app.configurarCloudinary();
+
+    // FIX-07: Enter no input do Jarvis
+    const jarvisInp = document.getElementById('jarvisInput');
+    if(jarvisInp) jarvisInp.addEventListener('keydown', function(e) {
+        if(e.key === 'Enter') { e.preventDefault(); app.perguntarJarvis(); }
+    });
 });
 
 app.iniciarEscutaEquipeInternaParaBox = function() {
@@ -555,16 +576,28 @@ app.iniciarEscutaOS = function() {
     app.db.collection('ordens_servico').where('tenantId', '==', app.t_id).onSnapshot(snap => {
         app.bancoOSCompleto = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if(app.t_role === 'equipe') {
-            let minhaCom = 0; 
-            app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.comissoesDetalhadas && Array.isArray(o.comissoesDetalhadas)).forEach(o => {
-                const minhaParte = o.comissoesDetalhadas.find(c => c.nome === app.user_nome);
-                if(minhaParte) minhaCom += minhaParte.valor;
+            let minhaCom = 0;
+            app.bancoOSCompleto.filter(o => o.status === 'entregue').forEach(o => {
+                if(o.comissoesDetalhadas && Array.isArray(o.comissoesDetalhadas)) {
+                    // OS com rateio salvo
+                    const minhaParte = o.comissoesDetalhadas.find(c => c.nome === app.user_nome);
+                    if(minhaParte) minhaCom += (minhaParte.valor || 0);
+                } else if(o.mecanicoAtribuido) {
+                    // OS antiga sem rateio — recalcula
+                    const mecsArr = o.mecanicoAtribuido.split(' + ').map(m => m.trim());
+                    if(mecsArr.includes(app.user_nome)) {
+                        let moB = o.maoObraTotal || 0, pcB = o.pecasTotal || 0;
+                        if(moB === 0 && pcB === 0 && o.pecas) {
+                            o.pecas.forEach(p => { const s=(p.qtd||1)*(p.venda||0); if(p.isMaoObra) moB+=s; else pcB+=s; });
+                            if(moB===0&&pcB===0) moB = o.total||0;
+                        }
+                        minhaCom += (moB/mecsArr.length)*(app.user_comissao_mo/100) + (pcB/mecsArr.length)*(app.user_comissao_pecas/100);
+                    }
+                }
             });
-            // Subtrai os vales do mecânico logado
             let meusVales = 0;
-            if(app.bancoVales) { app.bancoVales.filter(v => v.nomeFuncionario === app.user_nome).forEach(v => meusVales += v.valor); }
-            
-            const divKpi = document.getElementById('kpiMinhaComissao'); 
+            if(app.bancoVales) { app.bancoVales.filter(v => v.nomeFuncionario === app.user_nome).forEach(v => meusVales += (v.valor||0)); }
+            const divKpi = document.getElementById('kpiMinhaComissao');
             if(divKpi) divKpi.innerText = `R$ ${(minhaCom - meusVales).toFixed(2).replace('.',',')}`;
         }
         app.renderizarKanban(); app.renderizarTabelaArquivo();
@@ -837,9 +870,10 @@ app.abrirFaturamentoDireto = function(id) {
     const mod = document.getElementById('modalFaturamento'); if(mod) new bootstrap.Modal(mod).show();
 };
 
-app.abrirFaturamentoOS = function() {
-    app.salvarOS();
-    setTimeout(() => { const idElem = document.getElementById('os_id'); if(idElem && idElem.value) app.abrirFaturamentoDireto(idElem.value); }, 1000);
+app.abrirFaturamentoOS = async function() {
+    await app.salvarOS();
+    const idElem = document.getElementById('os_id');
+    if(idElem && idElem.value) app.abrirFaturamentoDireto(idElem.value);
 };
 
 app.processarFaturamentoCompleto = async function() {
@@ -1491,33 +1525,32 @@ app.iaTrabalhando = false;
 
 app.iniciarEscutaIA = function() {
     if(app.t_id) {
-        // Função auxiliar para extrair a key de um doc
         const extrairKey = function(d) {
             return (d.apiKeys && d.apiKeys.gemini && d.apiKeys.gemini.trim())
                 || (d.geminiKey && d.geminiKey.trim())
                 || (d.gemini && d.gemini.trim())
-                || (d.apiGemini && d.apiGemini.trim())
                 || null;
         };
 
-        // Escuta na coleção 'tenants' (onde o superadmin salva)
+        // t_id é o ID do doc em 'oficinas' — lê daqui primeiro
+        app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => {
+            if(doc.exists) {
+                const key = extrairKey(doc.data());
+                if(key) {
+                    app.minhaGeminiKey = key;
+                    console.log('✅ Gemini key carregada de [oficinas]');
+                }
+            }
+        });
+
+        // Tenta também em 'tenants' pelo mesmo t_id (caso superadmin tenha 
+        // criado o tenant com o mesmo ID — improvável mas cobre o caso)
         app.db.collection('tenants').doc(app.t_id).onSnapshot(doc => {
             if(doc.exists) {
                 const key = extrairKey(doc.data());
                 if(key) {
                     app.minhaGeminiKey = key;
                     console.log('✅ Gemini key carregada de [tenants]');
-                }
-            }
-        });
-
-        // Escuta na coleção 'oficinas' (fallback — login lê daqui)
-        app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => {
-            if(doc.exists) {
-                const key = extrairKey(doc.data());
-                if(key && !app.minhaGeminiKey) {
-                    app.minhaGeminiKey = key;
-                    console.log('✅ Gemini key carregada de [oficinas]');
                 }
             }
         });
@@ -1585,11 +1618,11 @@ app.chamarGemini = async function(promptCompleto) {
         return 'Erro: API Key do Gemini não configurada.';
     }
 
-    // Modelos confirmados disponíveis na API Gemini
+    // Modelos Gemini confirmados e disponíveis no endpoint v1beta
     const tentativas = [
+        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key },
         { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key },
-        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' + key },
-        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key }
+        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' + key }
     ];
 
     for(const tentativa of tentativas) {
