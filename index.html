@@ -239,7 +239,24 @@
                         // Resgate de Chaves de API de Integração
                         sessionStorage.setItem('t_cloudName', (dados.apiKeys && dados.apiKeys.cloudinaryName) ? dados.apiKeys.cloudinaryName : 'dmuvm1o6m');
                         sessionStorage.setItem('t_cloudPreset', (dados.apiKeys && dados.apiKeys.cloudinaryPreset) ? dados.apiKeys.cloudinaryPreset : 'evolution');
-                        sessionStorage.setItem('t_gemini', (dados.apiKeys && dados.apiKeys.gemini) ? dados.apiKeys.gemini : '');
+                        // Tenta pegar a key Gemini de 'oficinas' primeiro
+                        let geminiKey = (dados.apiKeys && dados.apiKeys.gemini) ? dados.apiKeys.gemini : '';
+                        
+                        // Se não tem em 'oficinas', busca em 'tenants' pelo mesmo doc.id
+                        if(!geminiKey) {
+                            try {
+                                const tenantDoc = await db.collection('tenants').doc(doc.id).get();
+                                if(tenantDoc.exists && tenantDoc.data().apiKeys && tenantDoc.data().apiKeys.gemini) {
+                                    geminiKey = tenantDoc.data().apiKeys.gemini;
+                                    // Sincroniza de volta para 'oficinas' para próximos logins
+                                    await db.collection('oficinas').doc(doc.id).update({
+                                        'apiKeys.gemini': geminiKey
+                                    });
+                                }
+                            } catch(e) { console.warn('Não foi possível sincronizar key Gemini:', e); }
+                        }
+                        
+                        sessionStorage.setItem('t_gemini', geminiKey);
                         
                         rotearParaNicho(dados.nicho);
                         return;
@@ -270,7 +287,8 @@
                                 sessionStorage.setItem('t_nicho', empresaMae.data().nicho || 'oficina'); 
                                 sessionStorage.setItem('f_id', docF.id); 
                                 sessionStorage.setItem('f_nome', dadosF.nome); 
-                                sessionStorage.setItem('f_comissao', dadosF.comissao || '0'); 
+                                sessionStorage.setItem('f_comissao', dadosF.comissao || '0');
+                                sessionStorage.setItem('f_comissao_pecas', dadosF.comissao_pecas || '0');
                                 sessionStorage.setItem('t_role', dadosF.role || 'equipe'); 
                                 sessionStorage.setItem('t_mods', JSON.stringify(empresaMae.data().modulos || {}));
                                 
