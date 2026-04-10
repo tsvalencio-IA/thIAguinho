@@ -1095,23 +1095,147 @@ app.iniciarEscutaEquipe = function() {
 app.renderizarEquipeRH = function() {
     const tbody = document.getElementById('tabelaEquipe'); if(!tbody) return;
     if(app.bancoEquipe.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-white-50 py-5 fs-5">Sem equipe cadastrada na nuvem.</td></tr>'; return; }
-    
+
     tbody.innerHTML = app.bancoEquipe.map(f => {
-        const nAcesso = f.role === 'gerente' ? '<span class="badge bg-warning text-dark">Gerente/Vendedor</span>' : '<span class="badge bg-secondary text-white">Mecânico / Box</span>';
-        
+        const nAcesso = f.role === 'gerente'
+            ? '<span class="badge bg-warning text-dark">Gerente/Vendedor</span>'
+            : '<span class="badge bg-secondary text-white">Mecânico / Box</span>';
+
+        // Soma comissões: busca por nome em comissoesDetalhadas (OS faturadas com rateio)
+        // OU recalcula proporcionalmente para OS antigas sem rateio
         let totalCom = 0;
-        app.bancoOSCompleto.filter(o => o.status === 'entregue' && o.comissoesDetalhadas).forEach(o => {
-            let p = o.comissoesDetalhadas.find(c => c.nome === f.nome);
-            if(p) totalCom += p.valor;
+        app.bancoOSCompleto.filter(o => o.status === 'entregue').forEach(o => {
+            if(o.comissoesDetalhadas && Array.isArray(o.comissoesDetalhadas)) {
+                // OS com rateio salvo: usa direto
+                const parte = o.comissoesDetalhadas.find(c => c.nome === f.nome);
+                if(parte) totalCom += (parte.valor || 0);
+            } else if(o.mecanicoAtribuido) {
+                // OS antiga sem rateio: recalcula agora
+                const mecsArray = o.mecanicoAtribuido.split(' + ').map(m => m.trim());
+                if(mecsArray.includes(f.nome)) {
+                    let moBase = (o.maoObraTotal || 0);
+                    let pcBase = (o.pecasTotal || 0);
+                    // Se campos não existem, tenta recalcular do array de peças
+                    if(moBase === 0 && pcBase === 0 && o.pecas && o.pecas.length > 0) {
+                        o.pecas.forEach(p => {
+                            const sub = (p.qtd||1)*(p.venda||0);
+                            if(p.isMaoObra) moBase += sub; else pcBase += sub;
+                        });
+                        if(moBase === 0 && pcBase === 0) moBase = (o.total || 0);
+                    }
+                    const baseMO = moBase / mecsArray.length;
+                    const basePc = pcBase / mecsArray.length;
+                    const valMO = baseMO * (parseFloat(f.comissao || 0) / 100);
+                    const valPc = basePc * (parseFloat(f.comissao_pecas || 0) / 100);
+                    totalCom += valMO + valPc;
+                }
+            }
         });
-        
+
+        // Vales: busca por id E por nome (compatibilidade)
         let totalVales = 0;
-        app.bancoVales.filter(v => v.idFuncionario === f.id).forEach(v => totalVales += v.valor);
-        
-        let saldoReal = totalCom - totalVales;
-        
-        return `<tr><td class="fw-bold text-white fs-6"><i class="bi bi-person-circle text-success me-2"></i> ${f.nome}</td><td>${nAcesso}</td><td class="text-warning fw-bold">${f.comissao||0}% / ${f.comissao_pecas||0}%</td><td class="text-info fw-bold fs-5">R$ ${saldoReal.toFixed(2).replace('.',',')}</td><td><span class="bg-dark border border-secondary px-3 py-1 rounded text-info">${f.usuario}</span> <small class="text-white-50 ms-2">[${f.senha}]</small></td><td class="admin-only text-end"><button class="btn btn-sm btn-outline-warning shadow-sm px-3 me-2" onclick="app.abrirModalValeRH('${f.id}', '${f.nome}')"><i class="bi bi-cash-stack"></i> Lançar Vale</button><button class="btn btn-sm btn-outline-danger shadow-sm px-3" onclick="app.apagarFuncionario('${f.id}')"><i class="bi bi-slash-circle"></i></button></td></tr>`;
+        app.bancoVales.forEach(v => {
+            if(v.idFuncionario === f.id || v.nomeFuncionario === f.nome) {
+                totalVales += (v.valor || 0);
+            }
+        });
+
+        const saldoReal = totalCom - totalVales;
+        const corSaldo = saldoReal >= 0 ? 'text-info' : 'text-danger';
+
+        return '<tr>' +
+            '<td class="fw-bold text-white fs-6"><i class="bi bi-person-circle text-success me-2"></i> ' + f.nome + '</td>' +
+            '<td>' + nAcesso + '</td>' +
+            '<td class="text-warning fw-bold">' + (f.comissao||0) + '% MO / ' + (f.comissao_pecas||0) + '% Pç</td>' +
+            '<td class="' + corSaldo + ' fw-bold fs-5">R$ ' + saldoReal.toFixed(2).replace('.',',') + '</td>' +
+            '<td><span class="bg-dark border border-secondary px-3 py-1 rounded text-info">' + f.usuario + '</span> <small class="text-white-50 ms-2">[' + f.senha + ']</small></td>' +
+            '<td class="admin-only text-end">' +
+            '<button class="btn btn-sm btn-outline-info shadow-sm px-3 me-1" onclick="app.verExtratoCom('' + f.id + '','' + f.nome + '')"><i class="bi bi-eye"></i> Extrato</button>' +
+            '<button class="btn btn-sm btn-outline-warning shadow-sm px-3 me-2" onclick="app.abrirModalValeRH('' + f.id + '','' + f.nome + '')"><i class="bi bi-cash-stack"></i> Vale</button>' +
+            '<button class="btn btn-sm btn-outline-danger shadow-sm px-3" onclick="app.apagarFuncionario('' + f.id + '')"><i class="bi bi-slash-circle"></i></button>' +
+            '</td></tr>';
     }).join('');
+};
+
+// Extrato financeiro individual do funcionário
+app.verExtratoCom = function(idFunc, nomeFunc) {
+    const func = app.bancoEquipe.find(f => f.id === idFunc);
+    if(!func) return;
+
+    let linhasOS = '';
+    let totalCom = 0;
+
+    app.bancoOSCompleto.filter(o => o.status === 'entregue').forEach(o => {
+        let valor = 0;
+        if(o.comissoesDetalhadas && Array.isArray(o.comissoesDetalhadas)) {
+            const parte = o.comissoesDetalhadas.find(c => c.nome === nomeFunc);
+            if(parte) valor = parte.valor || 0;
+        } else if(o.mecanicoAtribuido) {
+            const mecsArray = o.mecanicoAtribuido.split(' + ').map(m => m.trim());
+            if(mecsArray.includes(nomeFunc)) {
+                let moBase = (o.maoObraTotal || 0);
+                let pcBase = (o.pecasTotal || 0);
+                if(moBase === 0 && pcBase === 0 && o.pecas && o.pecas.length > 0) {
+                    o.pecas.forEach(p => {
+                        const sub = (p.qtd||1)*(p.venda||0);
+                        if(p.isMaoObra) moBase += sub; else pcBase += sub;
+                    });
+                    if(moBase === 0 && pcBase === 0) moBase = (o.total || 0);
+                }
+                const baseMO = moBase / mecsArray.length;
+                const basePc = pcBase / mecsArray.length;
+                valor = (baseMO * (parseFloat(func.comissao||0)/100)) + (basePc * (parseFloat(func.comissao_pecas||0)/100));
+            }
+        }
+        if(valor > 0) {
+            totalCom += valor;
+            const dt = o.ultimaAtualizacao ? new Date(o.ultimaAtualizacao).toLocaleDateString('pt-BR') : '-';
+            linhasOS += '<tr><td class="text-white-50 small">' + dt + '</td><td><span class="badge bg-dark border border-secondary">' + (o.placa||'-') + '</span> ' + (o.cliente||'') + '</td><td class="text-success fw-bold">+ R$ ' + valor.toFixed(2).replace('.',',') + '</td></tr>';
+        }
+    });
+
+    let linhasVales = '';
+    let totalVales = 0;
+    app.bancoVales.filter(v => v.idFuncionario === idFunc || v.nomeFuncionario === nomeFunc).forEach(v => {
+        totalVales += (v.valor||0);
+        const dt = v.dataRealizacao ? new Date(v.dataRealizacao).toLocaleDateString('pt-BR') : '-';
+        linhasVales += '<tr><td class="text-white-50 small">' + dt + '</td><td>' + (v.motivo||'-') + '</td><td class="text-danger fw-bold">- R$ ' + (v.valor||0).toFixed(2).replace('.',',') + '</td></tr>';
+    });
+
+    const saldo = totalCom - totalVales;
+    const corSaldo = saldo >= 0 ? 'text-success' : 'text-danger';
+
+    const html = '<div class="p-3">' +
+        '<h5 class="text-white fw-bold mb-1"><i class="bi bi-person-circle text-success me-2"></i>' + nomeFunc + '</h5>' +
+        '<p class="text-white-50 small mb-3">MO: ' + (func.comissao||0) + '% | Peças: ' + (func.comissao_pecas||0) + '%</p>' +
+        '<h6 class="text-success mb-2"><i class="bi bi-plus-circle me-1"></i> Comissões por O.S.</h6>' +
+        '<div class="table-responsive mb-3"><table class="table table-dark table-sm border-secondary">' +
+        '<thead><tr><th>Data</th><th>O.S.</th><th>Valor</th></tr></thead><tbody>' +
+        (linhasOS || '<tr><td colspan="3" class="text-white-50 text-center">Nenhuma O.S. faturada</td></tr>') +
+        '</tbody></table></div>' +
+        '<h6 class="text-warning mb-2"><i class="bi bi-dash-circle me-1"></i> Vales / Adiantamentos</h6>' +
+        '<div class="table-responsive mb-3"><table class="table table-dark table-sm border-secondary">' +
+        '<thead><tr><th>Data</th><th>Motivo</th><th>Valor</th></tr></thead><tbody>' +
+        (linhasVales || '<tr><td colspan="3" class="text-white-50 text-center">Sem vales lançados</td></tr>') +
+        '</tbody></table></div>' +
+        '<div class="d-flex justify-content-between align-items-center bg-black p-3 rounded border border-secondary">' +
+        '<span class="text-white fw-bold">SALDO A PAGAR</span>' +
+        '<span class="fs-4 fw-bold ' + corSaldo + '">R$ ' + saldo.toFixed(2).replace('.',',') + '</span>' +
+        '</div></div>';
+
+    // Mostra num modal genérico ou cria um temporário
+    const mod = document.getElementById('modalExtratoFunc');
+    if(mod) {
+        const body = mod.querySelector('.modal-body');
+        if(body) body.innerHTML = html;
+        new bootstrap.Modal(mod).show();
+    } else {
+        // Cria modal temporário
+        const tmp = document.createElement('div');
+        tmp.innerHTML = '<div class="modal fade" id="modalExtratoFunc" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content bg-dark border-secondary text-white"><div class="modal-header border-secondary"><h5 class="modal-title text-info">Extrato Financeiro</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body">' + html + '</div></div></div></div>';
+        document.body.appendChild(tmp.firstElementChild);
+        new bootstrap.Modal(document.getElementById('modalExtratoFunc')).show();
+    }
 };
 
 app.abrirModalEquipe = function() {
@@ -1365,17 +1489,33 @@ app.iaTrabalhando = false;
 
 app.iniciarEscutaIA = function() {
     if(app.t_id) {
+        // Função auxiliar para extrair a key de um doc
+        const extrairKey = function(d) {
+            return (d.apiKeys && d.apiKeys.gemini && d.apiKeys.gemini.trim())
+                || (d.geminiKey && d.geminiKey.trim())
+                || (d.gemini && d.gemini.trim())
+                || (d.apiGemini && d.apiGemini.trim())
+                || null;
+        };
+
+        // Escuta na coleção 'tenants' (onde o superadmin salva)
+        app.db.collection('tenants').doc(app.t_id).onSnapshot(doc => {
+            if(doc.exists) {
+                const key = extrairKey(doc.data());
+                if(key) {
+                    app.minhaGeminiKey = key;
+                    console.log('✅ Gemini key carregada de [tenants]');
+                }
+            }
+        });
+
+        // Escuta na coleção 'oficinas' (fallback — login lê daqui)
         app.db.collection('oficinas').doc(app.t_id).onSnapshot(doc => {
             if(doc.exists) {
-                const d = doc.data();
-                // Lê de apiKeys.gemini (salvo pelo superadmin) com fallbacks
-                const key = (d.apiKeys && d.apiKeys.gemini)
-                    || d.geminiKey || d.gemini
-                    || d.apiGemini || d.api_gemini
-                    || d.apiKeyGemini || null;
-                if(key && key.trim() !== '') {
-                    app.minhaGeminiKey = key.trim();
-                    console.log('✅ Gemini key carregada do Firestore');
+                const key = extrairKey(doc.data());
+                if(key && !app.minhaGeminiKey) {
+                    app.minhaGeminiKey = key;
+                    console.log('✅ Gemini key carregada de [oficinas]');
                 }
             }
         });
@@ -1443,10 +1583,10 @@ app.chamarGemini = async function(promptCompleto) {
         return 'Erro: API Key do Gemini não configurada.';
     }
 
-    // Tenta modelos em ordem usando endpoint v1 (estável) e v1beta como fallback
+    // Modelos confirmados disponíveis na API Gemini
     const tentativas = [
-        { url: 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' + key },
-        { url: 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=' + key },
+        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key },
+        { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' + key },
         { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key }
     ];
 
