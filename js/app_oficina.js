@@ -180,7 +180,6 @@ app.iniciarEscutasGlobais = function() {
         app.bancoOS = app.bancoOSCompleto.filter(os => os.status !== 'entregue' && os.status !== 'cancelada');
         app.renderizarKanban();
         app.renderizarArquivoMorto();
-        app.calcularKPIsMecanico();
     });
 
     // Escuta Lixeira de O.S (Auditoria Soft Delete)
@@ -232,11 +231,6 @@ app.iniciarEscutasGlobais = function() {
     app.iniciarEscutaIA();
 };
 
-app.tocarAlerta = function() {
-    const audio = document.getElementById('audioAlerta');
-    if(audio) audio.play().catch(e => console.log('Áudio bloqueado pelo navegador.'));
-};
-
 // =====================================================================
 // 3. CRM E PORTAL WEB
 // =====================================================================
@@ -277,7 +271,6 @@ app.salvarClienteCRM = async function(e) {
     
     if(!user) { app.showToast("Crie um login de portal para o cliente.", "warning"); return; }
     
-    // Verifica duplicidade de login
     const userExiste = app.bancoClientes.find(c => c.usuario === user && c.id !== id);
     if(userExiste) { app.showToast("Este usuário de portal já existe.", "error"); return; }
 
@@ -425,7 +418,6 @@ app.abrirModalOS = function(tipo, id = null) {
     document.getElementById('os_total_geral').innerText = 'R$ 0,00';
     document.getElementById('alertaLinkCliente').classList.add('d-none');
     
-    // Controle de Botões
     const isAdmin = (!app.t_role || app.t_role === 'gerente' || app.t_role === 'admin');
     const btnDel = document.getElementById('btnDeletarOS');
     const btnFat = document.getElementById('btnFaturar');
@@ -434,12 +426,12 @@ app.abrirModalOS = function(tipo, id = null) {
     if(btnFat) btnFat.classList.add('d-none');
     if(btnPdf) btnPdf.classList.add('d-none');
 
-    document.getElementById('laudo-tab').click(); // Volta pra primeira aba
+    document.getElementById('laudo-tab').click(); 
 
     if (tipo === 'editar' && id) {
         const os = app.bancoOSCompleto.find(o => o.id === id);
         if(os) {
-            app.osAtual = JSON.parse(JSON.stringify(os)); // Clone
+            app.osAtual = JSON.parse(JSON.stringify(os)); 
             
             document.getElementById('os_id').value = os.id;
             document.getElementById('header_placa').innerText = os.placa.toUpperCase();
@@ -454,7 +446,6 @@ app.abrirModalOS = function(tipo, id = null) {
             document.getElementById('os_diagnostico').value = os.diagnostico || '';
             document.getElementById('os_relato_cliente').value = os.relatoCliente || '';
             
-            // Checklist
             if(os.checklist) {
                 document.getElementById('chk_combustivel').checked = os.checklist.combustivel || false;
                 document.getElementById('chk_arranhado').checked = os.checklist.arranhado || false;
@@ -713,7 +704,6 @@ app.salvarOS = async function() {
         }
     };
     
-    // Se for equipe, injeta o ID deles como criador inicial, se não tiver.
     if(app.t_role === 'equipe' && !id) {
         dados.criadoPorMecanicoId = sessionStorage.getItem('f_id');
         dados.criadoPorNome = app.user_nome;
@@ -747,7 +737,6 @@ app.apagarOS = async function() {
     if(motivo === null || motivo.trim() === '') { app.showToast("Exclusão abortada. Motivo é obrigatório.", "warning"); return; }
     
     try {
-        // Grava na lixeira
         await app.db.collection('ordens_servico_apagadas').add({
             tenantId: app.t_id,
             osIdOriginal: id,
@@ -845,7 +834,6 @@ app.processarFaturamentoCompleto = async function() {
     try {
         const batch = app.db.batch();
         
-        // 1. INJEÇÃO NO DRE / FINANCEIRO
         const descBase = `Receita O.S. [${app.osAtual.placa}] - Cliente: ${app.osAtual.cliente}`;
         const valParcela = valorTotal / nParcelas;
         
@@ -865,10 +853,9 @@ app.processarFaturamentoCompleto = async function() {
                 osIdOrigem: osId,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
-            dataVenc.setMonth(dataVenc.getMonth() + 1); // Joga 30 dias pra frente
+            dataVenc.setMonth(dataVenc.getMonth() + 1); 
         }
 
-        // 2. BAIXA AUTOMÁTICA NO ESTOQUE (Só para itens do tipo 'peca' que vieram do estoque)
         let custoTotalPecas = 0;
         pecas.forEach(p => {
             if(p.tipo === 'peca' && p.idEstoque) {
@@ -878,7 +865,6 @@ app.processarFaturamentoCompleto = async function() {
             }
         });
 
-        // 3. CÁLCULO E INJEÇÃO DE COMISSÃO DA EQUIPE
         if(equipeIds.length > 0) {
             let totMoOS = 0; let totPecasVendaOS = 0;
             pecas.forEach(p => { if(p.tipo === 'servico') totMoOS += (p.venda * p.qtd); else totPecasVendaOS += (p.venda * p.qtd); });
@@ -905,14 +891,13 @@ app.processarFaturamentoCompleto = async function() {
                             data: new Date().toISOString(),
                             valorTotalOS: valorTotal,
                             comissaoGanha: comissaoTotal,
-                            status: 'pendente_pagamento_rh' // Fica na conta do mecânico pra receber depois
+                            status: 'pendente_pagamento_rh' 
                         });
                     }
                 }
             }
         }
 
-        // 4. ENCERRAR A O.S E MOVER PARA O ARQUIVO MORTO
         const osRef = app.db.collection('ordens_servico').doc(osId);
         batch.update(osRef, {
             status: 'entregue',
@@ -925,7 +910,7 @@ app.processarFaturamentoCompleto = async function() {
         await batch.commit();
         
         app.showToast("Sucesso! Estoque deduzido, Financeiro gerado e Comissões calculadas.", "success");
-        bootstrap.Modal.getInstance(document.getElementById('modalFaturamento')).show(); // Ops, hide
+        bootstrap.Modal.getInstance(document.getElementById('modalFaturamento')).show(); 
         bootstrap.Modal.getInstance(document.getElementById('modalFaturamento')).hide();
         
     } catch(e) {
@@ -1005,7 +990,6 @@ app.dispararWhatsAppAtivo = function() {
     if(num.length === 10 || num.length === 11) num = '55' + num;
     
     let msg = '';
-    // Link dinâmico gerado com base no host atual (para enviar o cliente para a garagem online correta)
     const linkPortal = window.location.origin + window.location.pathname.replace('painel_oficina.html', 'clientes/projeto_oficina.html');
 
     if(tipo === 'aprovacao') {
@@ -1074,7 +1058,7 @@ app.processarXML = function(event) {
             if(dataEmissaoRaw) document.getElementById('nf_data').value = dataEmissaoRaw.split('T')[0];
             
             const detNodes = xmlDoc.getElementsByTagName("det");
-            document.getElementById('corpoItensNF').innerHTML = ''; // Limpa itens manuais
+            document.getElementById('corpoItensNF').innerHTML = ''; 
             
             for(let i=0; i<detNodes.length; i++) {
                 const prod = detNodes[i].getElementsByTagName("prod")[0];
@@ -1085,7 +1069,7 @@ app.processarXML = function(event) {
                     cfop: prod.getElementsByTagName("CFOP")[0]?.childNodes[0]?.nodeValue || '',
                     qtd: parseFloat(prod.getElementsByTagName("qCom")[0]?.childNodes[0]?.nodeValue) || 0,
                     custo: parseFloat(prod.getElementsByTagName("vUnCom")[0]?.childNodes[0]?.nodeValue) || 0,
-                    venda: (parseFloat(prod.getElementsByTagName("vUnCom")[0]?.childNodes[0]?.nodeValue) || 0) * 1.5 // Margem 50% chute
+                    venda: (parseFloat(prod.getElementsByTagName("vUnCom")[0]?.childNodes[0]?.nodeValue) || 0) * 1.5 
                 };
                 app.adicionarLinhaNF(item);
             }
@@ -1122,7 +1106,6 @@ app.salvarEntradaEstoque = async function(e) {
         
         totalCustoEntrada += (custo * qtd);
         
-        // Verifica se o SKU já existe para atualizar saldo, ou cria novo
         const itemExistente = app.bancoEstoque.find(i => i.sku === sku);
         if(itemExistente) {
             const ref = app.db.collection('estoque').doc(itemExistente.id);
@@ -1255,7 +1238,6 @@ app.salvarLancamentoFinanceiro = async function(e) {
     const dt = document.getElementById('fin_data').value;
     
     if(id) {
-        // Modo Edição (Apenas atualizar Status/Metodo do Título)
         await app.db.collection('financeiro').doc(id).update({
             status: document.getElementById('fin_status').value,
             metodo: metodo,
@@ -1268,7 +1250,6 @@ app.salvarLancamentoFinanceiro = async function(e) {
         return;
     }
     
-    // Inserção Nova (Múltiplos ou Único)
     let nParc = 1;
     if(metodo.includes('Parcelado')) nParc = parseInt(document.getElementById('fin_parcelas').value) || 1;
     
@@ -1311,7 +1292,7 @@ app.editarTituloFinanceiro = function(id) {
     document.getElementById('fin_status').value = tit.status;
     
     document.getElementById('divStatusEdit').style.display = 'block';
-    document.getElementById('divParcelas').style.display = 'none'; // Edição é parcela unitária
+    document.getElementById('divParcelas').style.display = 'none'; 
     
     const titulo = document.getElementById('fin_titulo');
     if(tit.tipo === 'despesa') {
@@ -1351,7 +1332,7 @@ app.filtrarFinanceiro = function() {
         const st = f.status === 'pago' ? '<span class="badge bg-success">QUITADO</span>' : '<span class="badge bg-warning text-dark">PENDENTE</span>';
         const dFormat = new Date(f.dataVencimento + 'T12:00:00').toLocaleDateString('pt-BR');
         
-        // Se for uma despesa relacionada a comissões (Lançada pelo Novo Módulo de RH)
+        // Abate DRE do RH
         if(f.tipo === 'despesa' && (f.descricao.includes('Comissão') || f.descricao.includes('Salário') || f.descricao.includes('Vale RH') || f.descricao.includes('Pagamento RH'))) {
             totComissoes += f.valor;
         }
@@ -1375,15 +1356,13 @@ app.filtrarFinanceiro = function() {
     tbRec.innerHTML = htmlR || '<tr><td colspan="7" class="text-center text-white-50">Nenhuma receita no período.</td></tr>';
     tbPag.innerHTML = htmlP || '<tr><td colspan="7" class="text-center text-white-50">Nenhuma despesa no período.</td></tr>';
     
-    // Atualiza os Cards do DRE
-    const lucro = totReceitas - totDespesas; // As comissões já estão dentro das despesas se lançadas pelo RH
+    const lucro = totReceitas - totDespesas; 
     
     document.getElementById('dreReceitas').innerText = `R$ ${totReceitas.toFixed(2)}`;
     document.getElementById('dreDespesas').innerText = `R$ ${totDespesas.toFixed(2)}`;
     document.getElementById('dreComissoes').innerText = `R$ ${totComissoes.toFixed(2)}`;
     document.getElementById('dreLucro').innerText = `R$ ${lucro.toFixed(2)}`;
     
-    // Muda cor do lucro se negativo
     document.getElementById('dreLucro').className = lucro < 0 ? 'text-danger mb-0 fw-bold' : 'text-info mb-0 fw-bold';
 };
 
@@ -1417,7 +1396,6 @@ app.abrirChatCliente = function(cId, cNome) {
         
         cx.innerHTML = snap.docs.map(doc => {
             const m = doc.data();
-            // Oficina lendo msg do cliente
             if(m.sender === 'cliente' && !m.lidaAdmin) { app.db.collection('mensagens').doc(doc.id).update({lidaAdmin:true}); }
             
             let cnt = m.text;
@@ -1469,7 +1447,7 @@ app.enviarMensagemInterna = async function() {
 document.getElementById("inputChatInterno").addEventListener("keyup", function(event) { if (event.key === "Enter") app.enviarMensagemInterna(); });
 
 // =====================================================================
-// 12. GESTÃO DE RH, COMISSÕES, VALES E INTEGRAÇÃO DRE (O NOVO FLUXO)
+// 12. GESTÃO DE RH, COMISSÕES, VALES E INTEGRAÇÃO DRE
 // =====================================================================
 app.abrirModalEquipe = function() {
     document.getElementById('formEquipe').reset();
@@ -1513,22 +1491,19 @@ app.carregarEquipe = function() {
         }
 
         let html = '';
-        let somaMinhasComissoes = 0; // Para uso do Painel do Mecânico (Dashboard Jarvis)
+        let somaMinhasComissoes = 0; 
 
         for(const f of app.equipe) {
-            // Calcula as comissões pendentes
             let saldo = 0;
             const comSnap = await app.db.collection('funcionarios').doc(f.id).collection('comissoes').where('status','==','pendente_pagamento_rh').get();
             comSnap.forEach(d => saldo += d.data().comissaoGanha);
             
-            // Calcula os vales que ainda não foram abatidos de nenhum pagamento
             let totalValesPendentes = 0;
             const extratoSnap = await app.db.collection('funcionarios').doc(f.id).collection('extrato').where('statusVales','==','pendente_abate').get();
             extratoSnap.forEach(d => totalValesPendentes += d.data().valor);
             
             const saldoLiquidoAReceber = saldo - totalValesPendentes;
 
-            // Se for o mecânico logado, atualiza o KPI dele no painel
             if(app.t_role === 'equipe' && sessionStorage.getItem('f_id') === f.id) {
                 somaMinhasComissoes = saldoLiquidoAReceber;
                 const kpi = document.getElementById('kpiMinhaComissao');
@@ -1576,17 +1551,16 @@ app.confirmarValeRH = async function(e) {
     try {
         const batch = app.db.batch();
         
-        // 1. Gera extrato na conta do funcionário (como vale pendente de ser deduzido no fechamento final)
         const funcRef = app.db.collection('funcionarios').doc(idFunc).collection('extrato').doc();
         batch.set(funcRef, {
             tipo: 'vale',
             valor: valor,
             data: new Date().toISOString(),
             desc: motivo,
-            statusVales: 'pendente_abate' // Será "resolvido" quando o gerente clicar em "Liquidar" o salário dele
+            statusVales: 'pendente_abate' 
         });
 
-        // 2. O PULO DO GATO (Exigência): Lança a saída de dinheiro imediatamente no DRE (Caixa da Empresa)
+        // Integração DRE Imediata
         const finRef = app.db.collection('financeiro').doc();
         batch.set(finRef, {
             tenantId: app.t_id,
@@ -1594,7 +1568,7 @@ app.confirmarValeRH = async function(e) {
             descricao: `Vale/Adiantamento (RH) - ${nomeFunc} | Motivo: ${motivo}`,
             valor: valor,
             dataVencimento: new Date().toISOString().split('T')[0],
-            metodo: 'Dinheiro', // Vale em oficina 99% das vezes sai do caixa físico
+            metodo: 'Dinheiro', 
             parcela: '1/1',
             status: 'pago',
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -1603,7 +1577,6 @@ app.confirmarValeRH = async function(e) {
         await batch.commit();
         app.showToast(`Vale de R$ ${valor.toFixed(2)} lançado com sucesso e integrado ao DRE.`, "success");
         bootstrap.Modal.getInstance(document.getElementById('modalValeRH')).hide();
-        // A escuta em tempo real do carregarEquipe vai recalcular o saldo líquido instantaneamente.
     } catch(err) {
         console.error(err);
         app.showToast("Falha ao lançar vale na folha.", "error");
@@ -1635,19 +1608,16 @@ app.confirmarPagamentoRH = async function(e) {
     try {
         const batch = app.db.batch();
 
-        // 1. Zera todas as comissões pendentes (Muda o status para "pago_rh")
         const comSnap = await app.db.collection('funcionarios').doc(idFunc).collection('comissoes').where('status','==','pendente_pagamento_rh').get();
         comSnap.forEach(docComissao => {
             batch.update(docComissao.ref, { status: 'pago_rh', dataPagamento: new Date().toISOString() });
         });
 
-        // 2. Abate todos os vales pendentes (Muda o status para "abatido")
         const valesSnap = await app.db.collection('funcionarios').doc(idFunc).collection('extrato').where('statusVales','==','pendente_abate').get();
         valesSnap.forEach(docVale => {
             batch.update(docVale.ref, { statusVales: 'abatido', dataFechamento: new Date().toISOString() });
         });
 
-        // 3. Gera um extrato de "Liquidação / Zeramento" na conta do funcionário para o recibo dele
         const extratoPagRef = app.db.collection('funcionarios').doc(idFunc).collection('extrato').doc();
         batch.set(extratoPagRef, {
             tipo: 'pagamento_salario',
@@ -1657,7 +1627,7 @@ app.confirmarPagamentoRH = async function(e) {
             desc: 'Liquidação Final de Folha (Comissões deduzindo Vales)'
         });
 
-        // 4. INTEGRAÇÃO COM DRE: Registra a despesa de folha de pagamento na Oficina
+        // Integração DRE Imediata
         const finRef = app.db.collection('financeiro').doc();
         batch.set(finRef, {
             tenantId: app.t_id,
@@ -1681,16 +1651,15 @@ app.confirmarPagamentoRH = async function(e) {
 };
 
 // =====================================================================
-// 13. CÉREBRO DA I.A. (LOCALSTORAGE PARA CHAVE + MOTOR RAG SEGURO)
+// 13. CÉREBRO DA I.A. (LOCALSTORAGE EXCLUSIVO)
 // =====================================================================
-app.iaTrabalhando = false; // Trava Global Anti-Spam (Evita Cota 429)
+app.iaTrabalhando = false; 
 
 app.salvarKeyLocal = function() {
     const key = document.getElementById('localGeminiKey').value.trim();
-    if(!key) { app.showToast("Cole uma Chave API válida do Google AI Studio.", "warning"); return; }
+    if(!key) { app.showToast("Cole uma Chave API válida.", "warning"); return; }
     localStorage.setItem('gemini_local_' + app.t_id, key);
     app.showToast("Chave da IA salva de forma segura apenas neste navegador!", "success");
-    // Limpa o input por segurança visual (mas já tá salva localmente)
     setTimeout(() => { document.getElementById('localGeminiKey').value = '**************************'; }, 1000);
 };
 
@@ -1734,9 +1703,7 @@ app.processarArquivoParaIA = function(event) {
     reader.readAsText(file); 
 };
 
-// CONECTOR BLINDADO COM LEITURA EXCLUSIVA DO LOCALSTORAGE + AUTO-FALLBACK
 app.chamarGemini = async function(prompt, sysInstruction) {
-    // Agora ele ignora o banco e puxa EXCLUSIVAMENTE do LocalStorage da Oficina
     const key = localStorage.getItem('gemini_local_' + app.t_id);
     
     if(!key || key.includes('*')) { 
@@ -1793,6 +1760,26 @@ app.perguntarJarvis = async function() {
     
     inp.value = '';
     app.iaTrabalhando = false; 
+};
+
+app.perguntarJarvisMecanico = async function() {
+    if(app.iaTrabalhando) return;
+    
+    const inp = document.getElementById('jarvisInputMecanico'); const resDiv = document.getElementById('jarvisRespostaMecanico');
+    if(!inp || !inp.value) return; 
+    
+    app.iaTrabalhando = true;
+    resDiv.classList.remove('d-none'); 
+    resDiv.innerHTML = '<span class="spinner-border text-info spinner-border-sm me-2"></span> Procurando nos manuais...';
+
+    const ctx = { manuais: app.bancoIA.map(ia => ia.texto) };
+    const sys = `Você atua como Mecânico Chefe da oficina "${app.t_nome}".\nMANUAIS (RAG): ${JSON.stringify(ctx)}\nRegra: Responda direto e CITE a fonte se usar um manual. Jamais invente especificações.`;
+    
+    const resposta = await app.chamarGemini(inp.value, sys);
+    resDiv.innerHTML = resposta.replace(/\n/g, '<br>');
+    
+    inp.value = '';
+    app.iaTrabalhando = false;
 };
 
 app.jarvisAnalisarRevisoes = async function() {
